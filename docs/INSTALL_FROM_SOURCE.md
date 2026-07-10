@@ -13,19 +13,19 @@
    dir .\build
    ```
 
-   You should see `Build.bat` inside `build`.
+   You should see `Build.ps1` inside `build`.
 
 4. Run from source:
 
    ```powershell
-   py -m pip install -r requirements.txt
+   py -3.13 -m pip install -r requirements.txt
    py run.py
    ```
 
 5. Build the desktop executable:
 
    ```powershell
-   .\build\Build.bat
+   .\build\Build.ps1
    ```
 
 6. After a successful build, launch:

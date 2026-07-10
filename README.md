@@ -1,6 +1,7 @@
 # Lectern — D&D Campaign Manager
 
 **Version:** 2.9.3 — Fresh Baseline and Watermark Verification  
+**Milestone:** 2.9.4 — Verification and Stabilization (in progress)
 **Database schema:** v4
 
 Lectern is a single evolving Python/PySide6 Windows desktop codebase. This package is a clean, Git-ready source baseline.
@@ -8,10 +9,10 @@ Lectern is a single evolving Python/PySide6 Windows desktop codebase. This packa
 ## Supported Development Environment
 
 - Windows 10/11
-- Python 3.12 or 3.13
+- Python 3.13
 - PowerShell 5.1 or later
 
-Python 3.14 is intentionally excluded from the validated baseline.
+Python 3.13 is the supported development and packaging interpreter. Python 3.14 remains excluded until the complete dependency, GUI, and PyInstaller verification suite passes on it.
 
 ## Fresh Setup
 
@@ -57,6 +58,10 @@ git push -u origin main
 ```
 
 The `.gitignore` excludes virtual environments, databases, logs, backups, caches, and generated build output.
+
+## Current Milestone
+
+Version 2.9.4 is limited to verification and stabilization. Do not begin v3.0 feature work until source, executable, installer, watermark, core CRUD, data workflows, and logging pass `docs/VERIFICATION_REPORT.md`.
 
 ## Watermark Coverage
 

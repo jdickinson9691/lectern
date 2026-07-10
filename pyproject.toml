@@ -1,8 +1,8 @@
 [project]
 name = "lectern-dnd-campaign-manager"
-version = "2.9.3"
+version = "2.9.4"
 description = "Lectern D&D Campaign Manager"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.13,<3.14"
 dependencies = [
   "PySide6>=6.7",
   "SQLAlchemy>=2.0",

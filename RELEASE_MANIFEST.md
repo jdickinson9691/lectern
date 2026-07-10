@@ -1,5 +1,7 @@
 # Release Manifest — Lectern 2.9.3
 
+Milestone: **2.9.4 — Verification and Stabilization**
+
 This archive contains source, documentation, seed data, application art, build scripts, and installer configuration.
 
 Excluded from the release:

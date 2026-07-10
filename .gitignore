@@ -10,8 +10,13 @@ venv/
 env/
 
 # Build output
-build/
+# Generated build output (the tracked build recipes are explicitly retained below)
+build/*
+!build/Build.ps1
+!build/CampaignManager.spec
+!build/RunFromSource.bat
 dist/
+release/
 .pyinstaller_build/
 *.spec.bak
 

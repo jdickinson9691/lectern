@@ -1,15 +1,15 @@
 # Lectern Baseline Status
 
-## Current baseline
+## Current milestone
 
-- Version: 2.9.3
-- Release: Fresh Baseline and Watermark Verification
+- Version: 2.9.4 (in progress)
+- Release: Verification and Stabilization
 - Database schema: v4
 - Code model: one continuously evolving Git repository
 
 ## Stabilization status
 
-The source package has been reset into a clean project root. Every page registered in the left navigation is wrapped by the watermark container. Python 3.12 or 3.13 is required for the validated Windows development environment.
+The v2.9.3 source baseline is the foundation for the v2.9.4 verification milestone. Every page registered in the left navigation is wrapped by the watermark container. Python 3.13 is required for the validated Windows environment. Completion requires recorded evidence in `docs/VERIFICATION_REPORT.md`.
 
 ## Next required workstation checks
 

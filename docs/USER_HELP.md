@@ -571,7 +571,7 @@ Follow this sequence when starting fresh:
 
 1. Close all running CampaignManager processes.
 2. Delete the old `dist` folder.
-3. Run `build\Build.bat` again.
+3. Run `build\Build.ps1` again.
 4. Launch the executable from the new `dist\Lectern` folder.
 
 ### Build fails from the wrong folder
@@ -579,7 +579,7 @@ Follow this sequence when starting fresh:
 Run the build command only from the extracted `CampaignManager` folder:
 
 ```powershell
-.\build\Build.bat
+.\build\Build.ps1
 ```
 
 You should see folders such as `app`, `build`, `docs`, `scripts`, and `seeds` in the current directory before running the build.

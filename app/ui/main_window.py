@@ -968,6 +968,8 @@ class MainWindow(QMainWindow):
             QListWidget::item { padding: 8px; border-radius: 4px; }
             QListWidget::item:selected { background-color: #2f3b58; }
             QGroupBox, QTableWidget, QTextEdit, QTextBrowser, QLineEdit, QSpinBox, QComboBox { background-color: rgba(32,33,36,220); border: 1px solid #3c4043; border-radius: 4px; }
+            QGroupBox { margin-top: 12px; padding-top: 8px; }
+            QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 10px; padding: 0 4px; }
             QPushButton { background-color: #2f3b58; border: 1px solid #5f6f9f; border-radius: 4px; padding: 6px 10px; }
             QPushButton:hover { background-color: #3b4a70; }
             QTabWidget::pane { border: 1px solid #3c4043; background-color: rgba(32,33,36,220); }

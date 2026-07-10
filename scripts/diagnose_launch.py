@@ -15,7 +15,8 @@ REQUIRED = ("PySide6", "sqlalchemy", "openpyxl")
 
 
 def main() -> int:
-    print("Lectern v2.9.2 launch diagnostics")
+    from app.version import APP_VERSION
+    print(f"Lectern v{APP_VERSION} launch diagnostics")
     print("Python:", sys.version.replace("\n", " "))
     print("Executable:", sys.executable)
     print("Platform:", platform.platform())

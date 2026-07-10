@@ -11,7 +11,7 @@ dir .\build
 4. Run:
 
 ```powershell
-.\build\Build.bat
+.\build\Build.ps1
 ```
 
 5. Launch:
@@ -20,4 +20,4 @@ dir .\build
 .\dist\Lectern\Lectern.exe
 ```
 
-If Python is missing, install Python 3.11+ and select **Add Python to PATH**.
+If Python is missing, install Python 3.13 and enable the Python launcher during installation.

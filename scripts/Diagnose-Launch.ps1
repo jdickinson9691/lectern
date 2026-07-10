@@ -6,7 +6,7 @@ $log = Join-Path (Get-Location) 'launch_diagnostics.txt'
 $python = Join-Path (Get-Location) '.venv\Scripts\python.exe'
 if (-not (Test-Path $python)) {
     "[FAIL] Virtual environment Python not found: $python" | Tee-Object -FilePath $log -Append
-    "Create it with: py -m venv .venv" | Tee-Object -FilePath $log -Append
+    "Create it with: .\scripts\Setup-Development.ps1 (requires Python 3.13)" | Tee-Object -FilePath $log -Append
     exit 2
 }
 
