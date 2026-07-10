@@ -55,6 +55,25 @@ def _show_startup_error(app: QApplication, exc: BaseException) -> None:
     box.setDetailedText(details)
     box.exec()
 
+def _ensure_window_is_visible(app: QApplication, window: MainWindow) -> None:
+    """Move the main window onto an active monitor if it is off-screen."""
+    window_frame = window.frameGeometry()
+
+    is_visible = any(
+        screen.availableGeometry().intersects(window_frame)
+        for screen in app.screens()
+    )
+
+    if is_visible:
+        return
+
+    primary_screen = app.primaryScreen()
+    if primary_screen is None:
+        return
+
+    available = primary_screen.availableGeometry()
+    window_frame.moveCenter(available.center())
+    window.move(window_frame.topLeft())
 
 def main() -> int:
     app = QApplication(sys.argv)
@@ -64,10 +83,12 @@ def main() -> int:
         app.setWindowIcon(QIcon(str(icon_path())))
 
     logger = configure_logging()
+    
     try:
         db = bootstrap(logger)
         win = MainWindow(db)
         win.show()
+        _ensure_window_is_visible(app, win)
         autoclose = os.environ.get("LECTERN_TEST_AUTOCLOSE_MS")
         if autoclose:
             QTimer.singleShot(max(1, int(autoclose)), app.quit)
