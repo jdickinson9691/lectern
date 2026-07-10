@@ -1,4 +1,4 @@
-﻿from app.main import main
+﻿import runpy
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    runpy.run_module("app.main", run_name="__main__")
