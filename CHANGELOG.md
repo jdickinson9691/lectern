@@ -7,6 +7,20 @@
 - Restored PyInstaller build recipes to source control while keeping generated output ignored.
 - Added a v2.9.4 acceptance checklist and evidence log.
 - Corrected clipped `QGroupBox` titles by reserving top margin and positioning title text above the content border.
+- Added campaigns, encounter assignment and outcomes, cumulative combat-log statistics, and campaign encounter history.
+- Migrated existing databases to schema version 5 without discarding encounter data.
+- Bundled a versioned 4,148-record monster catalog that updates both new and existing installations once.
+- Reorganized navigation around campaign and combat flow, with Encounter Builder directly after Campaigns.
+- Added current campaigns and their encounter counts to the main dashboard.
+- Added SRD-driven species and feat ability bonuses to the player editor, including prompts for flexible feat choices.
+- Corrected the global watermark by removing its opaque black background and preserving a clear translucent logo layer.
+- Fixed Encounter Builder creation so every new encounter starts empty and receives a unique name instead of reusing prior combatants.
+- Added reviewed character-sheet PDF import for common D&D Beyond, Roll20, and fillable-sheet fields in the Players editor.
+- Corrected D&D Beyond PDF mapping by reading unregistered page widgets and rejecting adjacent printed labels as character values.
+- Replaced the character PDF message preview with a scrollable dialog whose confirmation saves and opens the imported player.
+- Fixed PDF-imported players failing to open by normalizing missing currency values to integers before loading spin boxes.
+- Fixed Edit Selected by using unambiguous full-row selection and resetting every editor tab before loading the selected player.
+- Expanded D&D Beyond PDF import to include feats, inventory, skill proficiency/expertise, saving throws, equipped items, and spellcasting ability.
 - Automated and Windows/manual acceptance remain to be completed.
 
 ## 2.9.3 — Fresh Baseline and Watermark Verification

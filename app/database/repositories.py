@@ -44,8 +44,10 @@ class Repository:
         payload['initiative_mod'] = int(payload.get('initiative_mod') if payload.get('initiative_mod') is not None else payload.get('dex_mod') or 0)
         for text_col in ['species','class_name','subclass','background','feats','equipped_weapon','equipped_armor','equipment','notes',
     'player_name','skill_proficiencies','skill_expertise','saving_throw_proficiencies',
-    'inventory','currency_cp','currency_sp','currency_ep','currency_gp','currency_pp','portrait_path','spellcasting_ability']:
+    'inventory','portrait_path','spellcasting_ability']:
             payload[text_col] = payload.get(text_col) or ''
+        for currency_col in ['currency_cp','currency_sp','currency_ep','currency_gp','currency_pp']:
+            payload[currency_col] = int(payload.get(currency_col) or 0)
         fields = PLAYER_COLUMNS
         placeholders = ','.join(':'+f for f in fields)
         updates = ','.join(f"{f}=excluded.{f}" for f in fields if f != 'name')
@@ -86,6 +88,14 @@ class Repository:
                 (f"%{category_text.lower()}%",),
             ).fetchall()
             return [row['name'] for row in rows]
+
+    def get_rule_description(self, name: str, category_text: str) -> str:
+        with connect(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT description FROM rules_reference WHERE name=? AND lower(category) LIKE ? ORDER BY category LIMIT 1",
+                (name, f"%{category_text.lower()}%"),
+            ).fetchone()
+            return str(row['description'] or '') if row else ''
 
 
 
@@ -136,13 +146,58 @@ class Repository:
 
     def create_encounter(self, name: str) -> int:
         with connect(self.db_path) as conn:
-            conn.execute("INSERT OR IGNORE INTO encounters(name,status,round,active_index) VALUES(?, 'draft', 1, 0)", (name,))
-            row = conn.execute("SELECT id FROM encounters WHERE name=?", (name,)).fetchone()
-            return int(row[0])
+            base = name.strip() or "New Encounter"
+            unique_name = base
+            suffix = 2
+            while conn.execute("SELECT 1 FROM encounters WHERE name=?", (unique_name,)).fetchone():
+                unique_name = f"{base} {suffix}"
+                suffix += 1
+            cursor = conn.execute(
+                "INSERT INTO encounters(name,status,round,active_index) VALUES(?, 'draft', 1, 0)",
+                (unique_name,),
+            )
+            return int(cursor.lastrowid)
 
     def list_encounters(self):
         with connect(self.db_path) as conn:
             return conn.execute("SELECT * FROM encounters ORDER BY id DESC").fetchall()
+
+    def create_campaign(self, name: str, description: str = '') -> int:
+        with connect(self.db_path) as conn:
+            conn.execute("INSERT OR IGNORE INTO campaigns(name,description) VALUES(?,?)", (name, description))
+            return int(conn.execute("SELECT id FROM campaigns WHERE name=?", (name,)).fetchone()[0])
+
+    def list_campaigns(self):
+        with connect(self.db_path) as conn:
+            return conn.execute("SELECT * FROM campaigns ORDER BY name").fetchall()
+
+    def list_campaigns_with_counts(self):
+        with connect(self.db_path) as conn:
+            return conn.execute("""
+                SELECT c.*, COUNT(e.id) AS encounter_count
+                FROM campaigns c
+                LEFT JOIN encounters e ON e.campaign_id = c.id
+                GROUP BY c.id
+                ORDER BY c.name
+            """).fetchall()
+
+    def assign_encounter_to_campaign(self, encounter_id: int, campaign_id: int | None):
+        with connect(self.db_path) as conn:
+            conn.execute("UPDATE encounters SET campaign_id=? WHERE id=?", (campaign_id, encounter_id))
+
+    def complete_encounter(self, encounter_id: int, outcome: str):
+        with connect(self.db_path) as conn:
+            conn.execute("UPDATE encounters SET status='completed', outcome=?, completed_at=CURRENT_TIMESTAMP WHERE id=?", (outcome, encounter_id))
+
+    def campaign_encounters(self, campaign_id: int):
+        with connect(self.db_path) as conn:
+            return conn.execute("SELECT e.*, (SELECT COUNT(*) FROM turn_log t WHERE t.encounter_id=e.id) action_count, (SELECT COUNT(*) FROM combatants c WHERE c.encounter_id=e.id AND c.is_active=1) combatant_count FROM encounters e WHERE e.campaign_id=? ORDER BY e.id DESC", (campaign_id,)).fetchall()
+
+    def campaign_summary(self, campaign_id: int):
+        with connect(self.db_path) as conn:
+            encounters = conn.execute("SELECT COUNT(*) total, SUM(status='completed') completed, SUM(outcome='Victory') victories, SUM(outcome='Defeat') defeats, SUM(outcome='Retreat') retreats, COALESCE(SUM(round),0) rounds FROM encounters WHERE campaign_id=?", (campaign_id,)).fetchone()
+            logs = conn.execute("SELECT COUNT(*) actions, COALESCE(SUM(CASE WHEN action_type='Damage' THEN CAST(substr(details,instr(details,':')+1) AS INTEGER) ELSE 0 END),0) damage, COALESCE(SUM(CASE WHEN action_type='Healing' THEN CAST(substr(details,instr(details,':')+1) AS INTEGER) ELSE 0 END),0) healing FROM turn_log WHERE encounter_id IN (SELECT id FROM encounters WHERE campaign_id=?)", (campaign_id,)).fetchone()
+            return {**dict(encounters), **dict(logs)}
 
     def get_encounter(self, encounter_id: int):
         with connect(self.db_path) as conn:

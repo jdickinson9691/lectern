@@ -38,6 +38,10 @@ def bundled_seed_path() -> Path:
     return resource_path("seeds", "dnd_5e_combat_tracker_v5_clean.xlsx")
 
 
+def bundled_monster_catalog_path() -> Path:
+    return resource_path("seeds", "monsters.csv")
+
+
 def icon_path() -> Path:
     return resource_path("app", "resources", "lectern_icon.png")
 

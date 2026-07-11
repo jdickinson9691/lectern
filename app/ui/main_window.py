@@ -4,13 +4,15 @@ from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QListWidget, QStackedWidget, QFileDialog, QTableWidget, QTableWidgetItem,
     QLineEdit, QFormLayout, QSpinBox, QMessageBox, QComboBox, QCompleter,
-    QGroupBox, QTextEdit, QTextBrowser, QListWidgetItem, QGridLayout, QScrollArea, QSizePolicy, QTabWidget, QCheckBox
+    QGroupBox, QTextEdit, QTextBrowser, QListWidgetItem, QGridLayout, QScrollArea, QSizePolicy, QTabWidget, QCheckBox, QInputDialog,
+    QDialog, QDialogButtonBox, QAbstractItemView
 )
 from PySide6.QtCore import Qt, QRect, QSize
-from PySide6.QtGui import QPainter, QPixmap, QIcon
+from PySide6.QtGui import QPainter, QPixmap, QIcon, QImage
 from ..database.repositories import Repository
 from ..importers.spreadsheet_importer import SpreadsheetImporter
 from ..importers.csv_transfer import CsvTransferService, CSV_TABLES
+from ..importers.character_pdf import CharacterPdfImporter
 from ..services.data_workflow import DataWorkflowService
 from ..version import APP_NAME, VERSION
 from ..paths import icon_path, watermark_path, help_path
@@ -22,6 +24,15 @@ class WatermarkedPage(QWidget):
     def __init__(self, content: QWidget, image_path: Path, parent=None):
         super().__init__(parent)
         self._source = QPixmap(str(image_path)) if image_path.exists() else QPixmap()
+        if not self._source.isNull():
+            # The supplied logo has a black background. Use its luminance as the
+            # alpha channel so black becomes transparent instead of dimming the
+            # entire page, while the silver/white logo remains visible.
+            alpha = self._source.toImage().convertToFormat(QImage.Format_Grayscale8)
+            transparent_logo = QImage(self._source.size(), QImage.Format_ARGB32)
+            transparent_logo.fill(Qt.white)
+            transparent_logo.setAlphaChannel(alpha)
+            self._source = QPixmap.fromImage(transparent_logo)
         self._watermark = QLabel(self)
         self._watermark.setAlignment(Qt.AlignCenter)
         self._watermark.setAttribute(Qt.WA_TransparentForMouseEvents, True)
@@ -33,6 +44,7 @@ class WatermarkedPage(QWidget):
         layout.addWidget(self._watermark, 0, 0)
         layout.addWidget(content, 0, 0)
         self._content = content
+        self._watermark.raise_()
         self._refresh_watermark()
 
     def _refresh_watermark(self) -> None:
@@ -45,7 +57,7 @@ class WatermarkedPage(QWidget):
         faded = QPixmap(scaled.size())
         faded.fill(Qt.transparent)
         painter = QPainter(faded)
-        painter.setOpacity(0.12)
+        painter.setOpacity(0.14)
         painter.drawPixmap(0, 0, scaled)
         painter.end()
         self._watermark.setPixmap(faded)
@@ -116,6 +128,8 @@ class PlayerEditorWidget(QWidget):
         self.ability_widgets = {}
         self.skill_boxes = {}
         self.save_boxes = {}
+        self._loading_player = False
+        self._feat_bonus_choices = [{}, {}, {}]
         root = QVBoxLayout(self)
         root.addWidget(QLabel("<h3>Player Character Editor</h3>"))
         self.tabs = QTabWidget()
@@ -128,6 +142,9 @@ class PlayerEditorWidget(QWidget):
         self._build_skills_tab()
         self._build_saves_tab()
         self._build_notes_tab()
+        self.species.currentTextChanged.connect(self.apply_species_bonuses)
+        for index, combo in enumerate([self.feat_1, self.feat_2, self.feat_3]):
+            combo.currentTextChanged.connect(lambda _text, i=index: self.apply_feat_bonuses(i))
         buttons = QHBoxLayout()
         self.save_btn = QPushButton("Save Player")
         self.save_btn.clicked.connect(self.save)
@@ -260,6 +277,63 @@ class PlayerEditorWidget(QWidget):
         self.init_mod.setValue(self._mod('dex'))
         self.update_derived_stats()
 
+    def _set_bonus_column(self, column, bonuses):
+        for key,_ in ABILITY_LABELS:
+            self.ability_widgets[key][column].setValue(int(bonuses.get(key, 0)))
+
+    def _fixed_bonuses_from_text(self, description):
+        import re
+        bonuses = {}
+        names = {'strength':'str','dexterity':'dex','constitution':'con','intelligence':'int','wisdom':'wis','charisma':'cha'}
+        patterns = [
+            r"your (strength|dexterity|constitution|intelligence|wisdom|charisma) score increases by (\d+)",
+            r"increase your (strength|dexterity|constitution|intelligence|wisdom|charisma) score by (\d+)",
+        ]
+        for pattern in patterns:
+            for ability, value in re.findall(pattern, description.lower()): bonuses[names[ability]] = bonuses.get(names[ability], 0) + int(value)
+        return bonuses
+
+    def apply_species_bonuses(self):
+        if self._loading_player: return
+        name=self.species.currentText().strip(); description=self.repo.get_rule_description(name,'species') or self.repo.get_rule_description(name,'race')
+        self._set_bonus_column('race', self._fixed_bonuses_from_text(description)); self.update_ability_totals()
+
+    def _choose_ability(self, title, prompt, options):
+        choice,ok=QInputDialog.getItem(self,title,prompt,options,0,False)
+        return choice if ok else None
+
+    def _feat_bonus_from_text(self, feat_name, description):
+        import re
+        if not description or 'increase' not in description.lower(): return {}
+        fixed=self._fixed_bonuses_from_text(description)
+        lower=description.lower(); labels={'Strength':'str','Dexterity':'dex','Constitution':'con','Intelligence':'int','Wisdom':'wis','Charisma':'cha'}
+        if fixed and not re.search(r"\b(or|choice)\b", lower[lower.find('increase'):lower.find('increase')+140]): return fixed
+        if 'increase one ability score of your choice by 2' in lower:
+            mode=self._choose_ability(feat_name,'Choose how to apply this feat.',['One ability +2','Two abilities +1 each'])
+            if not mode: return {}
+            first=self._choose_ability(feat_name,'Choose an ability.',list(labels))
+            if not first: return {}
+            if mode.startswith('One'): return {labels[first]:2}
+            remaining=[x for x in labels if x != first]; second=self._choose_ability(feat_name,'Choose a second ability.',remaining)
+            return {labels[first]:1,labels[second]:1} if second else {labels[first]:1}
+        value_match=re.search(r"increase .*? by (\d+)",lower); value=int(value_match.group(1)) if value_match else 1
+        sentence=lower[lower.find('increase'):]; sentence=sentence[:sentence.find('.') if '.' in sentence else 180]
+        allowed=[label for label in labels if label.lower() in sentence]
+        if not allowed or 'one ability score of your choice' in sentence: allowed=list(labels)
+        choice=self._choose_ability(feat_name,'Choose the ability increased by this feat.',allowed)
+        return {labels[choice]:value} if choice else {}
+
+    def apply_feat_bonuses(self, changed_index=None):
+        if self._loading_player: return
+        combos=[self.feat_1,self.feat_2,self.feat_3]
+        if changed_index is not None:
+            name=combos[changed_index].currentText().strip(); description=self.repo.get_rule_description(name,'feat')
+            self._feat_bonus_choices[changed_index]=self._feat_bonus_from_text(name,description) if name else {}
+        combined={}
+        for bonuses in self._feat_bonus_choices:
+            for key,value in bonuses.items(): combined[key]=combined.get(key,0)+value
+        self._set_bonus_column('feat',combined); self.update_ability_totals()
+
     def update_derived_stats(self):
         pb=self.proficiency_bonus(); self.prof_label.setText(f"{pb:+d}")
         def skill_total(name):
@@ -281,8 +355,10 @@ class PlayerEditorWidget(QWidget):
     def _split(self,text): return [x.strip() for x in (text or '').split(';') if x.strip()]
 
     def load_player(self,row):
-        self.current_player_id = row['id'] if row else None
         if not row: self.clear_form(); return
+        # Clear every tab before applying the selected row so optional/blank
+        # fields cannot retain values from the previously edited character.
+        self.clear_form(); self._loading_player = True; self.current_player_id = row['id']
         self.name.setText(row['name'] or ''); self.player_name.setText(row['player_name'] if 'player_name' in row.keys() else '')
         self.species.setCurrentText(row['species'] or ''); self.class_name.setCurrentText(row['class_name'] or ''); self.subclass.setCurrentText(row['subclass'] or ''); self.background.setCurrentText(row['background'] or '')
         self.level.setValue(row['level'] or 1); self.portrait_path.setText(row['portrait_path'] if 'portrait_path' in row.keys() and row['portrait_path'] else '')
@@ -291,16 +367,21 @@ class PlayerEditorWidget(QWidget):
         self.weapon.setCurrentText(row['equipped_weapon'] if 'equipped_weapon' in row.keys() and row['equipped_weapon'] else ''); self.armor.setCurrentText(row['equipped_armor'] if 'equipped_armor' in row.keys() and row['equipped_armor'] else '')
         self.spellcasting_ability.setCurrentText(row['spellcasting_ability'] if 'spellcasting_ability' in row.keys() and row['spellcasting_ability'] else '')
         self.equipment.setPlainText(row['equipment'] if 'equipment' in row.keys() and row['equipment'] else ''); self.inventory.setPlainText(row['inventory'] if 'inventory' in row.keys() and row['inventory'] else '')
-        for coin in ['cp','sp','ep','gp','pp']: self.currency[coin].setValue(row[f'currency_{coin}'] if f'currency_{coin}' in row.keys() and row[f'currency_{coin}'] is not None else 0)
+        for coin in ['cp','sp','ep','gp','pp']:
+            raw_currency=row[f'currency_{coin}'] if f'currency_{coin}' in row.keys() else 0
+            try: currency_value=int(raw_currency or 0)
+            except (TypeError,ValueError): currency_value=0
+            self.currency[coin].setValue(currency_value)
         self.ac.setValue(row['armor_class'] or 10); self.max_hp.setValue(row['max_hp'] or 1); self.current_hp.setValue(row['current_hp'] or row['max_hp'] or 1)
         for key,_ in ABILITY_LABELS: self._set_ability_values(key,row)
         profs=set(self._split(row['skill_proficiencies'] if 'skill_proficiencies' in row.keys() else '')); experts=set(self._split(row['skill_expertise'] if 'skill_expertise' in row.keys() else '')); saves=set(self._split(row['saving_throw_proficiencies'] if 'saving_throw_proficiencies' in row.keys() else ''))
         for skill,(_,prof,expert,_) in self.skill_boxes.items(): prof.setChecked(skill in profs); expert.setChecked(skill in experts)
         for key,(prof,_) in self.save_boxes.items(): prof.setChecked(key in saves)
         self.update_ability_totals(); self.init_mod.setValue(row['initiative_mod'] if row['initiative_mod'] is not None else self._mod('dex'))
-        self.notes.setPlainText(row['notes'] or '')
+        self.notes.setPlainText(row['notes'] or ''); self._feat_bonus_choices=[{}, {}, {}]; self._loading_player=False
 
     def clear_form(self):
+        self._loading_player=True
         self.current_player_id=None; self.name.clear(); self.player_name.clear(); self.portrait_path.clear()
         for combo in [self.species,self.class_name,self.subclass,self.background,self.feat_1,self.feat_2,self.feat_3,self.weapon,self.armor,self.spellcasting_ability]: combo.setCurrentText('')
         self.level.setValue(1); self.equipment.clear(); self.inventory.clear(); self.notes.clear(); self.ac.setValue(10); self.max_hp.setValue(1); self.current_hp.setValue(1)
@@ -308,7 +389,7 @@ class PlayerEditorWidget(QWidget):
         for key,_ in ABILITY_LABELS: self.ability_widgets[key]['base'].setValue(10); self.ability_widgets[key]['race'].setValue(0); self.ability_widgets[key]['feat'].setValue(0)
         for _,prof,expert,_ in self.skill_boxes.values(): prof.setChecked(False); expert.setChecked(False)
         for prof,_ in self.save_boxes.values(): prof.setChecked(False)
-        self.update_ability_totals(); self.name.setFocus()
+        self._feat_bonus_choices=[{}, {}, {}]; self._loading_player=False; self.update_ability_totals(); self.name.setFocus()
 
     def _ability_payload(self):
         payload={}
@@ -345,16 +426,18 @@ class PlayerManagerPage(QWidget):
 
         toolbar = QHBoxLayout()
         new_btn = QPushButton("+ New Player")
+        pdf_btn = QPushButton("Import Character PDF...")
         edit_btn = QPushButton("Edit Selected")
         dup_btn = QPushButton("Duplicate")
         del_btn = QPushButton("Delete")
         refresh_btn = QPushButton("Refresh")
         new_btn.clicked.connect(self.new_player)
+        pdf_btn.clicked.connect(self.import_character_pdf)
         edit_btn.clicked.connect(self.edit_selected)
         dup_btn.clicked.connect(self.duplicate_selected)
         del_btn.clicked.connect(self.delete_selected)
         refresh_btn.clicked.connect(self.refresh)
-        for b in [new_btn, edit_btn, dup_btn, del_btn, refresh_btn]:
+        for b in [new_btn, pdf_btn, edit_btn, dup_btn, del_btn, refresh_btn]:
             toolbar.addWidget(b)
         toolbar.addStretch()
         layout.addLayout(toolbar)
@@ -362,6 +445,8 @@ class PlayerManagerPage(QWidget):
         body = QHBoxLayout()
         body.setContentsMargins(0, 0, 0, 0)
         self.table = QTableWidget()
+        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setColumnCount(16)
         self.table.setHorizontalHeaderLabels(["Character", "Level", "Class", "Subclass", "Species", "Background", "STR", "DEX", "CON", "INT", "WIS", "CHA", "Weapon", "Armor", "AC", "HP"])
         self.table.itemSelectionChanged.connect(self.load_selected_into_editor)
@@ -429,15 +514,40 @@ class PlayerManagerPage(QWidget):
 
     def load_selected_into_editor(self):
         row = self.selected_player_row()
-        if row:
-            self.editor.load_player(row)
+        if row: self.editor.load_player(row)
 
     def new_player(self):
         self.table.clearSelection()
         self.editor.clear_form()
 
+    def import_character_pdf(self):
+        path,_=QFileDialog.getOpenFileName(self,"Import Character PDF","","PDF Files (*.pdf)")
+        if not path: return
+        try:
+            result=CharacterPdfImporter().extract(Path(path)); data=result['data']
+            preview=[f"{key.replace('_',' ').title()}: {value}" for key,value in data.items() if value not in (None,'')]
+            warning_text="\n".join(result['warnings'])
+            message=f"Detected {result['field_count']} character fields ({result['form_field_count']} PDF form fields).\n\n" + "\n".join(preview[:24])
+            if warning_text: message += f"\n\nReview notes:\n{warning_text}"
+            message += "\n\nChoose Import Character to save this character to the Players database. A matching character name will be updated."
+            dialog=QDialog(self); dialog.setWindowTitle("Character PDF Preview"); dialog.resize(720,560)
+            layout=QVBoxLayout(dialog); summary=QLabel("Review the extracted character data before importing."); layout.addWidget(summary)
+            preview_box=QTextEdit(); preview_box.setReadOnly(True); preview_box.setPlainText(message); layout.addWidget(preview_box,1)
+            buttons=QDialogButtonBox(QDialogButtonBox.Cancel); import_button=buttons.addButton("Import Character",QDialogButtonBox.AcceptRole); import_button.setDefault(True); buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); layout.addWidget(buttons)
+            if dialog.exec() != QDialog.Accepted: return
+            name=str(data.get('name','')).strip()
+            if not name: QMessageBox.warning(self,"Character Name Missing","Enter a character name in the PDF or add it manually before importing."); return
+            payload=dict(data); payload['name']=name
+            self.repo.upsert_player(payload); self.after_save()
+            imported=next((row for row in self.repo.list_players() if row['name']==name),None)
+            if imported: self.editor.load_player(imported)
+            QMessageBox.information(self,"Character Imported",f"Imported {name} into Players. Review the editor and save any additional corrections.")
+        except Exception as exc:
+            QMessageBox.critical(self,"Character PDF Import Failed",f"Could not read this character sheet.\n\n{exc}")
+
     def edit_selected(self):
-        row = self.selected_player_row()
+        player_id=self.selected_player_id()
+        row=self.repo.get_player_by_id(player_id) if player_id is not None else None
         if not row:
             QMessageBox.information(self, "No Selection", "Select a player first, or click + New Player.")
             return
@@ -500,7 +610,7 @@ class EncounterBuilderPage(QWidget):
         super().__init__(); self.repo=repo; self.refresh_callback=refresh_callback; self.current_encounter_id=None
         root=QVBoxLayout(self); root.addWidget(QLabel("<h2>Encounter Builder</h2>"))
         top=QHBoxLayout(); self.new_name=QLineEdit(); self.new_name.setPlaceholderText("Encounter name, e.g. Goblin Ambush")
-        new_btn=QPushButton("New / Select Encounter"); new_btn.clicked.connect(self.create_encounter)
+        new_btn=QPushButton("Create New Encounter"); new_btn.clicked.connect(self.create_encounter)
         self.encounters=QComboBox(); self.encounters.currentIndexChanged.connect(self.select_encounter)
         top.addWidget(self.new_name); top.addWidget(new_btn); top.addWidget(QLabel("Active:")); top.addWidget(self.encounters); root.addLayout(top)
         body=QHBoxLayout(); root.addLayout(body)
@@ -522,6 +632,9 @@ class EncounterBuilderPage(QWidget):
         for e in self.repo.list_encounters(): self.encounters.addItem(e['name'], e['id'])
         self.encounters.blockSignals(False)
         if self.current_encounter_id is None and self.encounters.count(): self.current_encounter_id=self.encounters.itemData(0)
+        if self.current_encounter_id is not None:
+            current_index=self.encounters.findData(self.current_encounter_id)
+            if current_index >= 0: self.encounters.setCurrentIndex(current_index)
         self.refresh_combatants()
     def create_encounter(self):
         name=self.new_name.text().strip() or "New Encounter"
@@ -610,6 +723,43 @@ class CombatDashboardPage(QWidget):
         lines=[]
         for row in self.repo.list_turn_log(self.current_encounter_id)[:100]: lines.append(f"R{row['round']} | {row['actor']} | {row['action_type']} | {row['details']}")
         self.log.setPlainText("\n".join(lines))
+
+
+class CampaignDashboardPage(QWidget):
+    def __init__(self, repo: Repository, refresh_callback):
+        super().__init__(); self.repo=repo; self.refresh_callback=refresh_callback
+        root=QVBoxLayout(self); root.addWidget(QLabel("<h2>Campaign Dashboard</h2>"))
+        create=QHBoxLayout(); self.name=QLineEdit(); self.name.setPlaceholderText("Campaign name"); self.description=QLineEdit(); self.description.setPlaceholderText("Description (optional)"); add=QPushButton("Create Campaign"); add.clicked.connect(self.create_campaign)
+        for w in [self.name,self.description,add]: create.addWidget(w)
+        root.addLayout(create)
+        choose=QHBoxLayout(); self.campaigns=QComboBox(); self.campaigns.currentIndexChanged.connect(self.refresh_dashboard); self.encounter=QComboBox(); self.outcome=QComboBox(); self.outcome.addItems(["Victory","Defeat","Retreat","Unresolved"]); assign=QPushButton("Add Encounter"); assign.clicked.connect(self.assign); finish=QPushButton("Complete Encounter"); finish.clicked.connect(self.complete)
+        for w in [QLabel("Campaign:"),self.campaigns,QLabel("Encounter:"),self.encounter,assign,self.outcome,finish]: choose.addWidget(w)
+        root.addLayout(choose); self.summary=QLabel(); self.summary.setWordWrap(True); root.addWidget(self.summary)
+        self.history=QTableWidget(); self.history.setColumnCount(7); self.history.setHorizontalHeaderLabels(["Encounter","Status","Outcome","Rounds","Combatants","Actions","Completed"]); root.addWidget(self.history,1); self.refresh()
+    def refresh(self):
+        campaign_id=self.campaigns.currentData(); self.campaigns.blockSignals(True); self.campaigns.clear()
+        for row in self.repo.list_campaigns(): self.campaigns.addItem(row['name'],row['id'])
+        self.campaigns.blockSignals(False)
+        if campaign_id is not None: self.campaigns.setCurrentIndex(max(0,self.campaigns.findData(campaign_id)))
+        self.encounter.clear()
+        for row in self.repo.list_encounters(): self.encounter.addItem(row['name'],row['id'])
+        self.refresh_dashboard()
+    def create_campaign(self):
+        name=self.name.text().strip()
+        if not name: QMessageBox.warning(self,"Missing Name","Campaign name is required."); return
+        campaign_id=self.repo.create_campaign(name,self.description.text().strip()); self.name.clear(); self.description.clear(); self.refresh(); self.campaigns.setCurrentIndex(self.campaigns.findData(campaign_id)); self.refresh_callback()
+    def assign(self):
+        if self.campaigns.currentData() and self.encounter.currentData(): self.repo.assign_encounter_to_campaign(self.encounter.currentData(),self.campaigns.currentData()); self.refresh_dashboard(); self.refresh_callback()
+    def complete(self):
+        if self.encounter.currentData(): self.repo.complete_encounter(self.encounter.currentData(),self.outcome.currentText()); self.refresh_dashboard(); self.refresh_callback()
+    def refresh_dashboard(self):
+        campaign_id=self.campaigns.currentData()
+        if not campaign_id: self.summary.setText("Create a campaign, then add encounters to see cumulative results."); self.history.setRowCount(0); return
+        s=self.repo.campaign_summary(campaign_id); self.summary.setText(f"<b>{s['total']} encounters</b> · {s['completed'] or 0} completed · {s['victories'] or 0} victories · {s['defeats'] or 0} defeats · {s['retreats'] or 0} retreats · {s['rounds']} rounds · {s['actions']} actions · {s['damage']} damage · {s['healing']} healing")
+        rows=self.repo.campaign_encounters(campaign_id); self.history.setRowCount(len(rows))
+        for r,row in enumerate(rows):
+            for c,value in enumerate([row['name'],row['status'],row['outcome'],row['round'],row['combatant_count'],row['action_count'],row['completed_at'] or '']): self.history.setItem(r,c,QTableWidgetItem(str(value or '')))
+        self.history.resizeColumnsToContents()
 
 
 class CsvImportExportPage(QWidget):
@@ -974,16 +1124,47 @@ class MainWindow(QMainWindow):
             QPushButton:hover { background-color: #3b4a70; }
             QTabWidget::pane { border: 1px solid #3c4043; background-color: rgba(32,33,36,220); }
         """)
-        self.pages=[]; self.add_page("Dashboard", self.dashboard()); self.add_page("Encounter Builder", EncounterBuilderPage(self.repo, self.refresh_pages)); self.add_page("Combat Dashboard", CombatDashboardPage(self.repo)); self.add_page("Players", PlayerManagerPage(self.repo, self.refresh_pages)); self.add_page("Monster Library", TablePage("Monster Library", self.repo, "monsters")); self.add_page("Add Monster", MonsterAddPage(self.repo)); self.add_page("Weapons", TablePage("Weapons", self.repo, "weapons")); self.add_page("Armor", TablePage("Armor", self.repo, "armor")); self.add_page("Equipment", TablePage("Equipment", self.repo, "equipment")); self.add_page("Magic Items", TablePage("Magic Items", self.repo, "magic_items")); self.add_page("Spells", TablePage("Spells", self.repo, "spells")); self.add_page("Workbook Import", ImportPage(db_path, self.refresh_pages)); self.add_page("CSV Import/Export", CsvImportExportPage(db_path, self.refresh_pages)); self.add_page("Data Workflow", DataWorkflowPage(db_path, self.refresh_pages)); self.add_page("Error Logs", ErrorLogPage(db_path)); self.add_page("Help", HelpPage())
+        self.pages = []
+        sections = [
+            ("Dashboard", self.dashboard()),
+            ("Campaigns", CampaignDashboardPage(self.repo, self.refresh_pages)),
+            ("Encounter Builder", EncounterBuilderPage(self.repo, self.refresh_pages)),
+            ("Combat Dashboard", CombatDashboardPage(self.repo)),
+            ("Players", PlayerManagerPage(self.repo, self.refresh_pages)),
+            ("Monster Library", TablePage("Monster Library", self.repo, "monsters")),
+            ("Add Monster", MonsterAddPage(self.repo)),
+            ("Weapons", TablePage("Weapons", self.repo, "weapons")),
+            ("Armor", TablePage("Armor", self.repo, "armor")),
+            ("Equipment", TablePage("Equipment", self.repo, "equipment")),
+            ("Magic Items", TablePage("Magic Items", self.repo, "magic_items")),
+            ("Spells", TablePage("Spells", self.repo, "spells")),
+            ("CSV Import/Export", CsvImportExportPage(db_path, self.refresh_pages)),
+            ("Data Workflow", DataWorkflowPage(db_path, self.refresh_pages)),
+            ("Error Logs", ErrorLogPage(db_path)),
+            ("Help", HelpPage()),
+        ]
+        for name, page in sections:
+            self.add_page(name, page)
         self.nav.currentRowChanged.connect(self.stack.setCurrentIndex); self.nav.setCurrentRow(0)
     def add_page(self, name, widget):
         self.nav.addItem(name)
         self.stack.addWidget(WatermarkedPage(widget, self._watermark_path))
         self.pages.append(widget)
     def dashboard(self):
-        w=QWidget(); l=QVBoxLayout(w); l.addWidget(QLabel(f"<h1>{APP_NAME}</h1><p>Version {VERSION}</p><p>Use Encounter Builder to create encounters, add PCs/monsters, roll initiative, then run combat from Combat Dashboard.</p>")); self.counts=QLabel(); l.addWidget(self.counts); l.addStretch(); return w
+        w=QWidget(); l=QVBoxLayout(w)
+        l.addWidget(QLabel(f"<h1>{APP_NAME}</h1><p>Version {VERSION}</p><p>Use Campaigns to organize adventures, Encounter Builder to prepare battles, and Combat Dashboard to run them.</p>"))
+        self.counts=QLabel(); l.addWidget(self.counts)
+        l.addWidget(QLabel("<h2>Current Campaigns</h2>"))
+        self.dashboard_campaigns=QTableWidget(); self.dashboard_campaigns.setColumnCount(3); self.dashboard_campaigns.setHorizontalHeaderLabels(["Campaign", "Encounters", "Description"])
+        l.addWidget(self.dashboard_campaigns,1)
+        self.dashboard_campaign_empty=QLabel("No campaigns yet. Open Campaigns to create one."); self.dashboard_campaign_empty.setAlignment(Qt.AlignCenter); l.addWidget(self.dashboard_campaign_empty)
+        return w
     def refresh_pages(self):
         self.counts.setText(f"Players: {self.repo.count('players')} | Monsters: {self.repo.count('monsters')} | Encounters: {self.repo.count('encounters')} | Combatants: {self.repo.count('combatants')} | Weapons: {self.repo.count('weapons')} | Armor: {self.repo.count('armor')} | Spells: {self.repo.count('spells')}")
+        campaigns=self.repo.list_campaigns_with_counts(); self.dashboard_campaigns.setRowCount(len(campaigns)); self.dashboard_campaign_empty.setVisible(not campaigns); self.dashboard_campaigns.setVisible(bool(campaigns))
+        for r,row in enumerate(campaigns):
+            for c,value in enumerate([row['name'],row['encounter_count'],row['description'] or '']): self.dashboard_campaigns.setItem(r,c,QTableWidgetItem(str(value)))
+        self.dashboard_campaigns.resizeColumnsToContents()
         for p in self.pages:
             if hasattr(p,'refresh'): p.refresh()
     def showEvent(self, event):

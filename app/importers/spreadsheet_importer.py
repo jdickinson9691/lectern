@@ -45,7 +45,9 @@ def find_header(ws, expected_terms: set[str], max_scan_rows: int = 8) -> tuple[i
             if not k:
                 continue
             headers[k] = idx
-            if k in expected_terms or any(term in k for term in expected_terms):
+            if k in expected_terms:
+                score += 10
+            elif len(k) <= 60 and any(term in k for term in expected_terms):
                 score += 1
         if score > best_score:
             best_row = row_index
@@ -103,6 +105,20 @@ class SpreadsheetImporter:
         finally:
             wb.close()
         self.repo.add_import_history(str(path), total, "spreadsheet import")
+        return total
+
+    def import_rules_only(self, path: Path) -> int:
+        """Refresh SRD character-building references without touching player data."""
+        wb = load_workbook(path, data_only=True, read_only=True)
+        total = 0
+        try:
+            for sheet in wb.sheetnames:
+                lower = sheet.lower()
+                if any(x in lower for x in ["condition", "feat", "class", "race", "species", "background"]):
+                    total += self._import_rules(wb[sheet], sheet)
+        finally:
+            wb.close()
+        self.repo.add_import_history(str(path), total, "SRD rules refresh")
         return total
 
     def _iter_data(self, ws, expected: set[str]):

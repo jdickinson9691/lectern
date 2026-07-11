@@ -9,12 +9,16 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from .paths import database_path, bundled_seed_path, icon_path, user_data_dir
+from .paths import database_path, bundled_seed_path, bundled_monster_catalog_path, icon_path, user_data_dir
 from .database.schema import initialize_database, connect
 from .importers.spreadsheet_importer import SpreadsheetImporter
+from .importers.monster_catalog import import_monster_catalog
 from .services.logging_service import configure_logging, shutdown_logging
 from .ui.main_window import MainWindow
 from .version import APP_NAME, APP_VERSION
+
+MONSTER_CATALOG_VERSION = "2026-07-10-4148"
+SRD_RULES_VERSION = "2026-07-10-structured-ability-bonuses"
 
 
 def _database_is_unseeded(db: Path) -> bool:
@@ -41,6 +45,25 @@ def bootstrap(logger: logging.Logger) -> Path:
         logger.info("Initial seed import completed: %s rows", rows)
     else:
         logger.info("Seed import skipped; reference data already exists or seed is unavailable")
+    with connect(db) as conn:
+        row = conn.execute("SELECT value FROM metadata WHERE key='srd_rules_version'").fetchone()
+        installed_rules_version = row[0] if row else None
+    if seed.exists() and installed_rules_version != SRD_RULES_VERSION:
+        rows = SpreadsheetImporter(db).import_rules_only(seed)
+        with connect(db) as conn:
+            conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('srd_rules_version',?)", (SRD_RULES_VERSION,))
+        logger.info("SRD character rules %s refreshed: %s rows", SRD_RULES_VERSION, rows)
+    monster_catalog = bundled_monster_catalog_path()
+    with connect(db) as conn:
+        row = conn.execute("SELECT value FROM metadata WHERE key='monster_catalog_version'").fetchone()
+        installed_catalog_version = row[0] if row else None
+    if monster_catalog.exists() and installed_catalog_version != MONSTER_CATALOG_VERSION:
+        rows = import_monster_catalog(db, monster_catalog)
+        with connect(db) as conn:
+            conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('monster_catalog_version',?)", (MONSTER_CATALOG_VERSION,))
+        logger.info("Monster catalog %s imported: %s rows", MONSTER_CATALOG_VERSION, rows)
+    else:
+        logger.info("Monster catalog import skipped; version is current or catalog is unavailable")
     return db
 
 

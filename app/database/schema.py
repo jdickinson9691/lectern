@@ -42,8 +42,12 @@ CREATE TABLE IF NOT EXISTS encounters (
  id INTEGER PRIMARY KEY AUTOINCREMENT,
  name TEXT NOT NULL UNIQUE,
  status TEXT DEFAULT 'draft', round INTEGER DEFAULT 1,
- active_index INTEGER DEFAULT 0
+ active_index INTEGER DEFAULT 0,
+ campaign_id INTEGER,
+ outcome TEXT DEFAULT '',
+ completed_at TEXT
 );
+CREATE TABLE IF NOT EXISTS campaigns (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, description TEXT DEFAULT '', created_at TEXT DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS combatants (
  id INTEGER PRIMARY KEY AUTOINCREMENT,
  encounter_id INTEGER NOT NULL,
@@ -130,4 +134,8 @@ def initialize_database(db_path: Path) -> None:
         }.items():
             if col not in existing:
                 conn.execute(f'ALTER TABLE players ADD COLUMN {col} {decl}')
-        conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('schema_version','4')")
+        encounter_columns = {row[1] for row in conn.execute('PRAGMA table_info(encounters)').fetchall()}
+        for col, decl in {'campaign_id': 'INTEGER', 'outcome': "TEXT DEFAULT ''", 'completed_at': 'TEXT'}.items():
+            if col not in encounter_columns:
+                conn.execute(f'ALTER TABLE encounters ADD COLUMN {col} {decl}')
+        conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('schema_version','5')")

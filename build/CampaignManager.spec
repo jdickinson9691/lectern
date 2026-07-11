@@ -12,7 +12,7 @@ a = Analysis(
         (str(ROOT / 'seeds'), 'seeds'),
         (str(ROOT / 'docs'), 'docs'),
     ],
-    hiddenimports=['app.main', 'openpyxl', 'PySide6.QtCore', 'PySide6.QtGui', 'PySide6.QtWidgets'],
+    hiddenimports=['app.main', 'openpyxl', 'pypdf', 'PySide6.QtCore', 'PySide6.QtGui', 'PySide6.QtWidgets'],
     hookspath=[], hooksconfig={}, runtime_hooks=[], excludes=[], noarchive=False,
 )
 pyz = PYZ(a.pure)
