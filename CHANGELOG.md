@@ -21,6 +21,8 @@
 - Fixed PDF-imported players failing to open by normalizing missing currency values to integers before loading spin boxes.
 - Fixed Edit Selected by using unambiguous full-row selection and resetting every editor tab before loading the selected player.
 - Expanded D&D Beyond PDF import to include feats, inventory, skill proficiency/expertise, saving throws, equipped items, and spellcasting ability.
+- Rewrote in-app help for the current 2.9.4 workflows and added an illustrated step-by-step tutorial production outline.
+- Added safe PDF portrait extraction and player thumbnails in Players, Encounter Builder, and Combat Dashboard rows.
 - Automated and Windows/manual acceptance remain to be completed.
 
 ## 2.9.3 — Fresh Baseline and Watermark Verification

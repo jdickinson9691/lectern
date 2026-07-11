@@ -25,7 +25,7 @@ def user_data_dir() -> Path:
         base = os.environ.get("LOCALAPPDATA")
         root = Path(base) / APP_ID if base else project_root() / "runtime"
     root.mkdir(parents=True, exist_ok=True)
-    for child in ["data", "logs", "backups", "exports", "config"]:
+    for child in ["data", "logs", "backups", "exports", "config", "portraits"]:
         (root / child).mkdir(parents=True, exist_ok=True)
     return root
 

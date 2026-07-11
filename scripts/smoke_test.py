@@ -96,6 +96,7 @@ try:
     assert len(dashboard_campaigns) == 1 and dashboard_campaigns[0]['encounter_count'] == 1, 'Dashboard campaign encounter count failed'
     character_pdf = temp_dir / 'character.pdf'
     pdf = canvas.Canvas(str(character_pdf))
+    pdf.drawImage(str(ROOT / 'app' / 'resources' / 'lectern_icon.png'), 330, 610, width=120, height=120, preserveAspectRatio=True)
     for index, (field, value) in enumerate([
         ('CharacterName', 'PDF Test Hero'), ('ClassLevel', 'Fighter 5'), ('Race', 'Dwarf'),
         ('AC', '17'), ('HPMax', '44'), ('STR', '16'), ('DEX', '14'),
@@ -106,7 +107,7 @@ try:
     ]):
         pdf.acroForm.textfield(name=field, value=value, x=72, y=740-(index*32), width=220, height=20)
     pdf.showPage(); pdf.save()
-    pdf_result = CharacterPdfImporter().extract(character_pdf)['data']
+    pdf_result = CharacterPdfImporter().extract(character_pdf, temp_dir / 'portraits')['data']
     assert pdf_result['name'] == 'PDF Test Hero' and pdf_result['class_name'] == 'Fighter' and pdf_result['level'] == 5, 'Character PDF identity import failed'
     assert pdf_result['armor_class'] == 17 and pdf_result['max_hp'] == 44 and pdf_result['str_base'] == 16, 'Character PDF statistics import failed'
     assert pdf_result['skill_proficiencies'] == 'Athletics; Perception' and pdf_result['skill_expertise'] == 'Perception', 'Character PDF skill proficiency import failed'
@@ -114,6 +115,7 @@ try:
     assert pdf_result['equipped_weapon'] == 'Longsword' and pdf_result['equipped_armor'] == 'Chain Mail', 'Character PDF equipped item import failed'
     assert pdf_result['spellcasting_ability'] == 'Intelligence' and pdf_result['feats'] == 'Alert; Skilled', 'Character PDF feat/spellcasting import failed'
     assert 'Chain Mail' in pdf_result['inventory'] and 'Longsword' in pdf_result['inventory'], 'Character PDF inventory import failed'
+    assert Path(pdf_result['portrait_path']).exists(), 'Character PDF portrait extraction failed'
     widget_pdf = temp_dir / 'character_widgets_only.pdf'
     reader = PdfReader(str(character_pdf)); writer = PdfWriter(); writer.clone_document_from_reader(reader)
     if '/AcroForm' in writer._root_object: del writer._root_object['/AcroForm']
@@ -123,6 +125,11 @@ try:
     repo.upsert_player(widget_result)
     imported_pdf_player = next(row for row in repo.list_players() if row['name'] == 'PDF Test Hero')
     assert imported_pdf_player['class_name'] == 'Fighter' and imported_pdf_player['armor_class'] == 17, 'Character PDF database import failed'
+    assert imported_pdf_player['feats'] == 'Alert; Skilled' and imported_pdf_player['inventory'], 'Character PDF feats/inventory persistence failed'
+    assert imported_pdf_player['skill_proficiencies'] == 'Athletics; Perception' and imported_pdf_player['skill_expertise'] == 'Perception', 'Character PDF skill persistence failed'
+    assert imported_pdf_player['saving_throw_proficiencies'] == 'str', 'Character PDF saving throw persistence failed'
+    assert imported_pdf_player['equipped_weapon'] == 'Longsword' and imported_pdf_player['equipped_armor'] == 'Chain Mail', 'Character PDF equipped item persistence failed'
+    assert imported_pdf_player['spellcasting_ability'] == 'Intelligence', 'Character PDF spellcasting persistence failed'
     assert imported_pdf_player['currency_gp'] == 0 and isinstance(imported_pdf_player['currency_gp'], int), 'Character PDF numeric defaults failed'
     workflow = DataWorkflowService(db)
     backup_path = workflow.backup_database(temp_dir / 'backup.db')

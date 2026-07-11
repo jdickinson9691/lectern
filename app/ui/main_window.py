@@ -15,7 +15,7 @@ from ..importers.csv_transfer import CsvTransferService, CSV_TABLES
 from ..importers.character_pdf import CharacterPdfImporter
 from ..services.data_workflow import DataWorkflowService
 from ..version import APP_NAME, VERSION
-from ..paths import icon_path, watermark_path, help_path
+from ..paths import icon_path, watermark_path, help_path, user_data_dir
 
 
 class WatermarkedPage(QWidget):
@@ -77,6 +77,10 @@ def clamp_editor_width(widget, width: int = 520):
     """Keep editor controls readable on wide monitors while still allowing resize."""
     widget.setMaximumWidth(width)
     widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+def apply_portrait_icon(item: QTableWidgetItem, portrait_path_value) -> None:
+    portrait=Path(str(portrait_path_value or ''))
+    if portrait.exists(): item.setIcon(QIcon(str(portrait)))
 
 class TablePage(QWidget):
     def __init__(self, title: str, repo: Repository, table: str):
@@ -448,6 +452,7 @@ class PlayerManagerPage(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setColumnCount(16)
+        self.table.setIconSize(QSize(40,40))
         self.table.setHorizontalHeaderLabels(["Character", "Level", "Class", "Subclass", "Species", "Background", "STR", "DEX", "CON", "INT", "WIS", "CHA", "Weapon", "Armor", "AC", "HP"])
         self.table.itemSelectionChanged.connect(self.load_selected_into_editor)
         self.table.cellDoubleClicked.connect(lambda *_: self.edit_selected())
@@ -496,7 +501,9 @@ class PlayerManagerPage(QWidget):
                 item = QTableWidgetItem(str(value if value is not None else ''))
                 if c == 0:
                     item.setData(Qt.UserRole, row['id'])
+                    apply_portrait_icon(item,row['portrait_path'] if 'portrait_path' in row.keys() else '')
                 self.table.setItem(r, c, item)
+            self.table.setRowHeight(r,48)
         self.table.blockSignals(False)
         self.table.resizeColumnsToContents()
 
@@ -524,7 +531,7 @@ class PlayerManagerPage(QWidget):
         path,_=QFileDialog.getOpenFileName(self,"Import Character PDF","","PDF Files (*.pdf)")
         if not path: return
         try:
-            result=CharacterPdfImporter().extract(Path(path)); data=result['data']
+            result=CharacterPdfImporter().extract(Path(path),user_data_dir() / 'portraits'); data=result['data']
             preview=[f"{key.replace('_',' ').title()}: {value}" for key,value in data.items() if value not in (None,'')]
             warning_text="\n".join(result['warnings'])
             message=f"Detected {result['field_count']} character fields ({result['form_field_count']} PDF form fields).\n\n" + "\n".join(preview[:24])
@@ -619,6 +626,7 @@ class EncounterBuilderPage(QWidget):
         mb.addWidget(QLabel("Search/type monster name")); mb.addWidget(self.monster_search); mb.addWidget(QLabel("Quantity")); mb.addWidget(self.monster_qty); mb.addWidget(add_m); body.addWidget(monster_box)
         player_box=QGroupBox("Players"); pb=QVBoxLayout(player_box); self.player_list=QListWidget(); add_p=QPushButton("Add Selected Player(s)"); add_p.clicked.connect(self.add_players); pb.addWidget(self.player_list); pb.addWidget(add_p); body.addWidget(player_box)
         cart_box=QGroupBox("Encounter Combatants"); cb=QVBoxLayout(cart_box); self.combatants=QTableWidget(); self.combatants.setColumnCount(6); self.combatants.setHorizontalHeaderLabels(["Name","Init","AC","HP","Max HP","Type"]); cb.addWidget(self.combatants)
+        self.combatants.setIconSize(QSize(36,36))
         row=QHBoxLayout(); roll=QPushButton("Roll Initiative / Start"); roll.clicked.connect(self.roll_init); remove=QPushButton("Remove Selected"); remove.clicked.connect(self.remove_selected); row.addWidget(roll); row.addWidget(remove); cb.addLayout(row); body.addWidget(cart_box,2)
         self.refresh()
     def refresh(self):
@@ -661,6 +669,8 @@ class EncounterBuilderPage(QWidget):
             vals=[row['name'], row['initiative'], row['armor_class'], row['current_hp'], row['max_hp'], row['source_type']]
             for c,v in enumerate(vals): self.combatants.setItem(r,c,QTableWidgetItem(str(v if v is not None else "")))
             self.combatants.item(r,0).setData(Qt.UserRole,row['id'])
+            apply_portrait_icon(self.combatants.item(r,0),row['portrait_path'] if 'portrait_path' in row.keys() else '')
+            self.combatants.setRowHeight(r,42)
         self.combatants.resizeColumnsToContents()
     def selected_combatant_id(self):
         row=self.combatants.currentRow()
@@ -680,6 +690,7 @@ class CombatDashboardPage(QWidget):
         top=QHBoxLayout(); self.encounters=QComboBox(); self.encounters.currentIndexChanged.connect(self.select_encounter); top.addWidget(QLabel("Encounter:")); top.addWidget(self.encounters)
         self.round_label=QLabel("Round - | Active: -"); top.addWidget(self.round_label); root.addLayout(top)
         self.order=QTableWidget(); self.order.setColumnCount(6); self.order.setHorizontalHeaderLabels(["Turn","Name","Init","AC","HP","Max"]); root.addWidget(self.order)
+        self.order.setIconSize(QSize(36,36))
         buttons=QHBoxLayout(); prev=QPushButton("Previous Turn"); prev.clicked.connect(self.prev_turn); nxt=QPushButton("Next / End Turn"); nxt.clicked.connect(self.next_turn); dmg=QPushButton("Apply Damage"); dmg.clicked.connect(lambda:self.adjust_hp(-abs(self.hp_delta.value()), "Damage")); heal=QPushButton("Apply Healing"); heal.clicked.connect(lambda:self.adjust_hp(abs(self.hp_delta.value()), "Healing")); self.hp_delta=QSpinBox(); self.hp_delta.setRange(0,9999); self.hp_delta.setValue(1)
         for w in [prev,nxt,QLabel("Amount"),self.hp_delta,dmg,heal]: buttons.addWidget(w)
         root.addLayout(buttons)
@@ -701,6 +712,8 @@ class CombatDashboardPage(QWidget):
             vals=["▶" if r==active else "", row['name'], row['initiative'], row['armor_class'], row['current_hp'], row['max_hp']]
             for c,v in enumerate(vals): self.order.setItem(r,c,QTableWidgetItem(str(v if v is not None else "")))
             self.order.item(r,1).setData(Qt.UserRole,row['id'])
+            apply_portrait_icon(self.order.item(r,1),row['portrait_path'] if 'portrait_path' in row.keys() else '')
+            self.order.setRowHeight(r,42)
         self.order.resizeColumnsToContents(); self.refresh_log()
     def selected_id_name(self):
         r=self.order.currentRow(); rows=self.rows()

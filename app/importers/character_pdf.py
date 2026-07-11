@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import hashlib
 from pathlib import Path
 
 from pypdf import PdfReader
@@ -44,7 +45,7 @@ class CharacterPdfImporter:
         "notes": ["additionalfeaturesandtraits", "additional notes", "notes"],
     }
 
-    def extract(self, path: Path) -> dict:
+    def extract(self, path: Path, portrait_dir: Path | None = None) -> dict:
         reader = PdfReader(str(path))
         fields = reader.get_fields() or {}
         normalized = {}
@@ -84,11 +85,35 @@ class CharacterPdfImporter:
                     break
         self._text_fallback(text, data)
         self._normalize(data)
+        if portrait_dir and data.get("name"):
+            portrait = self._extract_portrait(reader, portrait_dir, str(data["name"]))
+            if portrait: data["portrait_path"] = str(portrait)
         warnings = []
         if not data.get("name"): warnings.append("Character name was not detected.")
         if not normalized: warnings.append("No embedded PDF form fields were found; results came from text extraction.")
         if len(data) < 4: warnings.append("Few fields were detected. This PDF may require OCR or manual entry.")
         return {"data": data, "warnings": warnings, "field_count": len(data), "form_field_count": len(normalized)}
+
+    def _extract_portrait(self, reader: PdfReader, output_dir: Path, character_name: str) -> Path | None:
+        candidates = []
+        seen = set()
+        for page in reader.pages:
+            for embedded in page.images:
+                digest = hashlib.sha256(embedded.data).hexdigest()
+                if digest in seen: continue
+                seen.add(digest)
+                image = embedded.image
+                width,height = image.size
+                ratio = width / max(1,height)
+                if width >= 128 and height >= 128 and 0.45 <= ratio <= 1.25:
+                    candidates.append((width*height,image))
+        if not candidates: return None
+        _,portrait = max(candidates,key=lambda item:item[0])
+        output_dir.mkdir(parents=True,exist_ok=True)
+        safe_name=re.sub(r"[^A-Za-z0-9._-]+","_",character_name).strip("_") or "character"
+        output=output_dir / f"{safe_name}_portrait.png"
+        portrait.convert("RGBA").save(output,"PNG")
+        return output
 
     def _map_dnd_beyond_fields(self, fields: dict, data: dict) -> None:
         proficiencies, expertise = [], []

@@ -1,632 +1,389 @@
-# Lectern - D&D Campaign Manager Help Guide
+# Lectern - D&D Campaign Manager Help
 
-Version: 2.8 Stability + Data Workflow
+Version: 2.9.4 - Verification and Stabilization
 
-This help guide walks through every screen currently available in the application. The app is organized around a left navigation bar. Select a section from the left, then work in the main panel on the right.
+Lectern organizes campaigns, player characters, encounters, combat logs, and D&D reference data in a local database. Use the navigation bar on the left to move through the application.
 
-## 1. Dashboard
+## Recommended workflow
 
-The Dashboard is the starting screen.
+For a new game, use Lectern in this order:
 
-### What it shows
+1. Review **Dashboard**.
+2. Create a campaign in **Campaigns**.
+3. Add or import characters in **Players**.
+4. Create an encounter in **Encounter Builder**.
+5. Add players and monsters, then roll initiative.
+6. Run the encounter in **Combat Dashboard**.
+7. Return to **Campaigns** to record the outcome and review cumulative results.
+8. Use **Data Workflow** to back up the database.
 
-The Dashboard displays the application name, current version, and live database counts for major records such as players, monsters, encounters, combatants, weapons, armor, and spells.
+## Dashboard
 
-### How to use it
+Dashboard is the application home screen. It displays:
 
-1. Open the app.
-2. Select **Dashboard** from the left navigation.
-3. Review the count summary.
-4. If counts are zero, import seed/reference data using **Workbook Import** or **CSV Import/Export**.
+- Application version
+- Counts for players, monsters, encounters, combatants, weapons, armor, and spells
+- Current campaigns
+- Number of encounters assigned to each campaign
+- Campaign descriptions
 
-### Typical use
+Use Dashboard to confirm that your campaign and reference data are available before preparing an encounter.
 
-Use the Dashboard as a quick health check. If monsters, weapons, armor, or spells are missing, the database has not been populated yet.
+## Campaigns
 
----
+Campaigns group encounters and provide cumulative combat results.
 
-## 2. Players
+### Create a campaign
 
-The Players section is where player characters are created, edited, duplicated, deleted, and searched. Saved players become available in the Encounter Builder.
+1. Open **Campaigns**.
+2. Enter a campaign name.
+3. Optionally enter a description.
+4. Click **Create Campaign**.
 
-### Main controls
+### Add an encounter to a campaign
 
-- **+ New Player** clears the editor so you can create a new character.
-- **Edit Selected** loads the selected table row into the editor.
-- **Duplicate** copies the selected character.
-- **Delete** removes the selected character from the player database.
-- **Refresh** reloads the player list from the database.
-- **Search** filters the visible player list by character name, class, species, background, equipment, notes, or other stored text.
+1. Select the campaign.
+2. Select an encounter.
+3. Click **Add Encounter**.
 
-### Creating a player
+An encounter can belong to one campaign at a time.
 
-1. Select **Players** from the left navigation.
-2. Click **+ New Player**.
-3. Enter **Character Name**. This is required.
-4. Enter **Player Name** if desired.
-5. Select or type **Species / Race**.
-6. Select or type **Class**.
-7. Select or type **Subclass** if applicable.
-8. Select or type **Background**.
-9. Select up to three feats using **Feat 1**, **Feat 2**, and **Feat 3**.
-10. Select a primary **Weapon**.
-11. Select equipped **Armor**.
-12. Enter carried **Equipment** as free text.
-13. Set **Level**.
-14. Set **Armor Class**.
-15. Set **Max HP** and **Current HP**.
-16. Review the **Initiative Modifier**. It automatically follows Dexterity modifier unless manually changed afterward.
-17. Add notes if desired.
-18. Enter ability scores in the **Ability Scores** area.
-19. Click **Save Player**.
+### Complete an encounter
 
-### Editing a player
+1. Select the encounter.
+2. Choose **Victory**, **Defeat**, **Retreat**, or **Unresolved**.
+3. Click **Complete Encounter**.
 
-1. Select **Players**.
-2. Click a character row in the table.
-3. The editor loads the selected character automatically.
-4. Change the desired fields.
-5. Click **Save Player**.
+### Campaign statistics
 
-### Duplicating a player
+The campaign summary includes:
 
-1. Select a player row.
-2. Click **Duplicate**.
-3. A copied record is created.
-4. Select the copied record.
-5. Change the character name and any other details.
-6. Click **Save Player**.
+- Total and completed encounters
+- Victories, defeats, and retreats
+- Total combat rounds
+- Logged actions
+- Damage and healing recorded in combat logs
 
-### Deleting a player
+The encounter history shows status, outcome, rounds, combatants, actions, and completion time.
 
-1. Select a player row.
-2. Click **Delete**.
-3. Confirm the deletion.
+## Encounter Builder
 
-Deleting a player removes the player record from the player database. Existing combat log entries are not rewritten.
+Encounter Builder creates encounters and prepares their combatants.
 
-### Ability scores
+### Create an encounter
 
-Each ability has three editable columns:
+1. Enter an encounter name, such as `Goblin Ambush`.
+2. Click **Create New Encounter**.
+3. The new encounter becomes selected in the **Active** dropdown.
 
-- **Base** is the character's rolled, array, point-buy, or manually assigned score.
-- **Race Bonus** is the bonus from species/race or lineage.
-- **Feat Bonus** is the bonus from feats or other selected character options.
+Every new encounter starts empty. If its requested name already exists, Lectern creates a unique name such as `Goblin Ambush 2` rather than reusing the previous combatants.
 
-The application calculates:
+Use the **Active** dropdown to open an existing encounter.
 
-- **Total** = Base + Race Bonus + Feat Bonus.
-- **Modifier** = standard D&D ability modifier from the total score.
+### Add monsters
 
-### Ability modifier examples
-
-- Score 8 gives -1.
-- Score 10 gives +0.
-- Score 12 gives +1.
-- Score 14 gives +2.
-- Score 16 gives +3.
-- Score 18 gives +4.
-- Score 20 gives +5.
-
-### Race and feat bonus handling
-
-The current version does not automatically parse every rule text choice from imported species and feat records. If a race or feat offers a choice, enter the chosen bonus manually in the correct Race Bonus or Feat Bonus field.
-
-Example:
-
-1. Base Dexterity is 14.
-2. Species grants +2 Dexterity.
-3. Feat grants +1 Dexterity.
-4. Enter Base 14, Race Bonus 2, Feat Bonus 1.
-5. Total becomes 17 and modifier becomes +3.
-
-### Equipment fields
-
-The player editor currently includes:
-
-- **Weapon**: a dropdown/type-ahead field populated from the weapons table.
-- **Armor**: a dropdown/type-ahead field populated from the armor table.
-- **Equipment**: a free-text box for packs, tools, adventuring gear, treasure, and other carried items.
-
-### Making players available for encounters
-
-After saving a player:
-
-1. Go to **Encounter Builder**.
-2. Find the player in the Players list.
-3. Check the player.
-4. Click **Add Selected Player(s)**.
-
----
-
-## 3. Monster Library
-
-The Monster Library is a read-only table view of the monster database.
-
-### What it shows
-
-The table displays imported and manually created monster records. Columns may include name, size, type, alignment, armor class, hit points, speed, challenge rating, XP, ability scores, source, and notes.
-
-### How to use it
-
-1. Select **Monster Library** from the left navigation.
-2. Review available monsters.
-3. Click **Refresh** to reload the table.
-4. Use this screen to verify that the monster database has been populated.
-
-### Adding or editing monsters
-
-Use **Add Monster**, not Monster Library, to create or edit monster records.
-
----
-
-## 4. Add Monster
-
-The Add Monster screen creates or updates monster records.
-
-### Main fields
-
-- **Monster Name**: searchable type-ahead field populated from the monster database.
-- **Type**: creature type or description.
-- **Armor Class**: monster AC.
-- **Hit Points**: average or chosen HP.
-- **Challenge**: challenge rating.
-- **Notes**: short notes.
-
-### Adding a new monster
-
-1. Select **Add Monster** from the left navigation.
-2. Type a new monster name in **Monster Name**.
-3. Enter Type, Armor Class, Hit Points, Challenge, and Notes.
-4. Click **Save Monster**.
-
-### Editing an existing monster
-
-1. Select **Add Monster**.
-2. Start typing the monster name.
-3. Select the monster from the type-ahead dropdown.
-4. The known values fill in automatically.
-5. Change the desired fields.
-6. Click **Save Monster**.
-
-### Using monsters in encounters
-
-Saved monsters appear in the Encounter Builder Monster Browser.
-
----
-
-## 5. Encounter Builder
-
-The Encounter Builder is where you create encounters and add combatants.
-
-### Basic workflow
-
-1. Select **Encounter Builder**.
-2. Enter an encounter name such as `Goblin Ambush`.
-3. Click **New / Select Encounter**.
-4. Add monsters from the Monster Browser.
-5. Add players from the Players list.
-6. Review the Encounter Combatants table.
-7. Click **Roll Initiative / Start**.
-8. Open **Combat Dashboard** to run the encounter.
-
-### Creating or selecting an encounter
-
-1. Type the encounter name in the field at the top.
-2. Click **New / Select Encounter**.
-3. The encounter becomes active in the **Active** dropdown.
-
-If you already have encounters, use the **Active** dropdown to switch between them.
-
-### Adding monsters
-
-1. In **Monster Browser**, start typing a monster name.
-2. Select the monster from the dropdown.
+1. Search for a monster in **Monster Browser**.
+2. Select the monster.
 3. Set **Quantity**.
 4. Click **Add Monster(s)**.
 
-If Quantity is 4 and the monster is Goblin, four separate combatants are added to the encounter.
+Each copy receives a separate combatant record.
 
-### Adding players
+### Add players
 
-1. In the **Players** box, check one or more player characters.
+1. Check one or more characters in **Players**.
 2. Click **Add Selected Player(s)**.
-3. The selected players appear in the Encounter Combatants table.
 
-Players must be created and saved in the Players section before they appear here.
+Players must be saved in the Players section before they appear here.
 
-### Reviewing combatants
+### Start combat
 
-The Encounter Combatants table shows:
-
-- Name
-- Initiative
-- Armor Class
-- Current HP
-- Max HP
-- Source Type
-
-### Removing a combatant
-
-1. Select a combatant row.
-2. Click **Remove Selected**.
-
-### Rolling initiative and starting combat
-
-1. Confirm that all players and monsters are in the encounter.
-2. Click **Roll Initiative / Start**.
-3. The app rolls initiative and sorts turn order.
+1. Review the Encounter Combatants table.
+2. Remove unwanted combatants with **Remove Selected**.
+3. Click **Roll Initiative / Start**.
 4. Open **Combat Dashboard**.
 
----
+## Combat Dashboard
 
-## 6. Combat Dashboard
+Combat Dashboard runs an encounter round by round.
 
-The Combat Dashboard is where combat is run round by round.
+### Turn order
 
-### Selecting an encounter
+The table shows the active turn, combatant name, initiative, armor class, current HP, and maximum HP. The heading displays the current round and active combatant.
 
-1. Select **Combat Dashboard**.
-2. Use the **Encounter** dropdown to select the active encounter.
-3. Confirm that the turn order table is populated.
+- **Previous Turn** moves backward.
+- **Next / End Turn** advances to the next combatant.
+- Advancing beyond the final combatant starts a new round.
 
-### Understanding the combat board
+### Damage and healing
 
-The combat board displays:
+1. Select a combatant. If none is selected, Lectern uses the active combatant.
+2. Enter an amount.
+3. Click **Apply Damage** or **Apply Healing**.
 
-- **Turn**: marks the active combatant with an arrow.
-- **Name**: combatant name.
-- **Init**: initiative score.
-- **AC**: armor class.
-- **HP**: current hit points.
-- **Max**: maximum hit points.
+Damage cannot reduce HP below zero. Healing cannot exceed maximum HP. Both operations create combat-log entries.
 
-The round and active combatant appear near the top.
+### Log an action
 
-### Advancing turns
-
-- Click **Next / End Turn** to move to the next combatant.
-- Click **Previous Turn** to move backward.
-
-When the active index passes the final combatant, the round counter advances.
-
-### Applying damage
-
-1. Select the target combatant row. If no row is selected, the active combatant is used.
-2. Enter the damage amount in **Amount**.
-3. Click **Apply Damage**.
-4. HP decreases but will not go below zero.
-5. A damage entry is added to the action log.
-
-### Applying healing
-
-1. Select the target combatant row. If no row is selected, the active combatant is used.
-2. Enter the healing amount in **Amount**.
-3. Click **Apply Healing**.
-4. HP increases but will not exceed max HP.
-5. A healing entry is added to the action log.
-
-### Logging actions
-
-1. Select an action type from the dropdown.
-2. Enter details in the text field.
+1. Choose Attack, Spell, Save, Condition, Reaction, Lair Action, or Note.
+2. Enter the action details.
 3. Click **Log Action**.
 
-Available action types currently include:
+Campaign statistics use the saved encounter and combat-log records.
 
-- Attack
-- Spell
-- Save
-- Condition
-- Reaction
-- Lair Action
-- Note
+## Players
 
-### Recommended combat procedure
+Players contains the character list and the Player Character Editor.
 
-1. Confirm initiative order.
-2. On each turn, select the acting combatant or leave the active combatant selected.
-3. Log attacks, spells, saves, or notes.
-4. Apply damage or healing to targets.
-5. Click **Next / End Turn**.
-6. Continue until the encounter ends.
+### Player list controls
 
----
+- **+ New Player** clears all editor tabs for a new character.
+- **Import Character PDF...** extracts and previews a character-sheet PDF.
+- **Edit Selected** loads the selected player from the database.
+- **Duplicate** creates a copy.
+- **Delete** removes the player record after confirmation.
+- **Refresh** reloads the list.
+- **Search** filters characters using their stored data.
 
-## 7. Weapons
+The table uses single full-row selection. Selecting a player or clicking **Edit Selected** resets every editor tab and loads the selected character's saved values.
 
-The Weapons screen is a table view of the weapons database.
+### Create a character manually
 
-### How to use it
+1. Click **+ New Player**.
+2. Complete the editor tabs described below.
+3. Click **Save Player**.
 
-1. Select **Weapons**.
-2. Review the list of available weapons.
-3. Click **Refresh** after importing new data.
+Character Name is required.
 
-Weapons populate the Player editor Weapon dropdown.
+### Import a character PDF
 
----
+Lectern supports common fillable D&D character sheets, including D&D Beyond-style exports and compatible Roll20 layouts.
 
-## 8. Armor
+1. Click **Import Character PDF...**.
+2. Select a `.pdf` character sheet.
+3. Review the extracted values in the scrollable preview.
+4. Review any warnings.
+5. Click **Import Character** to save the character, or **Cancel**.
+6. The imported character opens in the editor for corrections.
+7. Click **Save Player** after making corrections.
 
-The Armor screen is a table view of the armor database.
+If a player with the same character name exists, importing updates that record.
 
-### How to use it
+PDF import can detect:
 
-1. Select **Armor**.
-2. Review the armor list.
-3. Click **Refresh** after importing new data.
+- Character and player names
+- Species, class, level, and background
+- Ability scores
+- Armor class, hit points, and initiative
+- Feats
+- Inventory with quantities and weights
+- Skill proficiencies and expertise
+- Saving throw proficiencies
+- Equipped weapon and armor
+- Spellcasting ability
+- Features and traits for character notes
 
-Armor populates the Player editor Armor dropdown.
+Image-only or unusual PDFs may require OCR or manual correction. Always review the preview before importing.
 
----
+### General tab
 
-## 9. Equipment
+General stores Character Name, Player Name, Species, Class, Subclass, Background, Level, and optional portrait path.
 
-The Equipment screen is a table view of general equipment.
+Species, class, subclass, and background suggestions come from the imported SRD reference data. You may also type a custom value.
 
-### How to use it
+### Abilities tab
 
-1. Select **Equipment**.
-2. Review available equipment records.
-3. Click **Refresh** after importing new data.
+Each ability contains:
 
-The Player editor currently stores equipment as free text. Future versions may allow multi-select equipment assignment from this table.
+- **Base** - rolled, point-buy, standard-array, or imported score
+- **Species** - species-based adjustment
+- **Feat** - combined adjustment from selected feats
+- **Total** - Base + Species + Feat
+- **Modifier** - calculated D&D modifier
 
----
+Selecting a species refreshes the Species column from SRD data. Under the bundled SRD 5.2.1 rules, species normally provide no direct ability-score bonuses, so these values remain zero unless the reference rule provides one.
 
-## 10. Magic Items
+Selecting a feat applies fixed SRD ability increases. If a feat provides a choice, Lectern asks where to apply it. Ability Score Improvement supports one ability at +2 or two abilities at +1.
 
-The Magic Items screen is a table view of imported magic items.
+You can still edit the Species and Feat values manually.
 
-### How to use it
+### Equipment tab
 
-1. Select **Magic Items**.
-2. Review available magic item records.
-3. Click **Refresh** after importing new data.
+Equipment stores up to three feats, equipped weapon, equipped armor, spellcasting ability, and equipment notes. Reference dropdowns are populated from Lectern's SRD and equipment tables but accept custom text.
 
-Future versions may add direct magic item assignment to player inventory.
+### Inventory tab
 
----
+Inventory stores copper, silver, electrum, gold, platinum, and free-text carried items. D&D Beyond PDF imports include indexed inventory items, quantities, and weights when available.
 
-## 11. Spells
+### Combat tab
 
-The Spells screen is a table view of imported spells.
+Combat stores armor class, maximum HP, current HP, and initiative. It displays calculated proficiency bonus, passive scores, attack bonus, and spell save DC.
 
-### How to use it
+### Skills tab
 
-1. Select **Spells**.
-2. Review spell records.
-3. Click **Refresh** after importing new data.
+Check **Proficient** or **Expertise** for each skill. Expertise adds proficiency twice. Imported D&D Beyond proficiency markers are mapped automatically.
 
-Future versions may add character spellbook and prepared-spell management.
+### Saving Throws tab
 
----
+Check the saving throws in which the character is proficient. Imported D&D Beyond saving throw markers are mapped automatically.
 
-## 12. Workbook Import
+### Notes tab
 
-Workbook Import loads the D&D Combat Tracker Excel workbook into the SQLite database.
+Use Notes for character details not represented elsewhere. PDF feature and trait sections are retained here when available.
 
-### When to use it
+### Edit, duplicate, and delete
 
-Use Workbook Import when:
+To edit, select one row and click **Edit Selected**, make changes, then click **Save Player**.
 
-- The app database is empty.
-- You have updated the master Excel workbook.
-- You want to repopulate reference tables from the workbook database tabs.
+To duplicate, select a row and click **Duplicate**. Lectern creates a uniquely named copy.
 
-### Importing a workbook
+To delete, select a row, click **Delete**, and confirm. Existing combat-log text is not rewritten.
 
-1. Select **Workbook Import**.
-2. Click **Import Workbook...**.
-3. Select the `.xlsx` workbook.
-4. Wait for the import to complete.
-5. Review the completion message.
-6. Go to Dashboard or reference screens to verify row counts.
+## Monster Library
 
-### Imported data usage
+Monster Library is a read-only table of imported and manually maintained monsters. The bundled catalog contains thousands of monsters and records their primary AC, HP, challenge rating, source, and available notes.
 
-Imported data feeds:
+Use **Refresh** after data changes. Use **Add Monster** to create or edit a record.
 
-- Monster Library
-- Add Monster type-ahead
-- Encounter Builder Monster Browser
-- Player species/race dropdowns
-- Player class/subclass/background dropdowns
-- Player feat dropdowns
-- Player weapon dropdown
-- Player armor dropdown
-- Reference table screens
+## Add Monster
 
----
+### Add a monster
 
-## 13. CSV Import/Export
+1. Type a new name.
+2. Enter type, armor class, hit points, challenge rating, and notes.
+3. Click **Save Monster**.
 
-CSV Import/Export allows database tables to be exported, edited externally, and imported back.
+### Edit a monster
 
-### Supported tables
+1. Search for and select an existing monster.
+2. Edit the populated fields.
+3. Click **Save Monster**.
 
-The currently supported CSV tables include:
+Saved monsters become available in Encounter Builder.
 
-- Players
-- Monsters
-- Weapons
-- Armor
-- Equipment
-- Magic Items
-- Spells
-- Rules Reference
+## Weapons, Armor, Equipment, Magic Items, and Spells
 
-### Exporting one table
+These sections display the corresponding reference tables.
 
-1. Select **CSV Import/Export**.
-2. Choose a table from the **Table** dropdown.
-3. Click **Export Selected Table...**.
-4. Choose a save location.
-5. Open the CSV in Excel or another editor.
+- Weapons and Armor populate Player Editor dropdowns.
+- Equipment provides general gear reference data.
+- Magic Items displays rarity, type, attunement, and notes.
+- Spells displays imported spell reference data.
 
-### Exporting all tables
+Click **Refresh** after importing or restoring data.
 
-1. Select **CSV Import/Export**.
-2. Click **Export All Tables...**.
-3. Select a folder.
-4. The app writes one CSV per supported table.
+## CSV Import/Export
 
-### Exporting an empty template
+CSV Import/Export supports Players, Monsters, Weapons, Armor, Equipment, Magic Items, Spells, and Rules Reference.
+
+### Validate before importing
 
 1. Select a table.
-2. Click **Export Empty Template...**.
-3. Save the template.
-4. Fill in rows using the existing column headers.
-5. Import the completed CSV later.
+2. Click **Validate / Preview CSV...**.
+3. Select the CSV.
+4. Review every row status.
 
-### Importing an updated CSV
+Statuses are:
 
-1. Select the target table from the **Table** dropdown.
+- **New** - will be inserted
+- **Modified** - will update a matching record
+- **Unchanged** - no differences detected
+- **Duplicate** - duplicate key inside the CSV
+- **Error** - invalid row
+
+Import is blocked while Duplicate or Error rows remain.
+
+### Import a CSV
+
+1. Select the destination table.
 2. Click **Import Selected CSV...**.
-3. Select the edited CSV file.
-4. Confirm the import.
-5. The app updates existing rows with matching keys and inserts new rows where appropriate.
+3. Select the CSV.
+4. Review the preview.
+5. Confirm the import.
 
-### Matching behavior
+Most tables match by Name. Rules Reference matches by Category and Name.
 
-- Most tables match rows by **Name**.
-- Rules Reference rows match by **Category + Name**.
+### Export data
 
-### CSV safety tips
+- **Export Selected Table...** writes one table.
+- **Export All Tables...** writes every supported table to a folder.
+- **Export Empty Template...** writes headers for creating a new import file.
 
-- Export before importing so you have a backup.
-- Do not rename required columns.
-- Keep IDs unchanged unless you know the database structure.
-- For major edits, export all tables first.
-- After import, check the row counts and open the relevant screen to confirm the data.
+## Data Workflow
 
----
+Use Data Workflow for database maintenance.
 
-## 14. Help
+### Backup Database
 
-The Help screen displays this guide inside the app.
+Creates a copy of the active SQLite database at the selected location.
 
-### How to use it
+### Restore Database
 
-1. Select **Help** from the left navigation.
-2. Scroll through the guide.
-3. Use the content as a step-by-step reference while running the application.
+Replaces the active database from a selected `.db` file. Lectern creates a safety backup first.
 
----
+### Reset Empty Database
 
-## 15. Recommended setup sequence for a new database
+Creates a safety backup, then replaces the database with an empty schema.
 
-Follow this sequence when starting fresh:
+### Reset and Reseed
 
-1. Launch the application.
-2. Open **Dashboard** and check counts.
-3. If counts are empty, open **Workbook Import**.
-4. Import the D&D Combat Tracker workbook.
-5. Open **Players**.
-6. Create player characters.
-7. Open **Add Monster** or **Monster Library** to verify monster data.
-8. Open **Encounter Builder**.
-9. Create an encounter.
-10. Add players.
-11. Add monsters.
-12. Roll initiative.
-13. Open **Combat Dashboard**.
-14. Run combat.
-15. Use **CSV Import/Export** to back up or bulk-edit data.
+Creates a safety backup, resets the database, and reloads bundled reference data, including the monster catalog and SRD character references.
 
----
+## Error Logs
 
-## 16. Troubleshooting
+Error Logs displays application log files inside Lectern.
 
-### No monsters appear
+1. Reproduce the issue.
+2. Open **Error Logs**.
+3. Click **Refresh**.
+4. Select the newest log.
 
-1. Open **Dashboard**.
-2. Check the monster count.
-3. If it is zero, open **Workbook Import** and import the workbook.
-4. If using CSV, open **CSV Import/Export** and import the monsters CSV.
+Include the relevant log details when reporting a problem.
 
-### No players appear in Encounter Builder
+## Help
 
-1. Open **Players**.
-2. Create and save at least one player.
-3. Return to **Encounter Builder**.
-4. Click refresh if needed or switch screens to reload.
+Help displays this guide. Click **Reload Help** after replacing the help file during development.
 
-### Player dropdowns are empty
+## Troubleshooting
 
-1. Confirm that workbook or CSV reference data has been imported.
-2. Check Weapons, Armor, and other reference screens.
-3. If reference screens are empty, import the workbook again.
+### A PDF import finds incorrect values
 
-### Ability modifiers look wrong
+- Confirm the preview identifies the expected character.
+- Cancel rather than importing incorrect data.
+- D&D Beyond exports store values in page widgets; current Lectern builds support this format.
+- Image-only PDFs require OCR or manual entry.
 
-1. Check Base score.
-2. Check Race Bonus.
-3. Check Feat Bonus.
-4. Confirm the Total score.
-5. The modifier is calculated from the Total score.
+### A PDF-imported player fails to open
 
-### The executable does not reflect a new build
+Current builds normalize missing numeric values and safely load older empty currency fields as zero. Install the latest build and try again.
 
-1. Close all running CampaignManager processes.
-2. Delete the old `dist` folder.
-3. Run `build\Build.ps1` again.
-4. Launch the executable from the new `dist\Lectern` folder.
+### Edit Selected shows the wrong player
 
-### Build fails from the wrong folder
+Select the player's full row and click **Edit Selected**. Current builds clear all tabs and fetch the selected player by database ID.
 
-Run the build command only from the extracted `CampaignManager` folder:
+### Monsters are missing
 
-```powershell
-.\build\Build.ps1
-```
+Open Dashboard and confirm the monster count. Use Data Workflow > Reset and Reseed only if you intend to replace the current database; a safety backup is created first.
 
-You should see folders such as `app`, `build`, `docs`, `scripts`, and `seeds` in the current directory before running the build.
+### Players are missing from Encounter Builder
 
+Save the player, return to Encounter Builder, and select or recreate the encounter. Switching screens refreshes the available player list.
 
-# Data Workflow
+### A new encounter contains old combatants
 
-Use **Data Workflow** for database maintenance.
+Use **Create New Encounter**. Current builds always create a new empty encounter and generate a unique name when necessary.
 
-## Backup Database
+### Ability totals look wrong
 
-1. Open **Data Workflow**.
-2. Click **Backup Database**.
-3. Choose a destination file.
-4. Confirm the backup was created.
+Review Base, Species, and Feat values. Total is their sum, and Modifier is calculated from Total.
 
-## Restore Database
+### The application will not start
 
-1. Open **Data Workflow**.
-2. Click **Restore Database**.
-3. Select a `.db` backup file.
-4. Confirm the restore.
+Open **Error Logs** if possible, or review the application log under Lectern's LocalAppData folder. Verify that the latest installer completed successfully.
 
-Lectern creates a safety backup before replacing the active database.
+## Data safety
 
-## Reset Empty Database
-
-Use this when you want a clean empty schema. A safety backup is created first.
-
-## Reset and Reseed
-
-Use this when you want a clean database reloaded from the bundled D&D 5E seed workbook.
-
-# CSV Validation and Preview
-
-Before importing a CSV, use **Validate / Preview CSV**. The preview shows one row per imported CSV row.
-
-Statuses:
-
-- **New** — row will be inserted.
-- **Modified** — row matches an existing record and will update it.
-- **Unchanged** — row matches an existing record with no detected changes.
-- **Duplicate** — duplicate key found inside the CSV file. Resolve before import.
-- **Error** — row cannot be imported. Resolve before import.
-
-CSV import is blocked when Duplicate or Error rows are present.
-
-# Error Logs
-
-Open **Error Logs** to view recent application log files without leaving the app. Use **Refresh** after reproducing an issue.
+- Back up before large imports, restores, resets, or extensive character edits.
+- Review PDF and CSV previews before confirming.
+- Generated combat logs and campaign totals depend on the underlying encounter records.
+- Lectern stores user data locally and does not require a cloud connection for normal use.

@@ -206,9 +206,10 @@ class Repository:
     def list_combatants(self, encounter_id: int):
         with connect(self.db_path) as conn:
             return conn.execute("""
-                SELECT * FROM combatants
-                WHERE encounter_id=? AND is_active=1
-                ORDER BY COALESCE(initiative, -999) DESC, sort_order ASC, name ASC
+                SELECT c.*, CASE WHEN c.source_type='player' THEN COALESCE(p.portrait_path,'') ELSE '' END AS portrait_path
+                FROM combatants c LEFT JOIN players p ON c.source_type='player' AND c.source_id=p.id
+                WHERE c.encounter_id=? AND c.is_active=1
+                ORDER BY COALESCE(c.initiative, -999) DESC, c.sort_order ASC, c.name ASC
             """, (encounter_id,)).fetchall()
 
     def add_combatant_from_monster(self, encounter_id: int, monster_id: int, display_name: str | None = None):
