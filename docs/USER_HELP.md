@@ -1,6 +1,6 @@
 # Lectern - D&D Campaign Manager Help
 
-Version: 2.9.4 - Verification and Stabilization
+Version: 2.9.5 - Workflow and Import Refinement
 
 Lectern organizes campaigns, player characters, encounters, combat logs, and D&D reference data in a local database. Use the navigation bar on the left to move through the application.
 

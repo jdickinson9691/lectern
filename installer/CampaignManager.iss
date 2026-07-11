@@ -1,5 +1,5 @@
 #define MyAppName "Lectern - D&D Campaign Manager"
-#define MyAppVersion "2.9.4"
+#define MyAppVersion "2.9.5"
 #define MyAppExeName "Lectern.exe"
 [Setup]
 AppId={{LecternDNDCampaignManager}}
@@ -8,7 +8,7 @@ AppVersion={#MyAppVersion}
 DefaultDirName={autopf}\LecternDNDCampaignManager
 DefaultGroupName={#MyAppName}
 OutputDir=..\release
-OutputBaseFilename=Lectern_v2_9_4_Setup
+OutputBaseFilename=Lectern_v2_9_5_Setup
 Compression=lzma
 SolidCompression=yes
 [Files]

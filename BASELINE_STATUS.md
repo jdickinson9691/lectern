@@ -2,14 +2,14 @@
 
 ## Current milestone
 
-- Version: 2.9.4 (in progress)
-- Release: Verification and Stabilization
-- Database schema: v4
+- Version: 2.9.5 (in progress)
+- Release: Workflow and Import Refinement
+- Database schema: v5
 - Code model: one continuously evolving Git repository
 
 ## Stabilization status
 
-The v2.9.3 source baseline is the foundation for the v2.9.4 verification milestone. Every page registered in the left navigation is wrapped by the watermark container. Python 3.13 is required for the validated Windows environment. Completion requires recorded evidence in `docs/VERIFICATION_REPORT.md`.
+The tested v2.9.4 Windows build is the foundation for v2.9.5. It includes campaigns, cumulative encounter reporting, expanded reference data, character PDF import, player portraits, and the reorganized application workflow. Python 3.13 remains the validated development and packaging environment. See `docs/LECTERN_2_9_5_HANDOFF.md` for the complete handoff.
 
 ## Next required workstation checks
 
@@ -20,4 +20,4 @@ The v2.9.3 source baseline is the foundation for the v2.9.4 verification milesto
 5. Build `dist/Lectern/Lectern.exe`.
 6. Compile and test the Inno Setup installer.
 
-Do not begin v3.0 feature development until these Windows checks pass.
+Record new v2.9.5 behavior and verification evidence as development proceeds.

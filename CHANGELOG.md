@@ -1,6 +1,11 @@
 # Changelog
 
-## 2.9.4 — Verification and Stabilization (in progress)
+## 2.9.5 — Workflow and Import Refinement (in progress)
+
+- Established the v2.9.5 development baseline from the tested v2.9.4 Windows build.
+- Synchronized application, package, help, and installer version metadata.
+
+## 2.9.4 — Verification and Stabilization
 
 - Started the v2.9.4 stabilization milestone; no v3.0 feature work is in scope.
 - Synchronized application, package, diagnostic, and installer version metadata.
@@ -23,7 +28,7 @@
 - Expanded D&D Beyond PDF import to include feats, inventory, skill proficiency/expertise, saving throws, equipped items, and spellcasting ability.
 - Rewrote in-app help for the current 2.9.4 workflows and added an illustrated step-by-step tutorial production outline.
 - Added safe PDF portrait extraction and player thumbnails in Players, Encounter Builder, and Combat Dashboard rows.
-- Automated and Windows/manual acceptance remain to be completed.
+- Built and verified the Windows executable and installer; remaining manual acceptance items are recorded in `docs/VERIFICATION_REPORT.md`.
 
 ## 2.9.3 — Fresh Baseline and Watermark Verification
 

@@ -1,6 +1,6 @@
 [project]
 name = "lectern-dnd-campaign-manager"
-version = "2.9.4"
+version = "2.9.5"
 description = "Lectern D&D Campaign Manager"
 requires-python = ">=3.13,<3.14"
 dependencies = [

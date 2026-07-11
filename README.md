@@ -1,8 +1,8 @@
 # Lectern — D&D Campaign Manager
 
-**Version:** 2.9.3 — Fresh Baseline and Watermark Verification  
-**Milestone:** 2.9.4 — Verification and Stabilization (in progress)
-**Database schema:** v4
+**Version:** 2.9.5 — Workflow and Import Refinement
+**Milestone:** 2.9.5 (in progress)
+**Database schema:** v5
 
 Lectern is a single evolving Python/PySide6 Windows desktop codebase. This package is a clean, Git-ready source baseline.
 
@@ -61,7 +61,7 @@ The `.gitignore` excludes virtual environments, databases, logs, backups, caches
 
 ## Current Milestone
 
-Version 2.9.4 is limited to verification and stabilization. Do not begin v3.0 feature work until source, executable, installer, watermark, core CRUD, data workflows, and logging pass `docs/VERIFICATION_REPORT.md`.
+Version 2.9.5 continues refinement of Lectern's campaign workflow, player import, reference data, documentation, and Windows delivery. The starting state is documented in `docs/LECTERN_2_9_5_HANDOFF.md`.
 
 ## Watermark Coverage
 

@@ -23,7 +23,7 @@ This folder is now the canonical evolving source tree for the Lectern - D&D Camp
 
 ## Current baseline
 
-- Version: 2.9.4 Verification and Stabilization (in progress)
-- Baseline: v2.9.3 Fresh Baseline and Watermark Verification
-- Scope: startup, watermark, core CRUD, data workflow, logging, executable, and installer verification only.
+- Version: 2.9.5 Workflow and Import Refinement (in progress)
+- Baseline: tested v2.9.4 Windows executable and installer
+- Scope: continued campaign workflow, player import, usability, documentation, and release refinement.
 - Acceptance evidence: `docs/VERIFICATION_REPORT.md`.

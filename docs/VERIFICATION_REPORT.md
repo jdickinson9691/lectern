@@ -4,7 +4,7 @@ Status: **In progress**
 
 Milestone: **Verification and Stabilization**
 
-Database schema: **v4**
+Database schema: **v5**
 
 This is the acceptance record for v2.9.4. Mark an item complete only after recording its date, environment, and evidence. Automated checks do not replace manual Windows checks.
 
