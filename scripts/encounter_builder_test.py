@@ -13,6 +13,8 @@ temp_dir = Path(mkdtemp(prefix="lectern_encounter_builder_"))
 os.environ["LECTERN_DATA_DIR"] = str(temp_dir / "user-data")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import Qt
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
 from app.database.repositories import Repository
@@ -47,9 +49,28 @@ try:
         page.refresh()
 
     page = EncounterBuilderPage(repo, refresh_all)
+    page.setStyleSheet(
+        "QSpinBox { background-color: rgba(32,33,36,220); "
+        "border: 1px solid #3c4043; border-radius: 4px; }"
+    )
+    page.resize(1200, 700)
+    page.show()
+    app.processEvents()
     page.current_encounter_id = encounter_id
     page.refresh()
     assert page.monster_search.currentIndex() == -1, "Monster picker silently selected its first row"
+    search_gap = page.monster_search.geometry().top() - page.monster_search_label.geometry().bottom()
+    quantity_gap = page.monster_quantity_label.geometry().top() - page.monster_search.geometry().bottom()
+    controls_gap = page.monster_qty.geometry().top() - page.monster_quantity_label.geometry().bottom()
+    assert 0 <= search_gap <= 16, "Monster search label and field are spaced too far apart"
+    assert 0 <= quantity_gap <= 30, "Monster search and quantity sections are spaced too far apart"
+    assert 0 <= controls_gap <= 16, "Monster quantity label and controls are spaced too far apart"
+
+    page.monster_qty.setValue(1)
+    QTest.mouseClick(page.monster_qty_up, Qt.LeftButton)
+    assert page.monster_qty.value() == 2, "Quantity up arrow did not increment"
+    QTest.mouseClick(page.monster_qty_down, Qt.LeftButton)
+    assert page.monster_qty.value() == 1, "Quantity down arrow did not decrement"
 
     page.monster_search.setEditText("Bandit")
     page.monster_qty.setValue(2)
@@ -85,6 +106,7 @@ try:
     page.refresh()
     assert not page.external_notice.isHidden(), "Fantasy Grounds ownership notice is missing"
     assert not page.add_monster_button.isEnabled() and not page.remove_button.isEnabled(), "Fantasy Grounds encounter can be edited locally"
+    assert not page.monster_qty_up.isEnabled() and not page.monster_qty_down.isEnabled(), "Fantasy Grounds quantity controls remain editable"
 
     page.close()
     print("Encounter Builder regression test passed.")

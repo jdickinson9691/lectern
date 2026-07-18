@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QListWidget, QStackedWidget, QFileDialog, QTableWidget, QTableWidgetItem,
     QLineEdit, QFormLayout, QSpinBox, QMessageBox, QComboBox, QCompleter,
     QGroupBox, QTextEdit, QTextBrowser, QListWidgetItem, QGridLayout, QScrollArea, QSizePolicy, QTabWidget, QCheckBox, QInputDialog,
-    QDialog, QDialogButtonBox, QAbstractItemView
+    QDialog, QDialogButtonBox, QAbstractItemView, QAbstractSpinBox, QToolButton
 )
 from PySide6.QtCore import Qt, QRect, QSize, QTimer
 from PySide6.QtGui import QPainter, QPixmap, QIcon, QImage
@@ -663,9 +663,15 @@ class EncounterBuilderPage(QWidget):
         self.encounters=QComboBox(); self.encounters.currentIndexChanged.connect(self.select_encounter)
         top.addWidget(self.new_name); top.addWidget(new_btn); top.addWidget(QLabel("Active:")); top.addWidget(self.encounters); root.addLayout(top)
         body=QHBoxLayout(); root.addLayout(body)
-        monster_box=QGroupBox("Monster Browser"); mb=QVBoxLayout(monster_box); self.monster_search=QComboBox(); self.monster_search.setEditable(True); self.monster_search.setInsertPolicy(QComboBox.NoInsert)
-        self.monster_qty=QSpinBox(); self.monster_qty.setRange(1,50); self.add_monster_button=QPushButton("Add Monster(s)"); self.add_monster_button.clicked.connect(self.add_monsters)
-        mb.addWidget(QLabel("Search/type monster name")); mb.addWidget(self.monster_search); mb.addWidget(QLabel("Quantity")); mb.addWidget(self.monster_qty); mb.addWidget(self.add_monster_button); body.addWidget(monster_box)
+        monster_box=QGroupBox("Monster Browser"); mb=QVBoxLayout(monster_box); mb.setSpacing(8); self.monster_search=QComboBox(); self.monster_search.setEditable(True); self.monster_search.setInsertPolicy(QComboBox.NoInsert)
+        self.monster_qty=QSpinBox(); self.monster_qty.setRange(1,50); self.monster_qty.setButtonSymbols(QAbstractSpinBox.NoButtons)
+        self.monster_qty_down=QToolButton(); self.monster_qty_down.setArrowType(Qt.DownArrow); self.monster_qty_down.setToolTip("Decrease monster quantity"); self.monster_qty_down.setAccessibleName("Decrease monster quantity"); self.monster_qty_down.clicked.connect(self.monster_qty.stepDown)
+        self.monster_qty_up=QToolButton(); self.monster_qty_up.setArrowType(Qt.UpArrow); self.monster_qty_up.setToolTip("Increase monster quantity"); self.monster_qty_up.setAccessibleName("Increase monster quantity"); self.monster_qty_up.clicked.connect(self.monster_qty.stepUp)
+        for button in (self.monster_qty_down,self.monster_qty_up): button.setFixedSize(36,30)
+        quantity_row=QHBoxLayout(); quantity_row.setContentsMargins(0,0,0,0); quantity_row.addWidget(self.monster_qty_down); quantity_row.addWidget(self.monster_qty,1); quantity_row.addWidget(self.monster_qty_up)
+        self.add_monster_button=QPushButton("Add Monster(s)"); self.add_monster_button.clicked.connect(self.add_monsters)
+        self.monster_search_label=QLabel("Search/type monster name"); self.monster_quantity_label=QLabel("Quantity")
+        mb.addWidget(self.monster_search_label); mb.addWidget(self.monster_search); mb.addSpacing(6); mb.addWidget(self.monster_quantity_label); mb.addLayout(quantity_row); mb.addStretch(1); mb.addWidget(self.add_monster_button); body.addWidget(monster_box)
         player_box=QGroupBox("Players"); pb=QVBoxLayout(player_box); self.player_list=QListWidget(); self.add_player_button=QPushButton("Add Selected Player(s)"); self.add_player_button.clicked.connect(self.add_players); pb.addWidget(self.player_list); pb.addWidget(self.add_player_button); body.addWidget(player_box)
         cart_box=QGroupBox("Encounter Combatants"); cb=QVBoxLayout(cart_box); self.combatants=QTableWidget(); self.combatants.setColumnCount(6); self.combatants.setHorizontalHeaderLabels(["Name","Init","AC","HP","Max HP","Type"]); cb.addWidget(self.combatants)
         self.combatants.setIconSize(QSize(36,36))
@@ -712,7 +718,7 @@ class EncounterBuilderPage(QWidget):
         return self.repo.is_external_encounter(self.current_encounter_id)
     def refresh_ownership(self):
         external=self.encounter_is_external()
-        for widget in (self.monster_search,self.monster_qty,self.add_monster_button,self.player_list,self.add_player_button,self.roll_button,self.remove_button): widget.setEnabled(not external)
+        for widget in (self.monster_search,self.monster_qty,self.monster_qty_down,self.monster_qty_up,self.add_monster_button,self.player_list,self.add_player_button,self.roll_button,self.remove_button): widget.setEnabled(not external)
         self.external_notice.setVisible(external)
     def create_encounter(self):
         name=self.new_name.text().strip() or "New Encounter"
