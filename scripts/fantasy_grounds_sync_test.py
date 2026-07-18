@@ -20,6 +20,17 @@ from app.integrations.fantasy_grounds import FantasyGroundsSyncError, FantasyGro
 
 
 try:
+    extension_source = (
+        ROOT / "integrations" / "fantasy_grounds" / "extension" / "LecternSync" / "scripts" / "lectern_sync.lua"
+    ).read_text(encoding="utf-8")
+    extension_manifest = (
+        ROOT / "integrations" / "fantasy_grounds" / "extension" / "LecternSync" / "extension.xml"
+    ).read_text(encoding="utf-8")
+    assert 'local EXTENSION_VERSION = "1.1.3"' in extension_source and "<version>1.1.3</version>" in extension_manifest, "Extension version metadata is inconsistent"
+    assert 'nodeNumber(node, "defenses.ac.total"' in extension_source, "2024 Fantasy Grounds character AC path is missing"
+    assert 'if sCharacterName == "" then return nil end' in extension_source, "Unnamed Fantasy Grounds characters are not filtered"
+    assert 'not moduleName(node)' in extension_source, "Module reference battles are not filtered from campaign encounters"
+
     db = temp_dir / "lectern.db"
     initialize_database(db)
     repo = Repository(db)
@@ -36,7 +47,7 @@ try:
     handoff = temp_dir / "campaign" / "lectern-sync"
     handoff.mkdir(parents=True)
     snapshot = handoff / "snapshot.json"
-    snapshot.write_text(json.dumps(payload), encoding="utf-8")
+    snapshot.write_text(json.dumps(payload), encoding="utf-8-sig")
 
     service = FantasyGroundsSyncService(db)
     configured = service.configure_folder(handoff)
@@ -50,7 +61,7 @@ try:
     assert next(row for row in players if row["name"] == "Fantasy Grounds Test Hero")["class_name"] == "Local Class", "Local same-name character was overwritten"
     player = next(row for row in players if row["class_name"] == "Test Fighter")
     assert player["name"] == "Fantasy Grounds Test Hero [Fantasy Grounds]", "Character collision-safe naming failed"
-    assert player["level"] == 5 and player["current_hp"] == 37 and player["str_total"] == 16, "Character statistics mapping failed"
+    assert player["level"] == 5 and player["armor_class"] == 17 and player["current_hp"] == 37 and player["str_total"] == 16, "Character statistics mapping failed"
     assert "Test Fighter" in repo.list_rule_names_like("class") and "Test Champion" not in repo.list_rule_names_like("class"), "Class/subclass references were mixed"
     assert "Test Champion" in repo.list_rule_names_like("subclass"), "Subclass reference lookup failed"
 

@@ -1,7 +1,7 @@
--- Lectern Sync 1.1.1
+-- Lectern Sync 1.1.3
 -- One-way Fantasy Grounds Unity 5E export. This script never writes FG database nodes.
 
-local EXTENSION_VERSION = "1.1.1"
+local EXTENSION_VERSION = "1.1.3"
 local SCHEMA_VERSION = 1
 local bExporting = false
 local tCachedSnapshot = nil
@@ -226,6 +226,8 @@ local function abilityScore(node, sAbility)
 end
 
 local function characterRecord(node)
+  local sCharacterName = nodeText(node, "name", "")
+  if sCharacterName == "" then return nil end
   local tRecord = makeRecord(node, "character")
   local sClass, nLevel = classSummary(node)
   local nMaximum = nodeNumber(node, "hp.total", nodeNumber(node, "hp.max", 1))
@@ -242,7 +244,7 @@ local function characterRecord(node)
     subclass = nodeText(node, "specialization", ""),
     background = nodeText(node, "background", ""),
     level = nLevel,
-    armor_class = nodeNumber(node, "ac.totals.general", nodeNumber(node, "ac", 10)),
+    armor_class = nodeNumber(node, "defenses.ac.total", nodeNumber(node, "ac.totals.general", nodeNumber(node, "ac", 10))),
     max_hp = math.max(1, nMaximum),
     current_hp = math.max(0, nMaximum - nWounds),
     initiative_mod = nodeNumber(node, "initiative.total", nodeNumber(node, "initiative", 0)),
@@ -258,7 +260,10 @@ end
 
 local function characters()
   local aRecords = {}
-  for _, node in ipairs(DB.getChildList("charsheet")) do table.insert(aRecords, characterRecord(node)) end
+  for _, node in ipairs(DB.getChildList("charsheet")) do
+    local tRecord = characterRecord(node)
+    if tRecord then table.insert(aRecords, tRecord) end
+  end
   table.sort(aRecords, function(a, b) return string.lower(a.name) < string.lower(b.name) end)
   return aRecords
 end
@@ -303,7 +308,11 @@ local function encounters()
     if ok and type(tNodes) == "table" then
       for _, node in pairs(tNodes) do
         local sPathKey = DB.getPath(node)
-        if not tSeen[sPathKey] then table.insert(aRecords, encounterRecord(node)); tSeen[sPathKey] = true end
+        -- Loaded modules expose hundreds of reference battles through global
+        -- mappings. Only campaign-owned prepared encounters belong in this list.
+        if not tSeen[sPathKey] and not moduleName(node) then
+          table.insert(aRecords, encounterRecord(node)); tSeen[sPathKey] = true
+        end
       end
     end
   end

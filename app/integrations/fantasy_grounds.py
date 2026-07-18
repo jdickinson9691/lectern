@@ -177,7 +177,9 @@ def validate_snapshot(payload: Any) -> dict[str, Any]:
 
 def load_snapshot(path: Path) -> dict[str, Any]:
     try:
-        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        # Fantasy Grounds File.saveTextFile emits UTF-8 with a BOM on Windows.
+        # utf-8-sig accepts that output while remaining compatible with plain UTF-8 fixtures.
+        payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError) as exc:
         raise FantasyGroundsSyncError(f"Could not read snapshot: {exc}") from exc
     return validate_snapshot(payload)
