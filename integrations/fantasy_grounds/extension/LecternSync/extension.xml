@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <root version="4.0" release="1">
-  <announcement text="Lectern Sync 1.1.0 - one-way 5E combat event export to Lectern" />
+  <announcement text="Lectern Sync 1.1.1 - one-way 5E combat event export to Lectern" />
   <properties>
     <name>Lectern Sync</name>
-    <version>1.1.0</version>
+    <version>1.1.1</version>
     <author>Lectern</author>
     <description>One-way Fantasy Grounds Unity 5E catalog, encounter, character, Combat Tracker, action, damage, healing, and outcome export for Lectern.</description>
     <ruleset>

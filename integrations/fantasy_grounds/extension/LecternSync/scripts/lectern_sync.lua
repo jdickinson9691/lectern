@@ -1,7 +1,7 @@
--- Lectern Sync 1.1.0
+-- Lectern Sync 1.1.1
 -- One-way Fantasy Grounds Unity 5E export. This script never writes FG database nodes.
 
-local EXTENSION_VERSION = "1.1.0"
+local EXTENSION_VERSION = "1.1.1"
 local SCHEMA_VERSION = 1
 local bExporting = false
 local tCachedSnapshot = nil
@@ -275,10 +275,18 @@ local function encounterRecord(node)
         local sName = nodeText(nodeParticipant, "name", "Unnamed Participant")
         local nQuantity = math.max(1, nodeNumber(nodeParticipant, "count", nodeNumber(nodeParticipant, "number", 1)))
         local _, sLink = DB.getValue(nodeParticipant, "link")
+        local nodeSource = nil
+        if sLink and sLink ~= "" then nodeSource = DB.findNode(sLink) end
+        nodeSource = nodeSource or nodeParticipant
+        local sParticipantSourcePath = (sLink and sLink ~= "") and sLink or sParticipantPath
         table.insert(tRecord.participants, {
-          source_key = "5E:npc:" .. (sLink or sParticipantPath),
+          source_key = "5E:npc:" .. sParticipantSourcePath,
           name = sName,
           quantity = nQuantity,
+          armor_class = nodeNumber(nodeSource, "ac", nodeNumber(nodeParticipant, "ac", 10)),
+          hit_points = math.max(1, nodeNumber(nodeSource, "hp", nodeNumber(nodeSource, "hp.total", nodeNumber(nodeParticipant, "hp", 1)))),
+          initiative_mod = nodeNumber(nodeSource, "initiative", nodeNumber(nodeSource, "abilities.dexterity.bonus", 0)),
+          raw = nodeToTable(nodeSource),
         })
         tSeen[sParticipantPath] = true
       end

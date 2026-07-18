@@ -339,13 +339,14 @@ Run `/lectern-export` once after each Fantasy Grounds campaign start and after c
 
 Keep **Automatically import new snapshots** enabled. After the initial full export, Fantasy Grounds writes an updated snapshot whenever its Combat Tracker changes. Lectern checks for changes once per second.
 
-Synchronized Fantasy Grounds encounters are read-only in Lectern's Combat Dashboard. Change HP, initiative, effects, turns, and participants in Fantasy Grounds.
+Synchronized Fantasy Grounds encounters are read-only in Lectern's Encounter Builder and Combat Dashboard. Change HP, initiative, effects, turns, and participants in Fantasy Grounds.
 
 ### Imported information
 
 - Classes, subclasses, species/races, feats, and backgrounds from loaded modules
 - Player characters
 - Prepared encounters and their participants
+- Prepared-encounter participant armor class, hit points, and initiative modifier when Fantasy Grounds provides them
 - Current Combat Tracker order, round, active combatant, initiative, armor class, hit points, wounds, temporary hit points, and effects
 - Combat actions, applied damage, healing, turn changes, temporary HP changes, and GM-confirmed encounter outcomes in the encounter turn log
 - Fantasy Grounds module name and database path for provenance
