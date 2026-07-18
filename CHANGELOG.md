@@ -1,6 +1,16 @@
 # Changelog
 
-## 2.9.4 — Verification and Stabilization (in progress)
+## 2.9.5 — Workflow and Import Refinement (in progress)
+
+- Established the v2.9.5 development baseline from the tested v2.9.4 Windows build.
+- Synchronized application, package, help, and installer version metadata.
+- Prepared the first one-way Fantasy Grounds Unity 5E integration milestone with a versioned snapshot contract, sanitized fixture, extension workspace, installation helper, acceptance criteria, and run-together guide.
+- Implemented the Fantasy Grounds Unity 5E exporter extension with loaded-module reference discovery, character and encounter export, live Combat Tracker updates, status reporting, and the `/lectern-export` command.
+- Added schema v6 external-source provenance, collision-safe entity links, transactional snapshot validation/import, sequence idempotency, and stale-record retention.
+- Added the Fantasy Grounds Sync screen with campaign-folder setup, automatic polling, manual import, provenance display, and read-only Fantasy Grounds combat ownership.
+- Added sanitized Fantasy Grounds integration regression coverage and packaged-extension build wiring.
+
+## 2.9.4 — Verification and Stabilization
 
 - Started the v2.9.4 stabilization milestone; no v3.0 feature work is in scope.
 - Synchronized application, package, diagnostic, and installer version metadata.
@@ -23,7 +33,7 @@
 - Expanded D&D Beyond PDF import to include feats, inventory, skill proficiency/expertise, saving throws, equipped items, and spellcasting ability.
 - Rewrote in-app help for the current 2.9.4 workflows and added an illustrated step-by-step tutorial production outline.
 - Added safe PDF portrait extraction and player thumbnails in Players, Encounter Builder, and Combat Dashboard rows.
-- Automated and Windows/manual acceptance remain to be completed.
+- Built and verified the Windows executable and installer; remaining manual acceptance items are recorded in `docs/VERIFICATION_REPORT.md`.
 
 ## 2.9.3 — Fresh Baseline and Watermark Verification
 

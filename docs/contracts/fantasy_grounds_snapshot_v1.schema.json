@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lectern.local/contracts/fantasy_grounds_snapshot_v1.schema.json",
+  "title": "Lectern Fantasy Grounds Snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "sequence", "generated_at", "source", "catalog", "characters", "encounters", "combat"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "source": { "$ref": "#/$defs/source" },
+    "catalog": { "$ref": "#/$defs/catalog" },
+    "characters": { "type": "array", "items": { "$ref": "#/$defs/record" } },
+    "encounters": { "type": "array", "items": { "$ref": "#/$defs/encounter" } },
+    "combat": { "$ref": "#/$defs/combat" }
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "extension_version", "ruleset", "campaign_key", "campaign_name", "modules"],
+      "properties": {
+        "provider": { "const": "fantasy_grounds" },
+        "extension_version": { "type": "string", "minLength": 1 },
+        "ruleset": { "const": "5E" },
+        "campaign_key": { "type": "string", "minLength": 1 },
+        "campaign_name": { "type": "string", "minLength": 1 },
+        "modules": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["classes", "subclasses", "species", "feats", "backgrounds"],
+      "properties": {
+        "classes": { "$ref": "#/$defs/record_list" },
+        "subclasses": { "$ref": "#/$defs/record_list" },
+        "species": { "$ref": "#/$defs/record_list" },
+        "feats": { "$ref": "#/$defs/record_list" },
+        "backgrounds": { "$ref": "#/$defs/record_list" }
+      }
+    },
+    "record_list": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/record" }
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_key", "record_type", "name", "source_path", "module_name", "fields", "raw"],
+      "properties": {
+        "source_key": { "type": "string", "minLength": 1 },
+        "record_type": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "source_path": { "type": "string", "minLength": 1 },
+        "module_name": { "type": ["string", "null"] },
+        "fields": { "type": "object" },
+        "raw": { "type": "object" }
+      }
+    },
+    "encounter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_key", "record_type", "name", "source_path", "module_name", "fields", "raw", "participants"],
+      "properties": {
+        "source_key": { "type": "string", "minLength": 1 },
+        "record_type": { "const": "encounter" },
+        "name": { "type": "string", "minLength": 1 },
+        "source_path": { "type": "string", "minLength": 1 },
+        "module_name": { "type": ["string", "null"] },
+        "fields": { "type": "object" },
+        "raw": { "type": "object" },
+        "participants": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source_key", "name", "quantity"],
+            "properties": {
+              "source_key": { "type": "string", "minLength": 1 },
+              "name": { "type": "string", "minLength": 1 },
+              "quantity": { "type": "integer", "minimum": 1 }
+            }
+          }
+        }
+      }
+    },
+    "combat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["active", "round", "active_source_key", "combatants"],
+      "properties": {
+        "active": { "type": "boolean" },
+        "round": { "type": "integer", "minimum": 0 },
+        "active_source_key": { "type": ["string", "null"] },
+        "combatants": { "type": "array", "items": { "$ref": "#/$defs/combatant" } }
+      }
+    },
+    "combatant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_key", "name", "order", "initiative", "armor_class", "hit_points", "effects", "raw"],
+      "properties": {
+        "source_key": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "order": { "type": "integer", "minimum": 0 },
+        "initiative": { "type": ["number", "null"] },
+        "armor_class": { "type": ["integer", "null"] },
+        "hit_points": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["maximum", "current", "temporary", "wounds"],
+          "properties": {
+            "maximum": { "type": ["integer", "null"] },
+            "current": { "type": ["integer", "null"] },
+            "temporary": { "type": ["integer", "null"] },
+            "wounds": { "type": ["integer", "null"] }
+          }
+        },
+        "effects": { "type": "array", "items": { "type": "object" } },
+        "raw": { "type": "object" }
+      }
+    }
+  }
+}

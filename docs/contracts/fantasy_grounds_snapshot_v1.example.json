@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "sequence": 1,
+  "generated_at": "2026-07-17T20:15:31Z",
+  "source": {
+    "provider": "fantasy_grounds",
+    "extension_version": "1.0.0",
+    "ruleset": "5E",
+    "campaign_key": "lectern-test-campaign",
+    "campaign_name": "Lectern Test Campaign",
+    "modules": ["Sanitized Test Content"]
+  },
+  "catalog": {
+    "classes": [
+      {
+        "source_key": "5E:class:test-fighter",
+        "record_type": "class",
+        "name": "Test Fighter",
+        "source_path": "reference.classes.testfighter@Sanitized Test Content",
+        "module_name": "Sanitized Test Content",
+        "fields": { "hit_die": 10 },
+        "raw": {}
+      }
+    ],
+    "subclasses": [
+      {
+        "source_key": "5E:subclass:test-champion",
+        "record_type": "subclass",
+        "name": "Test Champion",
+        "source_path": "reference.subclassdata.testchampion@Sanitized Test Content",
+        "module_name": "Sanitized Test Content",
+        "fields": { "description": "A sanitized subclass fixture." },
+        "raw": {}
+      }
+    ],
+    "species": [
+      {
+        "source_key": "5E:species:test-human",
+        "record_type": "species",
+        "name": "Test Human",
+        "source_path": "reference.racedata.testhuman@Sanitized Test Content",
+        "module_name": "Sanitized Test Content",
+        "fields": { "description": "A sanitized species fixture." },
+        "raw": {}
+      }
+    ],
+    "feats": [
+      {
+        "source_key": "5E:feat:test-alert",
+        "record_type": "feat",
+        "name": "Test Alert",
+        "source_path": "reference.featdata.testalert@Sanitized Test Content",
+        "module_name": "Sanitized Test Content",
+        "fields": { "description": "A sanitized feat fixture." },
+        "raw": {}
+      }
+    ],
+    "backgrounds": [
+      {
+        "source_key": "5E:background:test-soldier",
+        "record_type": "background",
+        "name": "Test Soldier",
+        "source_path": "reference.backgrounddata.testsoldier@Sanitized Test Content",
+        "module_name": "Sanitized Test Content",
+        "fields": { "description": "A sanitized background fixture." },
+        "raw": {}
+      }
+    ]
+  },
+  "characters": [
+    {
+      "source_key": "5E:character:test-hero",
+      "record_type": "character",
+      "name": "Fantasy Grounds Test Hero",
+      "source_path": "charsheet.id-00001",
+      "module_name": null,
+      "fields": {
+        "player_name": "Test Player",
+        "species": "Test Human",
+        "class_name": "Test Fighter",
+        "subclass": "Test Champion",
+        "background": "Test Soldier",
+        "level": 5,
+        "armor_class": 17,
+        "max_hp": 44,
+        "current_hp": 37,
+        "initiative_mod": 2,
+        "abilities": { "str": 16, "dex": 14, "con": 14, "int": 10, "wis": 12, "cha": 8 },
+        "feats": "Test Alert"
+      },
+      "raw": {}
+    }
+  ],
+  "encounters": [
+    {
+      "source_key": "5E:battle:test-encounter",
+      "record_type": "encounter",
+      "name": "Test Encounter",
+      "source_path": "battle.id-00001",
+      "module_name": null,
+      "fields": {},
+      "raw": {},
+      "participants": [
+        { "source_key": "5E:npc:test-creature", "name": "Test Creature", "quantity": 2 }
+      ]
+    }
+  ],
+  "combat": {
+    "active": true,
+    "round": 1,
+    "active_source_key": "5E:ct:id-00001",
+    "combatants": [
+      {
+        "source_key": "5E:ct:id-00001",
+        "name": "Test Creature",
+        "order": 0,
+        "initiative": 14,
+        "armor_class": 13,
+        "hit_points": { "maximum": 12, "current": 9, "temporary": 0, "wounds": 3 },
+        "effects": [{ "name": "Tested", "duration": 2, "source": "Fixture" }],
+        "raw": {}
+      }
+    ]
+  }
+}

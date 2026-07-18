@@ -83,10 +83,16 @@ class Repository:
 
     def list_rule_names_like(self, category_text: str):
         with connect(self.db_path) as conn:
-            rows = conn.execute(
-                "SELECT name FROM rules_reference WHERE lower(category) LIKE ? ORDER BY name",
-                (f"%{category_text.lower()}%",),
-            ).fetchall()
+            if category_text.lower() == "class":
+                rows = conn.execute(
+                    "SELECT name FROM rules_reference WHERE lower(category) LIKE ? AND lower(category) NOT LIKE '%subclass%' ORDER BY name",
+                    ("%class%",),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT name FROM rules_reference WHERE lower(category) LIKE ? ORDER BY name",
+                    (f"%{category_text.lower()}%",),
+                ).fetchall()
             return [row['name'] for row in rows]
 
     def get_rule_description(self, name: str, category_text: str) -> str:
@@ -202,6 +208,15 @@ class Repository:
     def get_encounter(self, encounter_id: int):
         with connect(self.db_path) as conn:
             return conn.execute("SELECT * FROM encounters WHERE id=?", (encounter_id,)).fetchone()
+
+    def is_external_encounter(self, encounter_id: int | None) -> bool:
+        if not encounter_id:
+            return False
+        with connect(self.db_path) as conn:
+            return conn.execute(
+                "SELECT 1 FROM external_entity_links WHERE entity_type='encounter' AND entity_id=? LIMIT 1",
+                (encounter_id,),
+            ).fetchone() is not None
 
     def list_combatants(self, encounter_id: int):
         with connect(self.db_path) as conn:

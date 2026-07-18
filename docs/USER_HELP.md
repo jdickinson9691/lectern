@@ -1,6 +1,6 @@
 # Lectern - D&D Campaign Manager Help
 
-Version: 2.9.4 - Verification and Stabilization
+Version: 2.9.5 - Workflow and Import Refinement
 
 Lectern organizes campaigns, player characters, encounters, combat logs, and D&D reference data in a local database. Use the navigation bar on the left to move through the application.
 
@@ -308,6 +308,56 @@ Most tables match by Name. Rules Reference matches by Category and Name.
 - **Export Selected Table...** writes one table.
 - **Export All Tables...** writes every supported table to a folder.
 - **Export Empty Template...** writes headers for creating a new import file.
+
+## Fantasy Grounds Sync
+
+Fantasy Grounds Sync receives data from a Fantasy Grounds Unity campaign using the `5E` ruleset. Fantasy Grounds remains authoritative, and Lectern never changes Fantasy Grounds campaign data.
+
+### Install the Fantasy Grounds extension
+
+1. Locate the Fantasy Grounds data folder using the folder button on the Fantasy Grounds launcher.
+2. Copy `LecternSync.ext` from Lectern's `FantasyGrounds` installation folder into the Fantasy Grounds `extensions` folder.
+3. Restart Fantasy Grounds.
+4. Select a `5E` campaign and enable **Lectern Sync**.
+5. Load the campaign as the GM.
+
+Source developers can instead run `scripts\Install-FantasyGroundsExtension.ps1` to install an unpacked development extension.
+
+### Connect a campaign
+
+1. Load the campaign in Fantasy Grounds with **Lectern Sync** enabled.
+2. Open **Fantasy Grounds Sync** in Lectern.
+3. Click **Select Campaign Folder...**.
+4. Select the individual folder beneath the Fantasy Grounds `campaigns` directory for the loaded campaign.
+5. Lectern creates a `lectern-sync` handoff folder.
+6. In Fantasy Grounds chat, enter `/lectern-export`.
+7. Confirm Lectern shows the campaign name, `5E` ruleset, sequence, time, and imported counts.
+
+Run `/lectern-export` once after each Fantasy Grounds campaign start and after changing the loaded Fantasy Grounds modules.
+
+### Automatic updates
+
+Keep **Automatically import new snapshots** enabled. After the initial full export, Fantasy Grounds writes an updated snapshot whenever its Combat Tracker changes. Lectern checks for changes once per second.
+
+Synchronized Fantasy Grounds encounters are read-only in Lectern's Combat Dashboard. Change HP, initiative, effects, turns, and participants in Fantasy Grounds.
+
+### Imported information
+
+- Classes, subclasses, species/races, feats, and backgrounds from loaded modules
+- Player characters
+- Prepared encounters and their participants
+- Current Combat Tracker order, round, active combatant, initiative, armor class, hit points, wounds, temporary hit points, and effects
+- Fantasy Grounds module name and database path for provenance
+
+Records that disappear from a later snapshot are marked stale rather than deleted. Commercial module content remains local and must not be redistributed.
+
+### Sync troubleshooting
+
+- If Fantasy Grounds reports an export error, select the campaign folder in Lectern before running `/lectern-export`.
+- If the extension is missing, confirm `LecternSync.ext` or the unpacked `LecternSync` folder is directly beneath the Fantasy Grounds `extensions` folder.
+- If data is unchanged, click **Import Now** and run `/lectern-export` again.
+- If modules changed, open the required modules in Fantasy Grounds and run a new full export.
+- Review **Error Logs** in Lectern and Fantasy Grounds logs for validation or mapping errors.
 
 ## Data Workflow
 

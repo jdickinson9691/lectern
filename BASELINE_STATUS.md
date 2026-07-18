@@ -2,22 +2,23 @@
 
 ## Current milestone
 
-- Version: 2.9.4 (in progress)
-- Release: Verification and Stabilization
-- Database schema: v4
+- Version: 2.9.5 (in progress)
+- Release: Workflow and Import Refinement
+- Database schema: v6
 - Code model: one continuously evolving Git repository
 
 ## Stabilization status
 
-The v2.9.3 source baseline is the foundation for the v2.9.4 verification milestone. Every page registered in the left navigation is wrapped by the watermark container. Python 3.13 is required for the validated Windows environment. Completion requires recorded evidence in `docs/VERIFICATION_REPORT.md`.
+The tested v2.9.4 Windows build is the foundation for v2.9.5. The current branch adds one-way Fantasy Grounds Unity 5E synchronization with external-source provenance, prepared encounters, characters, and live combat. Python 3.13 remains the validated development and packaging environment. See `docs/LECTERN_2_9_5_HANDOFF.md` for the complete handoff.
 
 ## Next required workstation checks
 
 1. Run `scripts/Setup-Development.ps1`.
 2. Launch with `scripts/Start-Lectern.ps1`.
-3. Visually inspect all 16 navigation screens.
+3. Visually inspect all 17 navigation screens.
 4. Complete Player, Monster, and Encounter CRUD checks.
-5. Build `dist/Lectern/Lectern.exe`.
-6. Compile and test the Inno Setup installer.
+5. Verify the Lectern Sync extension in a Fantasy Grounds Unity 5E test campaign.
+6. Build `dist/Lectern/Lectern.exe` and `dist/Lectern/FantasyGrounds/LecternSync.ext`.
+7. Compile and test the Inno Setup installer.
 
-Do not begin v3.0 feature development until these Windows checks pass.
+Record new v2.9.5 behavior and verification evidence as development proceeds.

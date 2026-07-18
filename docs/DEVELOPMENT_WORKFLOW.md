@@ -9,9 +9,14 @@ This folder is now the canonical evolving source tree for the Lectern - D&D Camp
 2. Make all future changes inside this same folder.
 3. Run from source during development:
    `build\RunFromSource.bat`
-4. Build only when ready to test the packaged executable:
+4. Run automated checks:
+   `.venv\Scripts\python.exe scripts\smoke_test.py`
+   `.venv\Scripts\python.exe scripts\fantasy_grounds_sync_test.py`
+5. Install the unpacked Fantasy Grounds extension into a development data folder:
+   `scripts\Install-FantasyGroundsExtension.ps1 -FantasyGroundsDataPath "<path>"`
+6. Build only when ready to test the packaged executable and `LecternSync.ext`:
    `build\Build.ps1`
-5. Launch the built app:
+7. Launch the built app:
    `dist\Lectern\Lectern.exe`
 
 ## Important rules
@@ -23,7 +28,7 @@ This folder is now the canonical evolving source tree for the Lectern - D&D Camp
 
 ## Current baseline
 
-- Version: 2.9.4 Verification and Stabilization (in progress)
-- Baseline: v2.9.3 Fresh Baseline and Watermark Verification
-- Scope: startup, watermark, core CRUD, data workflow, logging, executable, and installer verification only.
+- Version: 2.9.5 Workflow and Import Refinement (in progress)
+- Baseline: tested v2.9.4 Windows executable and installer
+- Scope: campaign workflow, imports, one-way Fantasy Grounds Unity 5E synchronization, usability, documentation, and release refinement.
 - Acceptance evidence: `docs/VERIFICATION_REPORT.md`.
