@@ -8,6 +8,7 @@
 - Made the spacing between sections on every application screen respond to its content and the available window height.
 - Replaced the Encounter Builder's tiny native monster-quantity spinner controls with reliable, accessible increase and decrease arrow buttons.
 - Grouped Monster Browser search and quantity controls into a compact top section instead of distributing empty space between them.
+- Updated Lectern Sync 1.1.3 for Fantasy Grounds 2024 character AC fields, excluded unnamed placeholder characters and module reference battles, and accepted Fantasy Grounds UTF-8 BOM snapshots.
 
 ## 2.9.5 — Workflow and Import Refinement (in progress)
 

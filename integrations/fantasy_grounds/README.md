@@ -2,7 +2,7 @@
 
 This directory contains the implementation workspace for one-way Fantasy Grounds Unity 5E to Lectern synchronization.
 
-The extension is versioned with the snapshot contract and supports the Fantasy Grounds Unity `5E` ruleset. Version 1.1.1 exports loaded class, subclass, species/race, feat, and background records; player characters; prepared encounters with participant statistics; live Combat Tracker state; and a deduplicated journal of combat actions, applied damage, healing, turns, effects, and confirmed outcomes.
+The extension is versioned with the snapshot contract and supports the Fantasy Grounds Unity `5E` ruleset. Version 1.1.3 exports loaded class, subclass, species/race, feat, and background records; complete player characters using both legacy and 2024 5E armor-class paths; campaign-owned prepared encounters without flooding Lectern with module reference battles; live Combat Tracker state; and a deduplicated journal of combat actions, applied damage, healing, turns, effects, and confirmed outcomes.
 
 ```text
 extension/LecternSync/  Unpacked Fantasy Grounds extension source
