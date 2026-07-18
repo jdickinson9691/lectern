@@ -26,10 +26,14 @@ Generated `dist`, `release`, and PyInstaller work folders remain excluded from G
 - Monster Library seeded from a versioned 4,148-record catalog.
 - Weapons, armor, equipment, magic items, spells, CSV transfer, data workflow, logs, and in-app help.
 - Centered translucent watermark coverage throughout the navigation screens.
+- One-way Fantasy Grounds Unity 5E synchronization for loaded reference records, characters, prepared encounters, and live Combat Tracker state.
+- Fantasy Grounds source provenance, idempotent snapshot sequences, stale-record retention, and collision-safe links to Lectern entities.
 
 ## Important implementation notes
 
-- Existing databases migrate without discarding encounter data; current schema version is 5.
+- Existing databases migrate without discarding encounter data; current schema version is 6.
+- Fantasy Grounds synchronization is host/GM-only and read-only from Lectern. Run `/lectern-export` once after loading a campaign and after changing the loaded module set.
+- The automated fixture covers snapshot validation and mapping; final release acceptance still requires a live Fantasy Grounds 5E campaign.
 - Imported PDF data is previewed before database persistence.
 - Portrait extraction accepts distinct square or portrait-oriented images and rejects wide banners and logos. A user can always choose a portrait manually.
 - A newly created encounter must be empty and uniquely named.

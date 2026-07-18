@@ -7,13 +7,14 @@ from PySide6.QtWidgets import (
     QGroupBox, QTextEdit, QTextBrowser, QListWidgetItem, QGridLayout, QScrollArea, QSizePolicy, QTabWidget, QCheckBox, QInputDialog,
     QDialog, QDialogButtonBox, QAbstractItemView
 )
-from PySide6.QtCore import Qt, QRect, QSize
+from PySide6.QtCore import Qt, QRect, QSize, QTimer
 from PySide6.QtGui import QPainter, QPixmap, QIcon, QImage
 from ..database.repositories import Repository
 from ..importers.spreadsheet_importer import SpreadsheetImporter
 from ..importers.csv_transfer import CsvTransferService, CSV_TABLES
 from ..importers.character_pdf import CharacterPdfImporter
 from ..services.data_workflow import DataWorkflowService
+from ..integrations.fantasy_grounds import FantasyGroundsSyncError, FantasyGroundsSyncService
 from ..version import APP_NAME, VERSION
 from ..paths import icon_path, watermark_path, help_path, user_data_dir
 
@@ -691,10 +692,11 @@ class CombatDashboardPage(QWidget):
         self.round_label=QLabel("Round - | Active: -"); top.addWidget(self.round_label); root.addLayout(top)
         self.order=QTableWidget(); self.order.setColumnCount(6); self.order.setHorizontalHeaderLabels(["Turn","Name","Init","AC","HP","Max"]); root.addWidget(self.order)
         self.order.setIconSize(QSize(36,36))
-        buttons=QHBoxLayout(); prev=QPushButton("Previous Turn"); prev.clicked.connect(self.prev_turn); nxt=QPushButton("Next / End Turn"); nxt.clicked.connect(self.next_turn); dmg=QPushButton("Apply Damage"); dmg.clicked.connect(lambda:self.adjust_hp(-abs(self.hp_delta.value()), "Damage")); heal=QPushButton("Apply Healing"); heal.clicked.connect(lambda:self.adjust_hp(abs(self.hp_delta.value()), "Healing")); self.hp_delta=QSpinBox(); self.hp_delta.setRange(0,9999); self.hp_delta.setValue(1)
-        for w in [prev,nxt,QLabel("Amount"),self.hp_delta,dmg,heal]: buttons.addWidget(w)
+        buttons=QHBoxLayout(); self.prev_button=QPushButton("Previous Turn"); self.prev_button.clicked.connect(self.prev_turn); self.next_button=QPushButton("Next / End Turn"); self.next_button.clicked.connect(self.next_turn); self.damage_button=QPushButton("Apply Damage"); self.damage_button.clicked.connect(lambda:self.adjust_hp(-abs(self.hp_delta.value()), "Damage")); self.heal_button=QPushButton("Apply Healing"); self.heal_button.clicked.connect(lambda:self.adjust_hp(abs(self.hp_delta.value()), "Healing")); self.hp_delta=QSpinBox(); self.hp_delta.setRange(0,9999); self.hp_delta.setValue(1)
+        for w in [self.prev_button,self.next_button,QLabel("Amount"),self.hp_delta,self.damage_button,self.heal_button]: buttons.addWidget(w)
         root.addLayout(buttons)
-        logrow=QHBoxLayout(); self.action=QComboBox(); self.action.addItems(["Attack","Spell","Save","Condition","Reaction","Lair Action","Note"]); self.details=QLineEdit(); self.details.setPlaceholderText("Action details"); addlog=QPushButton("Log Action"); addlog.clicked.connect(self.log_action); logrow.addWidget(self.action); logrow.addWidget(self.details); logrow.addWidget(addlog); root.addLayout(logrow)
+        logrow=QHBoxLayout(); self.action=QComboBox(); self.action.addItems(["Attack","Spell","Save","Condition","Reaction","Lair Action","Note"]); self.details=QLineEdit(); self.details.setPlaceholderText("Action details"); self.add_log_button=QPushButton("Log Action"); self.add_log_button.clicked.connect(self.log_action); logrow.addWidget(self.action); logrow.addWidget(self.details); logrow.addWidget(self.add_log_button); root.addLayout(logrow)
+        self.external_notice=QLabel("Fantasy Grounds controls this encounter. Source-owned combat fields are read-only in Lectern."); self.external_notice.setWordWrap(True); self.external_notice.setVisible(False); root.addWidget(self.external_notice)
         self.log=QTextEdit(); self.log.setReadOnly(True); root.addWidget(self.log); self.refresh()
     def refresh(self):
         self.encounters.blockSignals(True); self.encounters.clear()
@@ -706,6 +708,8 @@ class CombatDashboardPage(QWidget):
     def rows(self): return self.repo.list_combatants(self.current_encounter_id) if self.current_encounter_id else []
     def refresh_board(self):
         rows=self.rows(); enc=self.repo.get_encounter(self.current_encounter_id) if self.current_encounter_id else None; active=(enc['active_index'] if enc else 0) or 0
+        external=self.repo.is_external_encounter(self.current_encounter_id); self.external_notice.setVisible(external)
+        for widget in [self.prev_button,self.next_button,self.hp_delta,self.damage_button,self.heal_button,self.action,self.details,self.add_log_button]: widget.setEnabled(not external)
         active_name=rows[active]['name'] if rows and active < len(rows) else '-'; self.round_label.setText(f"Round {enc['round'] if enc else '-'} | Active: {active_name}")
         self.order.setRowCount(len(rows))
         for r,row in enumerate(rows):
@@ -1047,6 +1051,190 @@ class DataWorkflowPage(QWidget):
             QMessageBox.critical(self, "Reseed Failed", str(exc))
 
 
+class FantasyGroundsSyncPage(QWidget):
+    def __init__(self, db_path: Path, refresh_callback):
+        super().__init__()
+        self.service = FantasyGroundsSyncService(db_path)
+        self.refresh_callback = refresh_callback
+        self._last_snapshot_stamp = None
+        self._importing = False
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel("<h2>Fantasy Grounds Sync</h2>"))
+        intro = QLabel(
+            "Fantasy Grounds Unity 5E is the source of truth. Select the campaign folder once, "
+            "then export from the Lectern Sync extension. Lectern never writes campaign data back to Fantasy Grounds."
+        )
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        folder_row = QHBoxLayout()
+        self.folder = QLineEdit()
+        self.folder.setReadOnly(True)
+        self.folder.setPlaceholderText("Select a Fantasy Grounds campaign folder or its lectern-sync folder")
+        browse = QPushButton("Select Campaign Folder...")
+        browse.clicked.connect(self.select_folder)
+        open_folder = QPushButton("Open Handoff Folder")
+        open_folder.clicked.connect(self.open_folder)
+        folder_row.addWidget(self.folder, 1)
+        folder_row.addWidget(browse)
+        folder_row.addWidget(open_folder)
+        layout.addLayout(folder_row)
+
+        controls = QHBoxLayout()
+        self.import_button = QPushButton("Import Now")
+        self.import_button.clicked.connect(self.import_now)
+        self.auto_import = QCheckBox("Automatically import new snapshots")
+        self.auto_import.setChecked(True)
+        controls.addWidget(self.import_button)
+        controls.addWidget(self.auto_import)
+        controls.addStretch()
+        controls.addWidget(QLabel("Imported campaign:"))
+        self.source_select = QComboBox()
+        self.source_select.currentIndexChanged.connect(self.refresh_records)
+        controls.addWidget(self.source_select)
+        layout.addLayout(controls)
+
+        self.status = QLabel("No Fantasy Grounds snapshot imported yet.")
+        self.status.setWordWrap(True)
+        layout.addWidget(self.status)
+        self.counts = QLabel()
+        self.counts.setWordWrap(True)
+        layout.addWidget(self.counts)
+
+        self.records = QTableWidget()
+        self.records.setColumnCount(5)
+        self.records.setHorizontalHeaderLabels(["State", "Type", "Name", "Module", "Fantasy Grounds Path"])
+        self.records.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.records.setSelectionBehavior(QAbstractItemView.SelectRows)
+        layout.addWidget(self.records, 1)
+
+        steps = QLabel(
+            "Run together: (1) load the 5E campaign with Lectern Sync enabled, "
+            "(2) select that campaign folder here, (3) enter /lectern-export in Fantasy Grounds, "
+            "and (4) leave both applications open during play."
+        )
+        steps.setWordWrap(True)
+        layout.addWidget(steps)
+
+        configured = self.service.configured_folder()
+        if configured:
+            self.folder.setText(str(configured))
+        self.timer = QTimer(self)
+        self.timer.setInterval(1000)
+        self.timer.timeout.connect(self.poll_snapshot)
+        self.timer.start()
+        self.refresh()
+
+    def select_folder(self):
+        initial = str(self.service.configured_folder() or Path.home())
+        selected = QFileDialog.getExistingDirectory(self, "Select Fantasy Grounds Campaign Folder", initial)
+        if not selected:
+            return
+        try:
+            folder = self.service.configure_folder(Path(selected))
+            self.folder.setText(str(folder))
+            self._last_snapshot_stamp = None
+            self.status.setText(
+                f"Handoff folder ready: {folder}. In Fantasy Grounds, enter /lectern-export."
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Folder Setup Failed", str(exc))
+
+    def open_folder(self):
+        folder = self.service.configured_folder()
+        if not folder:
+            QMessageBox.information(self, "No Folder Selected", "Select a Fantasy Grounds campaign folder first.")
+            return
+        from PySide6.QtGui import QDesktopServices
+        from PySide6.QtCore import QUrl
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+    def import_now(self, quiet: bool = False):
+        if self._importing:
+            return
+        self._importing = True
+        self.import_button.setEnabled(False)
+        try:
+            result = self.service.import_configured_snapshot()
+            count_text = " | ".join(f"{name.title()}: {count}" for name, count in result.counts.items())
+            self.status.setText(
+                f"{result.message}: {result.campaign_name} | Sequence {result.sequence}"
+            )
+            self.counts.setText(count_text)
+            self.refresh_sources()
+            if result.applied:
+                self.refresh_callback()
+        except FantasyGroundsSyncError as exc:
+            self.status.setText(f"Sync error: {exc}")
+            if not quiet:
+                QMessageBox.warning(self, "Fantasy Grounds Sync", str(exc))
+        finally:
+            self.import_button.setEnabled(True)
+            self._importing = False
+
+    def poll_snapshot(self):
+        if not self.auto_import.isChecked() or self._importing:
+            return
+        path = self.service.snapshot_path()
+        if not path or not path.exists():
+            return
+        try:
+            stamp = (path.stat().st_mtime_ns, path.stat().st_size)
+        except OSError:
+            return
+        if stamp == self._last_snapshot_stamp:
+            return
+        self._last_snapshot_stamp = stamp
+        self.import_now(quiet=True)
+
+    def refresh(self):
+        configured = self.service.configured_folder()
+        self.folder.setText(str(configured) if configured else "")
+        self.refresh_sources()
+        extension_status = self.service.read_extension_status()
+        if extension_status and not self._importing:
+            state = extension_status.get("state", "unknown")
+            sequence = extension_status.get("sequence", "-")
+            message = extension_status.get("error") or extension_status.get("message") or ""
+            self.status.setToolTip(f"Extension state: {state}; sequence: {sequence}; {message}")
+
+    def refresh_sources(self):
+        selected = self.source_select.currentData()
+        rows = self.service.list_sources()
+        self.source_select.blockSignals(True)
+        self.source_select.clear()
+        for row in rows:
+            self.source_select.addItem(f"{row['campaign_name']} ({row['ruleset']})", row["id"])
+        if selected is not None:
+            index = self.source_select.findData(selected)
+            if index >= 0:
+                self.source_select.setCurrentIndex(index)
+        self.source_select.blockSignals(False)
+        if rows:
+            current = next((row for row in rows if row["id"] == self.source_select.currentData()), rows[0])
+            self.status.setText(
+                f"Last imported: {current['campaign_name']} | {current['ruleset']} | "
+                f"Sequence {current['last_sequence']} | {current['last_sync_at'] or 'never'}"
+            )
+        self.refresh_records()
+
+    def refresh_records(self):
+        source_id = self.source_select.currentData()
+        rows = self.service.list_records(source_id) if source_id else []
+        self.records.setRowCount(len(rows))
+        totals: dict[str, int] = {}
+        for row_index, row in enumerate(rows):
+            state = "Stale" if row["is_stale"] else "Current"
+            totals[row["record_type"]] = totals.get(row["record_type"], 0) + (0 if row["is_stale"] else 1)
+            values = [state, row["record_type"], row["name"], row["module_name"] or "Campaign", row["source_path"]]
+            for column, value in enumerate(values):
+                self.records.setItem(row_index, column, QTableWidgetItem(str(value)))
+        self.records.resizeColumnsToContents()
+        if totals:
+            self.counts.setText(" | ".join(f"{name.title()}: {count}" for name, count in sorted(totals.items())))
+
+
 class ErrorLogPage(QWidget):
     def __init__(self, db_path: Path):
         super().__init__()
@@ -1152,6 +1340,7 @@ class MainWindow(QMainWindow):
             ("Magic Items", TablePage("Magic Items", self.repo, "magic_items")),
             ("Spells", TablePage("Spells", self.repo, "spells")),
             ("CSV Import/Export", CsvImportExportPage(db_path, self.refresh_pages)),
+            ("Fantasy Grounds Sync", FantasyGroundsSyncPage(db_path, self.refresh_pages)),
             ("Data Workflow", DataWorkflowPage(db_path, self.refresh_pages)),
             ("Error Logs", ErrorLogPage(db_path)),
             ("Help", HelpPage()),

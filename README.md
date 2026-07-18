@@ -2,7 +2,7 @@
 
 **Version:** 2.9.5 — Workflow and Import Refinement
 **Milestone:** 2.9.5 (in progress)
-**Database schema:** v5
+**Database schema:** v6
 
 Lectern is a single evolving Python/PySide6 Windows desktop codebase. This package is a clean, Git-ready source baseline.
 
@@ -62,6 +62,10 @@ The `.gitignore` excludes virtual environments, databases, logs, backups, caches
 ## Current Milestone
 
 Version 2.9.5 continues refinement of Lectern's campaign workflow, player import, reference data, documentation, and Windows delivery. The starting state is documented in `docs/LECTERN_2_9_5_HANDOFF.md`.
+
+## Fantasy Grounds Integration
+
+One-way Fantasy Grounds Unity 5E to Lectern synchronization is documented in `docs/FANTASY_GROUNDS_MILESTONE_1.md`. Installation and combined-session operation are covered in `docs/FANTASY_GROUNDS_RUN_TOGETHER.md`. Fantasy Grounds remains the source of truth for imported rules, characters, encounters, and live combat.
 
 ## Watermark Coverage
 

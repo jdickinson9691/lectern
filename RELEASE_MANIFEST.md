@@ -2,7 +2,7 @@
 
 Milestone: **2.9.5 — Workflow and Import Refinement**
 
-This archive contains source, documentation, seed data, application art, build scripts, and installer configuration.
+This archive contains source, documentation, seed data, application art, build scripts, installer configuration, and the Fantasy Grounds extension source and packaging scripts.
 
 Excluded from the release:
 

@@ -4,6 +4,11 @@
 
 - Established the v2.9.5 development baseline from the tested v2.9.4 Windows build.
 - Synchronized application, package, help, and installer version metadata.
+- Prepared the first one-way Fantasy Grounds Unity 5E integration milestone with a versioned snapshot contract, sanitized fixture, extension workspace, installation helper, acceptance criteria, and run-together guide.
+- Implemented the Fantasy Grounds Unity 5E exporter extension with loaded-module reference discovery, character and encounter export, live Combat Tracker updates, status reporting, and the `/lectern-export` command.
+- Added schema v6 external-source provenance, collision-safe entity links, transactional snapshot validation/import, sequence idempotency, and stale-record retention.
+- Added the Fantasy Grounds Sync screen with campaign-folder setup, automatic polling, manual import, provenance display, and read-only Fantasy Grounds combat ownership.
+- Added sanitized Fantasy Grounds integration regression coverage and packaged-extension build wiring.
 
 ## 2.9.4 — Verification and Stabilization
 

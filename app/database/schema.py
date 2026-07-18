@@ -87,6 +87,43 @@ CREATE TABLE IF NOT EXISTS magic_items (id INTEGER PRIMARY KEY AUTOINCREMENT, na
 CREATE TABLE IF NOT EXISTS spells (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, level TEXT, school TEXT, casting_time TEXT, range_text TEXT, components TEXT, duration TEXT, description TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS rules_reference (id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT NOT NULL, name TEXT NOT NULL, description TEXT DEFAULT '', UNIQUE(category,name));
 CREATE TABLE IF NOT EXISTS import_history (id INTEGER PRIMARY KEY AUTOINCREMENT, file_path TEXT, imported_at TEXT DEFAULT CURRENT_TIMESTAMP, rows_imported INTEGER DEFAULT 0, notes TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS external_sources (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ provider TEXT NOT NULL,
+ campaign_key TEXT NOT NULL,
+ campaign_name TEXT NOT NULL,
+ ruleset TEXT NOT NULL,
+ extension_version TEXT DEFAULT '',
+ handoff_path TEXT DEFAULT '',
+ last_sequence INTEGER DEFAULT 0,
+ last_sync_at TEXT,
+ last_error TEXT DEFAULT '',
+ UNIQUE(provider, campaign_key)
+);
+CREATE TABLE IF NOT EXISTS external_records (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ source_id INTEGER NOT NULL,
+ source_key TEXT NOT NULL,
+ record_type TEXT NOT NULL,
+ name TEXT NOT NULL,
+ module_name TEXT,
+ source_path TEXT NOT NULL,
+ content_hash TEXT NOT NULL,
+ raw_json TEXT NOT NULL,
+ last_seen_sequence INTEGER NOT NULL,
+ is_stale INTEGER DEFAULT 0,
+ FOREIGN KEY(source_id) REFERENCES external_sources(id) ON DELETE CASCADE,
+ UNIQUE(source_id, source_key)
+);
+CREATE TABLE IF NOT EXISTS external_entity_links (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ source_id INTEGER NOT NULL,
+ source_key TEXT NOT NULL,
+ entity_type TEXT NOT NULL,
+ entity_id INTEGER NOT NULL,
+ FOREIGN KEY(source_id) REFERENCES external_sources(id) ON DELETE CASCADE,
+ UNIQUE(source_id, source_key, entity_type)
+);
 """
 
 class ClosingConnection(sqlite3.Connection):
@@ -138,4 +175,4 @@ def initialize_database(db_path: Path) -> None:
         for col, decl in {'campaign_id': 'INTEGER', 'outcome': "TEXT DEFAULT ''", 'completed_at': 'TEXT'}.items():
             if col not in encounter_columns:
                 conn.execute(f'ALTER TABLE encounters ADD COLUMN {col} {decl}')
-        conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('schema_version','5')")
+        conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('schema_version','6')")
