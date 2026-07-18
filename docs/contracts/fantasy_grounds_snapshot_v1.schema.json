@@ -13,7 +13,8 @@
     "catalog": { "$ref": "#/$defs/catalog" },
     "characters": { "type": "array", "items": { "$ref": "#/$defs/record" } },
     "encounters": { "type": "array", "items": { "$ref": "#/$defs/encounter" } },
-    "combat": { "$ref": "#/$defs/combat" }
+    "combat": { "$ref": "#/$defs/combat" },
+    "events": { "type": "array", "items": { "$ref": "#/$defs/event" } }
   },
   "$defs": {
     "source": {
@@ -94,7 +95,10 @@
         "active": { "type": "boolean" },
         "round": { "type": "integer", "minimum": 0 },
         "active_source_key": { "type": ["string", "null"] },
-        "combatants": { "type": "array", "items": { "$ref": "#/$defs/combatant" } }
+        "combatants": { "type": "array", "items": { "$ref": "#/$defs/combatant" } },
+        "session_key": { "type": ["string", "null"] },
+        "outcome": { "type": ["string", "null"], "enum": ["victory", "defeat", "retreat", "unresolved", null] },
+        "completed_at": { "type": ["string", "null"], "format": "date-time" }
       }
     },
     "combatant": {
@@ -120,6 +124,33 @@
         },
         "effects": { "type": "array", "items": { "type": "object" } },
         "raw": { "type": "object" }
+      }
+    },
+    "event_participant": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["source_key", "name"],
+      "properties": {
+        "source_key": { "type": ["string", "null"] },
+        "name": { "type": "string", "minLength": 1 }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_id", "sequence", "timestamp", "round", "encounter_source_key", "type", "actor", "target", "amount", "description", "metadata"],
+      "properties": {
+        "event_id": { "type": "string", "minLength": 1 },
+        "sequence": { "type": "integer", "minimum": 1 },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "round": { "type": "integer", "minimum": 0 },
+        "encounter_source_key": { "type": "string", "minLength": 1 },
+        "type": { "enum": ["action", "attack", "damage", "effect", "healing", "outcome", "save", "spell", "turn_end", "turn_start"] },
+        "actor": { "$ref": "#/$defs/event_participant" },
+        "target": { "$ref": "#/$defs/event_participant" },
+        "amount": { "type": ["integer", "null"] },
+        "description": { "type": "string" },
+        "metadata": { "type": "object" }
       }
     }
   }

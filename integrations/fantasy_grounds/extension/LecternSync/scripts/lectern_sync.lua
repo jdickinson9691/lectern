@@ -1,12 +1,21 @@
--- Lectern Sync 1.0.0
+-- Lectern Sync 1.1.0
 -- One-way Fantasy Grounds Unity 5E export. This script never writes FG database nodes.
 
-local EXTENSION_VERSION = "1.0.0"
+local EXTENSION_VERSION = "1.1.0"
 local SCHEMA_VERSION = 1
 local bExporting = false
 local tCachedSnapshot = nil
 local nSequence = 0
 local JSON_NULL = {}
+local aEventJournal = {}
+local nEventSequence = 0
+local sCombatSessionKey = nil
+local sOutcome = nil
+local sCompletedAt = nil
+local tLastCombatants = {}
+local sLastActiveKey = nil
+local bHaveCombatBaseline = false
+local bLastCombatActive = false
 
 local tFallbackMappings = {
   class = { "class", "reference.classdata", "reference.classes" },
@@ -307,7 +316,11 @@ local function effectList(nodeCombatant)
 end
 
 local function combatState()
-  local tCombat = { active = false, round = 0, active_source_key = JSON_NULL, combatants = {} }
+  local tCombat = {
+    active = false, round = 0, active_source_key = JSON_NULL, combatants = {},
+    session_key = sCombatSessionKey or JSON_NULL, outcome = sOutcome or JSON_NULL,
+    completed_at = sCompletedAt or JSON_NULL,
+  }
   tCombat.round = nodeNumber("combattracker", "round", nodeNumber("combattracker", "roundcounter", 0))
   local aNodes = DB.getChildList("combattracker.list")
   table.sort(aNodes, function(a, b)
@@ -359,6 +372,91 @@ local function campaignKey()
   return s
 end
 
+local function ensureCombatSession(tCombat)
+  if tCombat.active and (not sCombatSessionKey or (bHaveCombatBaseline and not bLastCombatActive)) then
+    local sStamp = isoTimestamp():gsub("[^%w]", "")
+    sCombatSessionKey = "combat-" .. campaignKey() .. "-" .. sStamp
+    sOutcome = nil
+    sCompletedAt = nil
+    bLastCombatActive = true
+  end
+  tCombat.session_key = sCombatSessionKey or "live-combat"
+  tCombat.outcome = sOutcome or JSON_NULL
+  tCombat.completed_at = sCompletedAt or JSON_NULL
+  return tCombat
+end
+
+local function eventParticipant(sSourceKey, sName)
+  if not sName or sName == "" then return JSON_NULL end
+  return { source_key = sSourceKey or JSON_NULL, name = sName }
+end
+
+local function appendEvent(sType, tActor, tTarget, nAmount, sDescription, tMetadata, tCombat)
+  tCombat = ensureCombatSession(tCombat or combatState())
+  nEventSequence = nEventSequence + 1
+  local sSession = tCombat.session_key or "live-combat"
+  table.insert(aEventJournal, {
+    event_id = sSession .. ":" .. tostring(nEventSequence),
+    sequence = nEventSequence,
+    timestamp = isoTimestamp(),
+    round = math.max(0, tonumber(tCombat.round) or 0),
+    encounter_source_key = sSession,
+    type = sType,
+    actor = tActor or JSON_NULL,
+    target = tTarget or JSON_NULL,
+    amount = nAmount == nil and JSON_NULL or math.floor(tonumber(nAmount) or 0),
+    description = sDescription or "",
+    metadata = tMetadata or {},
+  })
+  while #aEventJournal > 1000 do table.remove(aEventJournal, 1) end
+end
+
+local function updateCombatBaseline(tCombat, bRecordEvents)
+  local tCurrent = {}
+  if bRecordEvents and bHaveCombatBaseline and sLastActiveKey ~= tCombat.active_source_key then
+    if sLastActiveKey and sLastActiveKey ~= JSON_NULL then
+      local tPrevious = tLastCombatants[sLastActiveKey]
+      if tPrevious then appendEvent("turn_end", eventParticipant(tPrevious.source_key, tPrevious.name), nil, nil, "Turn ended", {}, tCombat) end
+    end
+    if tCombat.active_source_key and tCombat.active_source_key ~= JSON_NULL then
+      for _, tEntry in ipairs(tCombat.combatants) do
+        if tEntry.source_key == tCombat.active_source_key then
+          appendEvent("turn_start", eventParticipant(tEntry.source_key, tEntry.name), nil, nil, "Turn started", {}, tCombat)
+          break
+        end
+      end
+    end
+  end
+  for _, tEntry in ipairs(tCombat.combatants) do
+    local tHP = tEntry.hit_points or {}
+    local nWounds = tonumber(tHP.wounds) or 0
+    local nTemporary = tonumber(tHP.temporary) or 0
+    local tPrevious = tLastCombatants[tEntry.source_key]
+    if bRecordEvents and bHaveCombatBaseline and tPrevious then
+      local nDelta = nWounds - tPrevious.wounds
+      if nDelta > 0 then
+        appendEvent("damage", nil, eventParticipant(tEntry.source_key, tEntry.name), nDelta,
+          "Wounds increased from " .. tostring(tPrevious.wounds) .. " to " .. tostring(nWounds),
+          { previous_wounds = tPrevious.wounds, current_wounds = nWounds, current_hp = tHP.current }, tCombat)
+      elseif nDelta < 0 then
+        appendEvent("healing", nil, eventParticipant(tEntry.source_key, tEntry.name), -nDelta,
+          "Wounds decreased from " .. tostring(tPrevious.wounds) .. " to " .. tostring(nWounds),
+          { previous_wounds = tPrevious.wounds, current_wounds = nWounds, current_hp = tHP.current }, tCombat)
+      end
+      if nTemporary ~= tPrevious.temporary then
+        appendEvent("effect", nil, eventParticipant(tEntry.source_key, tEntry.name), nil,
+          "Temporary HP changed from " .. tostring(tPrevious.temporary) .. " to " .. tostring(nTemporary),
+          { previous_temporary_hp = tPrevious.temporary, current_temporary_hp = nTemporary }, tCombat)
+      end
+    end
+    tCurrent[tEntry.source_key] = { source_key = tEntry.source_key, name = tEntry.name, wounds = nWounds, temporary = nTemporary }
+  end
+  tLastCombatants = tCurrent
+  sLastActiveKey = tCombat.active_source_key
+  bLastCombatActive = tCombat.active
+  bHaveCombatBaseline = true
+end
+
 local function handoffFolder()
   return File.getCampaignFolder() .. "/lectern-sync"
 end
@@ -383,6 +481,8 @@ local function writeStatus(sState, sMessage, sError)
 end
 
 local function newSnapshot()
+  local tCombat = ensureCombatSession(combatState())
+  updateCombatBaseline(tCombat, false)
   return {
     schema_version = SCHEMA_VERSION,
     sequence = nSequence + 1,
@@ -404,7 +504,8 @@ local function newSnapshot()
     },
     characters = characters(),
     encounters = encounters(),
-    combat = combatState(),
+    combat = tCombat,
+    events = aEventJournal,
   }
 end
 
@@ -447,11 +548,64 @@ local function exportCombatUpdate()
   if bExporting or not tCachedSnapshot or not Session.IsHost then return end
   bExporting = true
   local ok, result = pcall(function()
-    tCachedSnapshot.combat = combatState()
+    local tCombat = ensureCombatSession(combatState())
+    updateCombatBaseline(tCombat, true)
+    tCachedSnapshot.combat = tCombat
+    tCachedSnapshot.events = aEventJournal
     saveSnapshot(tCachedSnapshot)
   end)
   bExporting = false
   if not ok then pcall(writeStatus, "error", "Combat export failed", tostring(result)) end
+end
+
+local function diceValue(draginfo, sMethod, vDefault)
+  if not draginfo or type(draginfo[sMethod]) ~= "function" then return vDefault end
+  local ok, value = pcall(draginfo[sMethod])
+  if ok and value ~= nil then return value end
+  return vDefault
+end
+
+local function classifyRoll(sRollType, sDescription)
+  local s = string.lower(tostring(sRollType or "") .. " " .. tostring(sDescription or ""))
+  if s:find("attack", 1, true) then return "attack" end
+  if s:find("save", 1, true) then return "save" end
+  if s:find("spell", 1, true) or s:find("cast", 1, true) then return "spell" end
+  return "action"
+end
+
+local function onDiceLanded(draginfo)
+  if not Session.IsHost then return end
+  local sRollType = tostring(diceValue(draginfo, "getType", "roll") or "roll")
+  local sDescription = tostring(diceValue(draginfo, "getDescription", sRollType) or sRollType)
+  local tDice = diceValue(draginfo, "getDiceData", {})
+  local nTotal = type(tDice) == "table" and tonumber(tDice.total) or nil
+  local node = diceValue(draginfo, "getDatabaseNode", nil)
+  local tActor = nil
+  if node then
+    local sName = nodeText(node, "name", DB.getName(node) or "Fantasy Grounds Actor")
+    tActor = eventParticipant(sourceKey(node, "actor"), sName)
+  end
+  appendEvent(classifyRoll(sRollType, sDescription), tActor, nil, nil, sDescription,
+    { roll_type = sRollType, roll_total = nTotal or JSON_NULL }, combatState())
+  exportCombatUpdate()
+end
+
+local function setOutcome(_, sParameters)
+  if not Session.IsHost then return end
+  local sValue = string.lower(tostring(sParameters or "")):match("^%s*(%S+)") or ""
+  local tAllowed = { victory = true, defeat = true, retreat = true, unresolved = true }
+  if not tAllowed[sValue] then
+    chat("Usage: /lectern-outcome victory|defeat|retreat|unresolved")
+    return
+  end
+  local tCombat = ensureCombatSession(combatState())
+  sOutcome = sValue
+  sCompletedAt = isoTimestamp()
+  tCombat.outcome = sOutcome
+  tCombat.completed_at = sCompletedAt
+  appendEvent("outcome", nil, nil, nil, "Encounter outcome: " .. sValue, { outcome = sValue }, tCombat)
+  exportCombatUpdate()
+  chat("Recorded encounter outcome for Lectern: " .. sValue)
 end
 
 local function onCombatTrackerChanged()
@@ -467,6 +621,8 @@ function onInit()
   if not Session.IsHost then return end
   initializeSequence()
   Comm.registerSlashHandler("lectern-export", exportAll, "Export 5E catalog, campaign, encounters, and combat to Lectern")
+  Comm.registerSlashHandler("lectern-outcome", setOutcome, "Send an encounter outcome to Lectern")
+  Comm.addKeyedEventHandler("onDiceLanded", "", onDiceLanded)
   DB.addHandler("combattracker", "onChildUpdate", onCombatTrackerChanged)
   DB.addHandler("combattracker", "onChildAdded", onCombatTrackerChanged)
   DB.addHandler("combattracker", "onChildDeleted", onCombatTrackerChanged)
@@ -483,4 +639,5 @@ function onClose()
   DB.removeHandler("combattracker", "onChildDeleted", onCombatTrackerChanged)
   Module.removeEventHandler("onModuleLoad", onModuleChanged)
   Module.removeEventHandler("onModuleUnload", onModuleChanged)
+  Comm.removeKeyedEventHandler("onDiceLanded", "", onDiceLanded)
 end

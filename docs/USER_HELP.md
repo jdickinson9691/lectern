@@ -347,9 +347,12 @@ Synchronized Fantasy Grounds encounters are read-only in Lectern's Combat Dashbo
 - Player characters
 - Prepared encounters and their participants
 - Current Combat Tracker order, round, active combatant, initiative, armor class, hit points, wounds, temporary hit points, and effects
+- Combat actions, applied damage, healing, turn changes, temporary HP changes, and GM-confirmed encounter outcomes in the encounter turn log
 - Fantasy Grounds module name and database path for provenance
 
 Records that disappear from a later snapshot are marked stale rather than deleted. Commercial module content remains local and must not be redistributed.
+
+To finish a synchronized encounter, enter `/lectern-outcome victory`, `/lectern-outcome defeat`, `/lectern-outcome retreat`, or `/lectern-outcome unresolved` in Fantasy Grounds chat. Lectern does not infer an outcome when the Combat Tracker is cleared.
 
 ### Sync troubleshooting
 

@@ -9,6 +9,9 @@
 - Added schema v6 external-source provenance, collision-safe entity links, transactional snapshot validation/import, sequence idempotency, and stale-record retention.
 - Added the Fantasy Grounds Sync screen with campaign-folder setup, automatic polling, manual import, provenance display, and read-only Fantasy Grounds combat ownership.
 - Added sanitized Fantasy Grounds integration regression coverage and packaged-extension build wiring.
+- Added Fantasy Grounds Sync 1.1 combat-session journals for dice actions, applied damage, healing, turn changes, temporary hit points, and explicit encounter outcomes.
+- Added schema v7 external-event receipts and transactional, duplicate-safe import into `turn_log`, preserving Campaign Dashboard damage and healing totals.
+- Added `/lectern-outcome`, session-separated synchronized encounters, an expanded snapshot v1 contract, sanitized event fixtures, and Milestone 1.1 runtime acceptance guidance.
 
 ## 2.9.4 — Verification and Stabilization
 

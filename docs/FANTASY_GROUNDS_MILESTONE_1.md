@@ -1,5 +1,7 @@
 # Fantasy Grounds Integration - Milestone 1
 
+Milestone 1 is complete. Combat event journaling and encounter outcomes are specified in [Fantasy Grounds Integration - Milestone 1.1](FANTASY_GROUNDS_MILESTONE_1_1.md).
+
 ## Objective
 
 Create a one-way Fantasy Grounds Unity 5E to Lectern integration. Fantasy Grounds is the source of truth. Lectern receives game-system reference records, prepared encounters, characters, and live Combat Tracker state without modifying the Fantasy Grounds campaign database.

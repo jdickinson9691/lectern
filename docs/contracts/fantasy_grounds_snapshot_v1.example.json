@@ -108,6 +108,9 @@
   "combat": {
     "active": true,
     "round": 1,
+    "session_key": "test-session-001",
+    "outcome": null,
+    "completed_at": null,
     "active_source_key": "5E:ct:id-00001",
     "combatants": [
       {
@@ -121,5 +124,33 @@
         "raw": {}
       }
     ]
-  }
+  },
+  "events": [
+    {
+      "event_id": "test-session-001:1",
+      "sequence": 1,
+      "timestamp": "2026-07-17T20:00:01Z",
+      "round": 1,
+      "encounter_source_key": "test-session-001",
+      "type": "attack",
+      "actor": { "source_key": "5E:character:test-hero", "name": "Fantasy Grounds Test Hero" },
+      "target": { "source_key": "5E:ct:id-00001", "name": "Test Creature" },
+      "amount": null,
+      "description": "Longsword attack: 18",
+      "metadata": { "roll_type": "attack", "roll_total": 18 }
+    },
+    {
+      "event_id": "test-session-001:2",
+      "sequence": 2,
+      "timestamp": "2026-07-17T20:00:03Z",
+      "round": 1,
+      "encounter_source_key": "test-session-001",
+      "type": "damage",
+      "actor": null,
+      "target": { "source_key": "5E:ct:id-00001", "name": "Test Creature" },
+      "amount": 3,
+      "description": "Wounds increased from 0 to 3",
+      "metadata": { "previous_wounds": 0, "current_wounds": 3 }
+    }
+  ]
 }

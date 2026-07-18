@@ -124,6 +124,21 @@ CREATE TABLE IF NOT EXISTS external_entity_links (
  FOREIGN KEY(source_id) REFERENCES external_sources(id) ON DELETE CASCADE,
  UNIQUE(source_id, source_key, entity_type)
 );
+CREATE TABLE IF NOT EXISTS external_events (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ source_id INTEGER NOT NULL,
+ event_key TEXT NOT NULL,
+ encounter_id INTEGER NOT NULL,
+ turn_log_id INTEGER NOT NULL,
+ event_type TEXT NOT NULL,
+ occurred_at TEXT NOT NULL,
+ raw_json TEXT NOT NULL,
+ imported_sequence INTEGER NOT NULL,
+ FOREIGN KEY(source_id) REFERENCES external_sources(id) ON DELETE CASCADE,
+ FOREIGN KEY(encounter_id) REFERENCES encounters(id) ON DELETE CASCADE,
+ FOREIGN KEY(turn_log_id) REFERENCES turn_log(id) ON DELETE CASCADE,
+ UNIQUE(source_id, event_key)
+);
 """
 
 class ClosingConnection(sqlite3.Connection):
@@ -175,4 +190,4 @@ def initialize_database(db_path: Path) -> None:
         for col, decl in {'campaign_id': 'INTEGER', 'outcome': "TEXT DEFAULT ''", 'completed_at': 'TEXT'}.items():
             if col not in encounter_columns:
                 conn.execute(f'ALTER TABLE encounters ADD COLUMN {col} {decl}')
-        conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('schema_version','6')")
+        conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('schema_version','7')")

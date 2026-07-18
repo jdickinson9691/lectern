@@ -1,6 +1,6 @@
 # Running Fantasy Grounds and Lectern Together
 
-This guide describes the Milestone 1 one-way Fantasy Grounds Unity 5E to Lectern workflow.
+This guide describes the Milestone 1 and 1.1 one-way Fantasy Grounds Unity 5E to Lectern workflow.
 
 ## Initial setup
 
@@ -70,6 +70,16 @@ After the handoff folder has been created once, Lectern does not need to start f
 3. Roll initiative and run combat normally in Fantasy Grounds.
 4. Keep Lectern's **Combat Dashboard** or **Fantasy Grounds Sync** screen open as a companion view.
 
+Fantasy Grounds dice actions, applied damage and healing, turn changes, and temporary HP changes are appended automatically to the synchronized encounter's turn log. A damage roll is logged as an action; it becomes `Damage` only when wounds are actually applied in the Combat Tracker.
+
+When the encounter ends, record the GM-confirmed result in Fantasy Grounds chat:
+
+```text
+/lectern-outcome victory
+```
+
+The supported results are `victory`, `defeat`, `retreat`, and `unresolved`. The result completes the Lectern encounter and appears in its turn log. Clearing the Combat Tracker alone does not guess an outcome.
+
 HP, initiative, turns, participants, and effects originate in Fantasy Grounds. Milestone one does not allow editing synchronized combat values in Lectern.
 
 ## Ending a session
@@ -115,3 +125,10 @@ Open the required Fantasy Grounds module in the campaign and export again. The e
 ### Lectern reports an unsupported contract version
 
 Update Lectern and the extension together. Contract version 1 uses `schema_version: 1`; unknown versions must be rejected rather than guessed.
+
+### Combat events are missing
+
+- Confirm the extension reports version 1.1.0 or newer.
+- Run `/lectern-export` once after loading the campaign; event-driven snapshots require the initial cached full export.
+- Apply damage and healing through the Combat Tracker. Unapplied roll totals are actions, not HP changes.
+- Keep automatic imports enabled or click **Import Now** after the Fantasy Grounds sequence changes.

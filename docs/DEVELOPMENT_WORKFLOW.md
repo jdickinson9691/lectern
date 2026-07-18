@@ -12,6 +12,8 @@ This folder is now the canonical evolving source tree for the Lectern - D&D Camp
 4. Run automated checks:
    `.venv\Scripts\python.exe scripts\smoke_test.py`
    `.venv\Scripts\python.exe scripts\fantasy_grounds_sync_test.py`
+
+   The Fantasy Grounds regression covers event validation, duplicate suppression, dashboard-compatible damage and healing rows, and encounter outcomes. Complete the live checklist in `docs\FANTASY_GROUNDS_MILESTONE_1_1.md` before release.
 5. Install the unpacked Fantasy Grounds extension into a development data folder:
    `scripts\Install-FantasyGroundsExtension.ps1 -FantasyGroundsDataPath "<path>"`
 6. Build only when ready to test the packaged executable and `LecternSync.ext`:

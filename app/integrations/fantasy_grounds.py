@@ -16,6 +16,7 @@ SCHEMA_VERSION = 1
 PROVIDER = "fantasy_grounds"
 SUPPORTED_RULESET = "5E"
 CONFIG_FILE = "fantasy_grounds_sync.json"
+EVENT_TYPES = {"action", "attack", "damage", "effect", "healing", "outcome", "save", "spell", "turn_end", "turn_start"}
 
 
 class FantasyGroundsSyncError(ValueError):
@@ -132,6 +133,42 @@ def validate_snapshot(payload: Any) -> dict[str, Any]:
             _require(hit_points.get(hp_field) is None or isinstance(hit_points.get(hp_field), int), f"{field}.hit_points.{hp_field} must be an integer or null")
         _require(isinstance(combatant.get("effects"), list), f"{field}.effects must be an array")
         _require(isinstance(combatant.get("raw"), dict), f"{field}.raw must be an object")
+
+    _require(combat.get("session_key") is None or isinstance(combat.get("session_key"), str), "combat.session_key must be a string or null")
+    _require(combat.get("outcome") is None or combat.get("outcome") in {"victory", "defeat", "retreat", "unresolved"}, "combat.outcome is invalid")
+    _require(combat.get("completed_at") is None or isinstance(combat.get("completed_at"), str), "combat.completed_at must be a string or null")
+    if combat.get("completed_at"):
+        try:
+            datetime.fromisoformat(combat["completed_at"].replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise FantasyGroundsSyncError("combat.completed_at must be an ISO-8601 timestamp") from exc
+    events = payload.get("events", [])
+    _require(isinstance(events, list), "events must be an array")
+    event_keys: set[str] = set()
+    for index, event in enumerate(events):
+        field = f"events[{index}]"
+        _require(isinstance(event, dict), f"{field} must be an object")
+        event_key = _require_text(event.get("event_id"), f"{field}.event_id")
+        _require(event_key not in event_keys, f"Duplicate event_id: {event_key}")
+        event_keys.add(event_key)
+        _require(isinstance(event.get("sequence"), int) and event["sequence"] >= 1, f"{field}.sequence must be a positive integer")
+        occurred_at = _require_text(event.get("timestamp"), f"{field}.timestamp")
+        try:
+            datetime.fromisoformat(occurred_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise FantasyGroundsSyncError(f"{field}.timestamp must be an ISO-8601 timestamp") from exc
+        _require(event.get("type") in EVENT_TYPES, f"{field}.type is unsupported")
+        _require(isinstance(event.get("round"), int) and event["round"] >= 0, f"{field}.round must be a non-negative integer")
+        _require_text(event.get("encounter_source_key"), f"{field}.encounter_source_key")
+        for role in ("actor", "target"):
+            participant = event.get(role)
+            _require(participant is None or isinstance(participant, dict), f"{field}.{role} must be an object or null")
+            if isinstance(participant, dict):
+                _require_text(participant.get("name"), f"{field}.{role}.name")
+                _require(participant.get("source_key") is None or isinstance(participant.get("source_key"), str), f"{field}.{role}.source_key must be a string or null")
+        _require(event.get("amount") is None or isinstance(event.get("amount"), int), f"{field}.amount must be an integer or null")
+        _require(isinstance(event.get("description"), str), f"{field}.description must be a string")
+        _require(isinstance(event.get("metadata"), dict), f"{field}.metadata must be an object")
     return payload
 
 
@@ -244,6 +281,7 @@ class FantasyGroundsSyncService:
             "characters": len(payload["characters"]),
             "encounters": len(payload["encounters"]),
             "combatants": len(payload["combat"]["combatants"]),
+            "events": len(payload.get("events", [])),
         }
         handoff_path = str(Path(path).resolve().parent)
         try:
@@ -264,6 +302,7 @@ class FantasyGroundsSyncService:
                     self._upsert_external_record(conn, source_id, record, sequence)
                     self._upsert_encounter(conn, source_id, campaign_id, record)
                 self._upsert_live_combat(conn, source_id, campaign_id, source["campaign_name"], payload["combat"], sequence)
+                self._import_events(conn, source_id, campaign_id, source["campaign_name"], payload.get("events", []), sequence)
                 conn.execute(
                     "UPDATE external_sources SET last_sequence=?, last_sync_at=?, last_error='' WHERE id=?",
                     (sequence, datetime.now(timezone.utc).isoformat(), source_id),
@@ -442,13 +481,16 @@ class FantasyGroundsSyncService:
                 )
                 order += 1
 
-    def _upsert_live_combat(self, conn, source_id: int, campaign_id: int, campaign_name: str, combat: dict[str, Any], sequence: int) -> None:
-        source_key = "live-combat"
+    def _upsert_live_combat(self, conn, source_id: int, campaign_id: int, campaign_name: str, combat: dict[str, Any], sequence: int) -> int:
+        session_key = str(combat.get("session_key") or "live-combat")
+        source_key = f"live-combat:{session_key}" if session_key != "live-combat" else "live-combat"
         encounter_id = self._find_link(conn, source_id, source_key, "encounter")
         if encounter_id and not conn.execute("SELECT 1 FROM encounters WHERE id=?", (encounter_id,)).fetchone():
             encounter_id = None
         name = self._unique_name(conn, "encounters", f"{campaign_name} - Fantasy Grounds Live Combat", encounter_id)
-        status = "active" if combat["active"] else "completed"
+        outcome = str(combat.get("outcome") or "")
+        completed_at = combat.get("completed_at")
+        status = "completed" if outcome else ("active" if combat["active"] else "completed")
         active_key = combat.get("active_source_key")
         active_index = 0
         for index, item in enumerate(combat["combatants"]):
@@ -457,14 +499,14 @@ class FantasyGroundsSyncService:
                 break
         if encounter_id:
             conn.execute(
-                "UPDATE encounters SET name=?,campaign_id=?,status=?,round=?,active_index=? WHERE id=?",
-                (name, campaign_id, status, max(1, combat["round"]), active_index, encounter_id),
+                "UPDATE encounters SET name=?,campaign_id=?,status=?,round=?,active_index=?,outcome=?,completed_at=? WHERE id=?",
+                (name, campaign_id, status, max(1, combat["round"]), active_index, outcome, completed_at, encounter_id),
             )
             conn.execute("DELETE FROM combatants WHERE encounter_id=?", (encounter_id,))
         else:
             cursor = conn.execute(
-                "INSERT INTO encounters(name,status,round,active_index,campaign_id) VALUES(?,?,?,?,?)",
-                (name, status, max(1, combat["round"]), active_index, campaign_id),
+                "INSERT INTO encounters(name,status,round,active_index,campaign_id,outcome,completed_at) VALUES(?,?,?,?,?,?,?)",
+                (name, status, max(1, combat["round"]), active_index, campaign_id, outcome, completed_at),
             )
             encounter_id = int(cursor.lastrowid)
             self._link(conn, source_id, source_key, "encounter", encounter_id)
@@ -501,6 +543,60 @@ class FantasyGroundsSyncService:
                     "INSERT INTO active_conditions(combatant_id,condition_name,duration_rounds,notes) VALUES(?,?,?,?)",
                     (combatant_id, label, _as_int(duration, 0) if duration not in (None, "") else None, notes),
                 )
+        return encounter_id
+
+    def _event_encounter(self, conn, source_id: int, campaign_id: int, campaign_name: str, event: dict[str, Any]) -> int:
+        session_key = event["encounter_source_key"]
+        source_key = f"live-combat:{session_key}" if session_key != "live-combat" else "live-combat"
+        linked = self._find_link(conn, source_id, source_key, "encounter")
+        if linked and conn.execute("SELECT 1 FROM encounters WHERE id=?", (linked,)).fetchone():
+            return linked
+        requested = f"{campaign_name} - Fantasy Grounds Combat {event['timestamp'][:10]}"
+        name = self._unique_name(conn, "encounters", requested)
+        cursor = conn.execute(
+            "INSERT INTO encounters(name,status,round,active_index,campaign_id) VALUES(?,'completed',?,0,?)",
+            (name, max(1, int(event["round"])), campaign_id),
+        )
+        encounter_id = int(cursor.lastrowid)
+        self._link(conn, source_id, source_key, "encounter", encounter_id)
+        return encounter_id
+
+    def _import_events(self, conn, source_id: int, campaign_id: int, campaign_name: str, events: list[dict[str, Any]], sequence: int) -> None:
+        action_types = {
+            "action": "Action", "attack": "Attack", "damage": "Damage", "effect": "Effect",
+            "healing": "Healing", "outcome": "Outcome", "save": "Save", "spell": "Spell",
+            "turn_end": "Turn End", "turn_start": "Turn Start",
+        }
+        for event in sorted(events, key=lambda item: item["sequence"]):
+            if conn.execute("SELECT 1 FROM external_events WHERE source_id=? AND event_key=?", (source_id, event["event_id"])).fetchone():
+                continue
+            encounter_id = self._event_encounter(conn, source_id, campaign_id, campaign_name, event)
+            actor = event.get("actor") or {}
+            target = event.get("target") or {}
+            actor_name = str(actor.get("name") or target.get("name") or "Fantasy Grounds")
+            event_type = event["type"]
+            amount = event.get("amount")
+            description = event.get("description", "").strip()
+            if event_type in {"damage", "healing"}:
+                details = f"{action_types[event_type]}: {max(0, int(amount or 0))}"
+            else:
+                details = f"{action_types[event_type]}: {description or event_type.replace('_', ' ').title()}"
+            qualifiers = []
+            if target.get("name"):
+                qualifiers.append(f"target: {target['name']}")
+            if description and event_type in {"damage", "healing"}:
+                qualifiers.append(description)
+            if qualifiers:
+                details += "; " + "; ".join(qualifiers)
+            cursor = conn.execute(
+                "INSERT INTO turn_log(encounter_id,round,actor,action_type,details,created_at) VALUES(?,?,?,?,?,?)",
+                (encounter_id, max(1, int(event["round"])), actor_name, action_types[event_type], details, event["timestamp"]),
+            )
+            turn_log_id = int(cursor.lastrowid)
+            conn.execute(
+                "INSERT INTO external_events(source_id,event_key,encounter_id,turn_log_id,event_type,occurred_at,raw_json,imported_sequence) VALUES(?,?,?,?,?,?,?,?)",
+                (source_id, event["event_id"], encounter_id, turn_log_id, event_type, event["timestamp"], _json(event), sequence),
+            )
 
 
 def iter_contract_records(payload: dict[str, Any]) -> Iterable[dict[str, Any]]:
