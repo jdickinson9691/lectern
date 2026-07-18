@@ -6,6 +6,8 @@
 - Made local multi-monster additions atomic and consistently ordered, and made Fantasy Grounds-owned encounters read-only in Encounter Builder.
 - Updated Fantasy Grounds Sync 1.1.1 to carry prepared-encounter participant AC, HP, and initiative into Lectern.
 - Made the spacing between sections on every application screen respond to its content and the available window height.
+- Replaced the Encounter Builder's tiny native monster-quantity spinner controls with reliable, accessible increase and decrease arrow buttons.
+- Grouped Monster Browser search and quantity controls into a compact top section instead of distributing empty space between them.
 
 ## 2.9.5 — Workflow and Import Refinement (in progress)
 
