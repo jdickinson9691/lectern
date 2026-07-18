@@ -31,7 +31,7 @@ Generated `dist`, `release`, and PyInstaller work folders remain excluded from G
 
 ## Important implementation notes
 
-- Existing databases migrate without discarding encounter data; current schema version is 6.
+- Existing databases migrate without discarding encounter data; current schema version is 7.
 - Fantasy Grounds synchronization is host/GM-only and read-only from Lectern. Run `/lectern-export` once after loading a campaign and after changing the loaded module set.
 - The automated fixture covers snapshot validation and mapping; final release acceptance still requires a live Fantasy Grounds 5E campaign.
 - Imported PDF data is previewed before database persistence.
@@ -42,6 +42,17 @@ Generated `dist`, `release`, and PyInstaller work folders remain excluded from G
 ## 2.9.5 baseline
 
 The 2.9.5 milestone is named **Workflow and Import Refinement**. Version metadata is synchronized in the application, Python package, installer, help, and development documentation. The first 2.9.5 installer will be named `Lectern_v2_9_5_Setup.exe`.
+
+## Current bug-fix release candidate
+
+- Encounter Builder resolves the selected monster by its bound database ID and no longer substitutes the first alphabetical monster after a refresh.
+- Locally built encounters add monster batches atomically; Fantasy Grounds-owned encounters remain read-only in Lectern.
+- Fantasy Grounds Sync 1.1.1 carries prepared-participant combat statistics and live combat events into Lectern.
+- Every navigation screen uses content-aware section spacing that tightens on crowded windows and expands within a bounded range when room is available.
+- On 2026-07-18, the adaptive-layout, Encounter Builder, Fantasy Grounds Sync, and full smoke regressions passed.
+- The Windows executable and Fantasy Grounds extension were rebuilt with PyInstaller 6.21.0, and Inno Setup 6.7.1 produced `release/Lectern_v2_9_5_Setup.exe`.
+- An isolated silent install, installed offscreen startup, payload check, and silent uninstall passed.
+- Installer SHA-256: `1A089C21DC4AD8EFC0932386813DDDA0FD88CC8ABDD65567E1293CA162A2F494`.
 
 ## Recommended verification for each change
 

@@ -80,7 +80,7 @@ When the encounter ends, record the GM-confirmed result in Fantasy Grounds chat:
 
 The supported results are `victory`, `defeat`, `retreat`, and `unresolved`. The result completes the Lectern encounter and appears in its turn log. Clearing the Combat Tracker alone does not guess an outcome.
 
-HP, initiative, turns, participants, and effects originate in Fantasy Grounds. Milestone one does not allow editing synchronized combat values in Lectern.
+HP, initiative, turns, participants, and effects originate in Fantasy Grounds. Synchronized encounters are read-only in Lectern's Encounter Builder and Combat Dashboard.
 
 ## Ending a session
 
@@ -128,7 +128,7 @@ Update Lectern and the extension together. Contract version 1 uses `schema_versi
 
 ### Combat events are missing
 
-- Confirm the extension reports version 1.1.0 or newer.
+- Confirm the extension reports version 1.1.1 or newer.
 - Run `/lectern-export` once after loading the campaign; event-driven snapshots require the initial cached full export.
 - Apply damage and healing through the Combat Tracker. Unapplied roll totals are actions, not HP changes.
 - Keep automatic imports enabled or click **Import Now** after the Fantasy Grounds sequence changes.

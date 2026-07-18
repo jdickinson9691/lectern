@@ -11,6 +11,7 @@ This folder is now the canonical evolving source tree for the Lectern - D&D Camp
    `build\RunFromSource.bat`
 4. Run automated checks:
    `.venv\Scripts\python.exe scripts\smoke_test.py`
+   `.venv\Scripts\python.exe scripts\encounter_builder_test.py`
    `.venv\Scripts\python.exe scripts\fantasy_grounds_sync_test.py`
 
    The Fantasy Grounds regression covers event validation, duplicate suppression, dashboard-compatible damage and healing rows, and encounter outcomes. Complete the live checklist in `docs\FANTASY_GROUNDS_MILESTONE_1_1.md` before release.

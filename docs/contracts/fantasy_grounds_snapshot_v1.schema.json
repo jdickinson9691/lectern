@@ -81,7 +81,11 @@
             "properties": {
               "source_key": { "type": "string", "minLength": 1 },
               "name": { "type": "string", "minLength": 1 },
-              "quantity": { "type": "integer", "minimum": 1 }
+              "quantity": { "type": "integer", "minimum": 1 },
+              "armor_class": { "type": ["integer", "null"] },
+              "hit_points": { "type": ["integer", "null"] },
+              "initiative_mod": { "type": ["integer", "null"] },
+              "raw": { "type": ["object", "null"] }
             }
           }
         }

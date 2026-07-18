@@ -79,6 +79,47 @@ def clamp_editor_width(widget, width: int = 520):
     widget.setMaximumWidth(width)
     widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
+
+class AdaptivePageLayout(QVBoxLayout):
+    """A page layout whose section gaps respond to content and window height.
+
+    Qt already lets expanding widgets (tables, editors, and lists) consume the
+    remaining room. This layout complements that behavior by tightening section
+    gaps when the page is crowded and gently opening them when room is available.
+    """
+
+    def __init__(self, parent=None, minimum_spacing: int = 8, maximum_spacing: int = 18):
+        super().__init__(parent)
+        self.minimum_spacing = minimum_spacing
+        self.maximum_spacing = maximum_spacing
+        self.setContentsMargins(16, 12, 16, 16)
+        self.setSpacing(minimum_spacing)
+
+    def setGeometry(self, rect: QRect) -> None:
+        sections = []
+        for index in range(self.count()):
+            item = self.itemAt(index)
+            if item is None or item.isEmpty() or item.spacerItem() is not None:
+                continue
+            sections.append(item)
+
+        gap_count = max(0, len(sections) - 1)
+        if gap_count:
+            margins = self.contentsMargins()
+            available = max(0, rect.height() - margins.top() - margins.bottom())
+            content_height = sum(item.sizeHint().height() for item in sections)
+            spare_per_gap = max(0, available - content_height) / gap_count
+            spacing = round(self.minimum_spacing + spare_per_gap * 0.16)
+            spacing = max(self.minimum_spacing, min(self.maximum_spacing, spacing))
+            if spacing != self.spacing():
+                self.setSpacing(spacing)
+        super().setGeometry(rect)
+
+
+def adaptive_page_layout(page: QWidget) -> AdaptivePageLayout:
+    """Create the shared content-aware vertical layout used by every screen."""
+    return AdaptivePageLayout(page)
+
 def apply_portrait_icon(item: QTableWidgetItem, portrait_path_value) -> None:
     portrait=Path(str(portrait_path_value or ''))
     if portrait.exists(): item.setIcon(QIcon(str(portrait)))
@@ -86,7 +127,7 @@ def apply_portrait_icon(item: QTableWidgetItem, portrait_path_value) -> None:
 class TablePage(QWidget):
     def __init__(self, title: str, repo: Repository, table: str):
         super().__init__(); self.repo=repo; self.table=table
-        layout=QVBoxLayout(self); layout.addWidget(QLabel(f"<h2>{title}</h2>"))
+        layout=adaptive_page_layout(self); layout.addWidget(QLabel(f"<h2>{title}</h2>"))
         self.table_widget=QTableWidget(); layout.addWidget(self.table_widget)
         btn=QPushButton("Refresh"); btn.clicked.connect(self.refresh); layout.addWidget(btn)
         self.refresh()
@@ -102,7 +143,7 @@ class TablePage(QWidget):
 class ImportPage(QWidget):
     def __init__(self, db_path: Path, refresh_callback):
         super().__init__(); self.db_path=db_path; self.refresh_callback=refresh_callback
-        layout=QVBoxLayout(self); layout.addWidget(QLabel("<h2>Spreadsheet Import</h2>"))
+        layout=adaptive_page_layout(self); layout.addWidget(QLabel("<h2>Spreadsheet Import</h2>"))
         self.status=QLabel("Import the D&D Combat Tracker workbook to populate Add screens and reference tables."); layout.addWidget(self.status)
         btn=QPushButton("Import Workbook..."); btn.clicked.connect(self.import_workbook); layout.addWidget(btn); layout.addStretch()
     def import_workbook(self):
@@ -418,7 +459,7 @@ class PlayerManagerPage(QWidget):
         super().__init__()
         self.repo = repo
         self.refresh_callback = refresh_callback
-        layout = QVBoxLayout(self)
+        layout = adaptive_page_layout(self)
         title_row = QHBoxLayout()
         title_row.addWidget(QLabel("<h2>Players</h2>"))
         title_row.addStretch()
@@ -593,7 +634,7 @@ class PlayerAddPage(PlayerManagerPage):
 class MonsterAddPage(QWidget):
     def __init__(self, repo: Repository):
         super().__init__(); self.repo=repo
-        layout=QVBoxLayout(self); layout.addWidget(QLabel("<h2>Add / Edit Monster</h2>"))
+        layout=adaptive_page_layout(self); layout.addWidget(QLabel("<h2>Add / Edit Monster</h2>"))
         form=QFormLayout(); self.name=QComboBox(); self.name.setEditable(True); self.name.currentTextChanged.connect(self.autofill)
         self.ac=QSpinBox(); self.ac.setRange(0,99); self.hp=QSpinBox(); self.hp.setRange(1,9999); self.cr=QLineEdit(); self.type=QLineEdit(); self.notes=QLineEdit()
         form.addRow("Monster Name", self.name); form.addRow("Type", self.type); form.addRow("Armor Class", self.ac); form.addRow("Hit Points", self.hp); form.addRow("Challenge", self.cr); form.addRow("Notes", self.notes)
@@ -616,24 +657,34 @@ class MonsterAddPage(QWidget):
 class EncounterBuilderPage(QWidget):
     def __init__(self, repo: Repository, refresh_callback):
         super().__init__(); self.repo=repo; self.refresh_callback=refresh_callback; self.current_encounter_id=None
-        root=QVBoxLayout(self); root.addWidget(QLabel("<h2>Encounter Builder</h2>"))
+        root=adaptive_page_layout(self); root.addWidget(QLabel("<h2>Encounter Builder</h2>"))
         top=QHBoxLayout(); self.new_name=QLineEdit(); self.new_name.setPlaceholderText("Encounter name, e.g. Goblin Ambush")
         new_btn=QPushButton("Create New Encounter"); new_btn.clicked.connect(self.create_encounter)
         self.encounters=QComboBox(); self.encounters.currentIndexChanged.connect(self.select_encounter)
         top.addWidget(self.new_name); top.addWidget(new_btn); top.addWidget(QLabel("Active:")); top.addWidget(self.encounters); root.addLayout(top)
         body=QHBoxLayout(); root.addLayout(body)
-        monster_box=QGroupBox("Monster Browser"); mb=QVBoxLayout(monster_box); self.monster_search=QComboBox(); self.monster_search.setEditable(True)
-        self.monster_qty=QSpinBox(); self.monster_qty.setRange(1,50); add_m=QPushButton("Add Monster(s)"); add_m.clicked.connect(self.add_monsters)
-        mb.addWidget(QLabel("Search/type monster name")); mb.addWidget(self.monster_search); mb.addWidget(QLabel("Quantity")); mb.addWidget(self.monster_qty); mb.addWidget(add_m); body.addWidget(monster_box)
-        player_box=QGroupBox("Players"); pb=QVBoxLayout(player_box); self.player_list=QListWidget(); add_p=QPushButton("Add Selected Player(s)"); add_p.clicked.connect(self.add_players); pb.addWidget(self.player_list); pb.addWidget(add_p); body.addWidget(player_box)
+        monster_box=QGroupBox("Monster Browser"); mb=QVBoxLayout(monster_box); self.monster_search=QComboBox(); self.monster_search.setEditable(True); self.monster_search.setInsertPolicy(QComboBox.NoInsert)
+        self.monster_qty=QSpinBox(); self.monster_qty.setRange(1,50); self.add_monster_button=QPushButton("Add Monster(s)"); self.add_monster_button.clicked.connect(self.add_monsters)
+        mb.addWidget(QLabel("Search/type monster name")); mb.addWidget(self.monster_search); mb.addWidget(QLabel("Quantity")); mb.addWidget(self.monster_qty); mb.addWidget(self.add_monster_button); body.addWidget(monster_box)
+        player_box=QGroupBox("Players"); pb=QVBoxLayout(player_box); self.player_list=QListWidget(); self.add_player_button=QPushButton("Add Selected Player(s)"); self.add_player_button.clicked.connect(self.add_players); pb.addWidget(self.player_list); pb.addWidget(self.add_player_button); body.addWidget(player_box)
         cart_box=QGroupBox("Encounter Combatants"); cb=QVBoxLayout(cart_box); self.combatants=QTableWidget(); self.combatants.setColumnCount(6); self.combatants.setHorizontalHeaderLabels(["Name","Init","AC","HP","Max HP","Type"]); cb.addWidget(self.combatants)
         self.combatants.setIconSize(QSize(36,36))
-        row=QHBoxLayout(); roll=QPushButton("Roll Initiative / Start"); roll.clicked.connect(self.roll_init); remove=QPushButton("Remove Selected"); remove.clicked.connect(self.remove_selected); row.addWidget(roll); row.addWidget(remove); cb.addLayout(row); body.addWidget(cart_box,2)
+        row=QHBoxLayout(); self.roll_button=QPushButton("Roll Initiative / Start"); self.roll_button.clicked.connect(self.roll_init); self.remove_button=QPushButton("Remove Selected"); self.remove_button.clicked.connect(self.remove_selected); row.addWidget(self.roll_button); row.addWidget(self.remove_button); cb.addLayout(row); body.addWidget(cart_box,2)
+        self.external_notice=QLabel("Fantasy Grounds owns this encounter. Update its participants and combat data in Fantasy Grounds."); self.external_notice.setWordWrap(True); self.external_notice.setVisible(False); root.addWidget(self.external_notice)
         self.refresh()
     def refresh(self):
-        self.monsters={r['name']: r for r in self.repo.list_monsters()}; self.players={r['name']: r for r in self.repo.list_players()}
-        self.monster_search.blockSignals(True); self.monster_search.clear(); self.monster_search.addItems(sorted(self.monsters)); self.monster_search.blockSignals(False)
-        comp=QCompleter(sorted(self.monsters)); comp.setCaseSensitivity(Qt.CaseInsensitive); comp.setFilterMode(Qt.MatchContains); self.monster_search.setCompleter(comp)
+        selected_monster_text=self.monster_search.currentText().strip() if hasattr(self,'monster_search') else ''
+        selected_monster_id=self.monster_search.currentData() if hasattr(self,'monster_search') else None
+        self.monsters={r['name']: r for r in self.repo.list_monsters()}; self.monsters_by_name={name.casefold(): row for name,row in self.monsters.items()}; self.players={r['name']: r for r in self.repo.list_players()}
+        self.monster_search.blockSignals(True); self.monster_search.clear()
+        for name in sorted(self.monsters, key=str.casefold): self.monster_search.addItem(name, self.monsters[name]['id'])
+        restore_row=self.monsters_by_name.get(selected_monster_text.casefold()) if selected_monster_text else None
+        restore_id=restore_row['id'] if restore_row else selected_monster_id
+        restore_index=self.monster_search.findData(restore_id) if restore_id is not None else -1
+        self.monster_search.setCurrentIndex(restore_index)
+        if restore_index < 0: self.monster_search.setEditText('')
+        self.monster_search.blockSignals(False)
+        comp=QCompleter(self.monster_search.model(), self.monster_search); comp.setCaseSensitivity(Qt.CaseInsensitive); comp.setFilterMode(Qt.MatchContains); comp.activated[str].connect(self._commit_monster_selection); self.monster_search.setCompleter(comp)
         self.player_list.clear()
         for name in sorted(self.players):
             item=QListWidgetItem(name); item.setFlags(item.flags() | Qt.ItemIsUserCheckable); item.setCheckState(Qt.Unchecked); self.player_list.addItem(item)
@@ -645,6 +696,24 @@ class EncounterBuilderPage(QWidget):
             current_index=self.encounters.findData(self.current_encounter_id)
             if current_index >= 0: self.encounters.setCurrentIndex(current_index)
         self.refresh_combatants()
+    def _commit_monster_selection(self, text):
+        row=self.monsters_by_name.get(str(text).strip().casefold())
+        if row:
+            index=self.monster_search.findData(row['id'])
+            if index >= 0: self.monster_search.setCurrentIndex(index)
+    def selected_monster(self):
+        text=self.monster_search.currentText().strip()
+        row=self.monsters_by_name.get(text.casefold()) if text else None
+        if not row: return None
+        index=self.monster_search.findData(row['id'])
+        if index >= 0 and self.monster_search.currentIndex()!=index: self.monster_search.setCurrentIndex(index)
+        return row
+    def encounter_is_external(self):
+        return self.repo.is_external_encounter(self.current_encounter_id)
+    def refresh_ownership(self):
+        external=self.encounter_is_external()
+        for widget in (self.monster_search,self.monster_qty,self.add_monster_button,self.player_list,self.add_player_button,self.roll_button,self.remove_button): widget.setEnabled(not external)
+        self.external_notice.setVisible(external)
     def create_encounter(self):
         name=self.new_name.text().strip() or "New Encounter"
         self.current_encounter_id=self.repo.create_encounter(name); self.new_name.clear(); self.refresh(); self.refresh_callback()
@@ -652,12 +721,14 @@ class EncounterBuilderPage(QWidget):
         self.current_encounter_id=self.encounters.currentData(); self.refresh_combatants()
     def add_monsters(self):
         if not self.current_encounter_id: self.create_encounter()
-        row=self.monsters.get(self.monster_search.currentText())
+        if self.encounter_is_external(): QMessageBox.warning(self,"Fantasy Grounds Encounter","Update this encounter in Fantasy Grounds."); return
+        row=self.selected_monster()
         if not row: QMessageBox.warning(self,"Monster Not Found","Select a monster from the imported library."); return
-        for _ in range(self.monster_qty.value()): self.repo.add_combatant_from_monster(self.current_encounter_id, row['id'])
+        self.repo.add_combatants_from_monster(self.current_encounter_id, row['id'], self.monster_qty.value())
         self.refresh_combatants(); self.refresh_callback()
     def add_players(self):
         if not self.current_encounter_id: self.create_encounter()
+        if self.encounter_is_external(): QMessageBox.warning(self,"Fantasy Grounds Encounter","Update this encounter in Fantasy Grounds."); return
         for i in range(self.player_list.count()):
             item=self.player_list.item(i)
             if item.checkState()==Qt.Checked:
@@ -673,21 +744,24 @@ class EncounterBuilderPage(QWidget):
             apply_portrait_icon(self.combatants.item(r,0),row['portrait_path'] if 'portrait_path' in row.keys() else '')
             self.combatants.setRowHeight(r,42)
         self.combatants.resizeColumnsToContents()
+        self.refresh_ownership()
     def selected_combatant_id(self):
         row=self.combatants.currentRow()
         if row < 0 or not self.combatants.item(row,0): return None
         return self.combatants.item(row,0).data(Qt.UserRole)
     def remove_selected(self):
+        if self.encounter_is_external(): QMessageBox.warning(self,"Fantasy Grounds Encounter","Update this encounter in Fantasy Grounds."); return
         cid=self.selected_combatant_id()
         if cid: self.repo.remove_combatant(cid); self.refresh_combatants(); self.refresh_callback()
     def roll_init(self):
         if not self.current_encounter_id: return
+        if self.encounter_is_external(): QMessageBox.warning(self,"Fantasy Grounds Encounter","Run combat from Fantasy Grounds."); return
         self.repo.roll_initiative(self.current_encounter_id); self.refresh_combatants(); self.refresh_callback(); QMessageBox.information(self,"Combat Started","Initiative rolled. Open Combat Dashboard to run turns.")
 
 class CombatDashboardPage(QWidget):
     def __init__(self, repo: Repository):
         super().__init__(); self.repo=repo; self.current_encounter_id=None
-        root=QVBoxLayout(self); root.addWidget(QLabel("<h2>Combat Dashboard</h2>"))
+        root=adaptive_page_layout(self); root.addWidget(QLabel("<h2>Combat Dashboard</h2>"))
         top=QHBoxLayout(); self.encounters=QComboBox(); self.encounters.currentIndexChanged.connect(self.select_encounter); top.addWidget(QLabel("Encounter:")); top.addWidget(self.encounters)
         self.round_label=QLabel("Round - | Active: -"); top.addWidget(self.round_label); root.addLayout(top)
         self.order=QTableWidget(); self.order.setColumnCount(6); self.order.setHorizontalHeaderLabels(["Turn","Name","Init","AC","HP","Max"]); root.addWidget(self.order)
@@ -745,7 +819,7 @@ class CombatDashboardPage(QWidget):
 class CampaignDashboardPage(QWidget):
     def __init__(self, repo: Repository, refresh_callback):
         super().__init__(); self.repo=repo; self.refresh_callback=refresh_callback
-        root=QVBoxLayout(self); root.addWidget(QLabel("<h2>Campaign Dashboard</h2>"))
+        root=adaptive_page_layout(self); root.addWidget(QLabel("<h2>Campaign Dashboard</h2>"))
         create=QHBoxLayout(); self.name=QLineEdit(); self.name.setPlaceholderText("Campaign name"); self.description=QLineEdit(); self.description.setPlaceholderText("Description (optional)"); add=QPushButton("Create Campaign"); add.clicked.connect(self.create_campaign)
         for w in [self.name,self.description,add]: create.addWidget(w)
         root.addLayout(create)
@@ -786,7 +860,7 @@ class CsvImportExportPage(QWidget):
         self.repo = Repository(db_path)
         self.refresh_callback = refresh_callback
         self.csv = CsvTransferService(db_path)
-        layout = QVBoxLayout(self)
+        layout = adaptive_page_layout(self)
         layout.addWidget(QLabel("<h2>CSV Import / Export</h2>"))
         intro = QLabel(
             "Export a table to CSV, edit it in Excel or another editor, then import it back. "
@@ -839,7 +913,6 @@ class CsvImportExportPage(QWidget):
         self.preview_summary = QLabel("Validate a CSV to preview New / Modified / Unchanged / Duplicate / Error rows before import.")
         self.preview_summary.setWordWrap(True)
         layout.addWidget(self.preview_summary)
-        layout.addStretch()
         self.last_preview_path = None
         self.last_preview_has_errors = False
         self.refresh()
@@ -965,7 +1038,7 @@ class DataWorkflowPage(QWidget):
         self.db_path = db_path
         self.refresh_callback = refresh_callback
         self.workflow = DataWorkflowService(db_path)
-        layout = QVBoxLayout(self)
+        layout = adaptive_page_layout(self)
         layout.addWidget(QLabel("<h2>Data Workflow</h2>"))
         intro = QLabel("Backup, restore, reset, and reseed the local SQLite database. Reset and restore automatically create safety backups first.")
         intro.setWordWrap(True)
@@ -1059,7 +1132,7 @@ class FantasyGroundsSyncPage(QWidget):
         self._last_snapshot_stamp = None
         self._importing = False
 
-        layout = QVBoxLayout(self)
+        layout = adaptive_page_layout(self)
         layout.addWidget(QLabel("<h2>Fantasy Grounds Sync</h2>"))
         intro = QLabel(
             "Fantasy Grounds Unity 5E is the source of truth. Select the campaign folder once, "
@@ -1239,7 +1312,7 @@ class ErrorLogPage(QWidget):
     def __init__(self, db_path: Path):
         super().__init__()
         self.workflow = DataWorkflowService(db_path)
-        layout = QVBoxLayout(self)
+        layout = adaptive_page_layout(self)
         header = QHBoxLayout()
         header.addWidget(QLabel("<h2>Error Log Viewer</h2>"))
         header.addStretch()
@@ -1274,7 +1347,7 @@ class ErrorLogPage(QWidget):
 class HelpPage(QWidget):
     def __init__(self):
         super().__init__()
-        layout = QVBoxLayout(self)
+        layout = adaptive_page_layout(self)
         header = QHBoxLayout()
         header.addWidget(QLabel("<h2>Help</h2>"))
         header.addStretch()
@@ -1353,7 +1426,7 @@ class MainWindow(QMainWindow):
         self.stack.addWidget(WatermarkedPage(widget, self._watermark_path))
         self.pages.append(widget)
     def dashboard(self):
-        w=QWidget(); l=QVBoxLayout(w)
+        w=QWidget(); l=adaptive_page_layout(w)
         l.addWidget(QLabel(f"<h1>{APP_NAME}</h1><p>Version {VERSION}</p><p>Use Campaigns to organize adventures, Encounter Builder to prepare battles, and Combat Dashboard to run them.</p>"))
         self.counts=QLabel(); l.addWidget(self.counts)
         l.addWidget(QLabel("<h2>Current Campaigns</h2>"))

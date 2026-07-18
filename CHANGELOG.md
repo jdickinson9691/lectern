@@ -1,5 +1,12 @@
 # Changelog
 
+### Encounter Builder and Fantasy Grounds bug fixes
+
+- Fixed monster selection so Encounter Builder refreshes preserve the selected database record instead of falling back to the first alphabetical monster (`A-mi-kuk`).
+- Made local multi-monster additions atomic and consistently ordered, and made Fantasy Grounds-owned encounters read-only in Encounter Builder.
+- Updated Fantasy Grounds Sync 1.1.1 to carry prepared-encounter participant AC, HP, and initiative into Lectern.
+- Made the spacing between sections on every application screen respond to its content and the available window height.
+
 ## 2.9.5 — Workflow and Import Refinement (in progress)
 
 - Established the v2.9.5 development baseline from the tested v2.9.4 Windows build.

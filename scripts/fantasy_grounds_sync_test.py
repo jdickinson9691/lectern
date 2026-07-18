@@ -56,6 +56,10 @@ try:
 
     encounters = repo.list_encounters()
     assert len(encounters) == 2, "Prepared and live Fantasy Grounds encounters were not created"
+    prepared = next(row for row in encounters if row["name"] == "Test Encounter")
+    prepared_combatants = repo.list_combatants(prepared["id"])
+    assert [row["name"] for row in prepared_combatants] == ["Test Creature #1", "Test Creature #2"], "Prepared encounter participants were mapped incorrectly"
+    assert all(row["armor_class"] == 13 and row["max_hp"] == 12 and row["current_hp"] == 12 and row["initiative_mod"] == 2 for row in prepared_combatants), "Prepared participant statistics were discarded"
     live = next(row for row in encounters if "Live Combat" in row["name"])
     assert repo.is_external_encounter(live["id"]), "Live encounter was not marked as externally owned"
     combatants = repo.list_combatants(live["id"])
@@ -93,6 +97,7 @@ try:
     updated = copy.deepcopy(payload)
     updated["sequence"] = 2
     updated["combat"]["combatants"][0]["hit_points"]["current"] = 6
+    updated["encounters"][0]["participants"][0].update({"armor_class": 14, "hit_points": 20, "initiative_mod": 3})
     updated["events"].append({
         "event_id": "test-session-001:3", "sequence": 3, "timestamp": "2026-07-17T20:00:05Z",
         "round": 1, "encounter_source_key": "test-session-001", "type": "healing",
@@ -100,12 +105,18 @@ try:
         "target": {"source_key": "5E:ct:id-00001", "name": "Test Creature"}, "amount": 2,
         "description": "Wounds decreased from 3 to 1", "metadata": {"previous_wounds": 3, "current_wounds": 1},
     })
+    with connect(db) as conn:
+        conn.execute("UPDATE encounters SET status='active',round=5,outcome='Old local value' WHERE id=?", (prepared["id"],))
     snapshot.write_text(json.dumps(updated), encoding="utf-8")
     update_result = service.import_configured_snapshot()
     assert update_result.applied and update_result.sequence == 2, "New sequence was not applied"
     live = next(row for row in repo.list_encounters() if "Live Combat" in row["name"])
     assert repo.list_combatants(live["id"])[0]["current_hp"] == 6, "Combat update was not applied"
     assert len(repo.list_players()) == 2 and len(repo.list_encounters()) == 2, "Update created duplicate entities"
+    refreshed_prepared = repo.get_encounter(prepared["id"])
+    assert refreshed_prepared["status"] == "draft" and refreshed_prepared["round"] == 1 and not refreshed_prepared["outcome"], "Fantasy Grounds prepared encounter state was not refreshed"
+    refreshed_participants = repo.list_combatants(prepared["id"])
+    assert all(row["armor_class"] == 14 and row["max_hp"] == 20 and row["initiative_mod"] == 3 for row in refreshed_participants), "Prepared participant updates were not applied"
     with connect(db) as conn:
         assert conn.execute("SELECT COUNT(*) FROM turn_log").fetchone()[0] == 3, "Only the new event should be appended"
         assert conn.execute("SELECT details FROM turn_log WHERE action_type='Healing'").fetchone()[0].startswith("Healing: 2;"), "Healing was not mapped"

@@ -109,6 +109,9 @@ def validate_snapshot(payload: Any) -> dict[str, Any]:
             _require_text(participant.get("source_key"), f"{field}.source_key")
             _require_text(participant.get("name"), f"{field}.name")
             _require(isinstance(participant.get("quantity"), int) and participant["quantity"] >= 1, f"{field}.quantity must be a positive integer")
+            for stat in ("armor_class", "hit_points", "initiative_mod"):
+                _require(participant.get(stat) is None or isinstance(participant.get(stat), int), f"{field}.{stat} must be an integer or null")
+            _require(participant.get("raw") is None or isinstance(participant.get("raw"), dict), f"{field}.raw must be an object or null")
 
     combat = payload.get("combat")
     _require(isinstance(combat, dict), "combat must be an object")
@@ -462,7 +465,10 @@ class FantasyGroundsSyncService:
             encounter_id = None
         name = self._unique_name(conn, "encounters", record["name"], encounter_id)
         if encounter_id:
-            conn.execute("UPDATE encounters SET name=?,campaign_id=?,status='draft' WHERE id=?", (name, campaign_id, encounter_id))
+            conn.execute(
+                "UPDATE encounters SET name=?,campaign_id=?,status='draft',round=1,active_index=0,outcome='',completed_at=NULL WHERE id=?",
+                (name, campaign_id, encounter_id),
+            )
             conn.execute("DELETE FROM combatants WHERE encounter_id=?", (encounter_id,))
         else:
             cursor = conn.execute("INSERT INTO encounters(name,status,round,active_index,campaign_id) VALUES(?,'draft',1,0,?)", (name, campaign_id))
@@ -470,14 +476,17 @@ class FantasyGroundsSyncService:
             self._link(conn, source_id, record["source_key"], "encounter", encounter_id)
         order = 0
         for participant in record["participants"]:
+            armor_class = _as_int(participant.get("armor_class"), 10)
+            hit_points = max(1, _as_int(participant.get("hit_points"), 1))
+            initiative_mod = _as_int(participant.get("initiative_mod"), 0)
             for copy_index in range(participant["quantity"]):
                 display_name = participant["name"] if participant["quantity"] == 1 else f"{participant['name']} #{copy_index + 1}"
                 conn.execute(
                     """
                     INSERT INTO combatants(encounter_id,source_type,source_id,name,armor_class,max_hp,current_hp,initiative_mod,sort_order)
-                    VALUES(?,?,?,?,10,1,1,0,?)
+                    VALUES(?,?,?,?,?,?,?,?,?)
                     """,
-                    (encounter_id, PROVIDER, None, display_name, order),
+                    (encounter_id, PROVIDER, None, display_name, armor_class, hit_points, hit_points, initiative_mod, order),
                 )
                 order += 1
 

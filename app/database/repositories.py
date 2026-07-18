@@ -147,6 +147,10 @@ class Repository:
     def list_monsters(self):
         return self.list_rows('monsters')
 
+    def get_monster_by_id(self, monster_id: int):
+        with connect(self.db_path) as conn:
+            return conn.execute("SELECT * FROM monsters WHERE id=?", (monster_id,)).fetchone()
+
     def list_players(self):
         return self.list_rows('players')
 
@@ -227,17 +231,55 @@ class Repository:
                 ORDER BY COALESCE(c.initiative, -999) DESC, c.sort_order ASC, c.name ASC
             """, (encounter_id,)).fetchall()
 
-    def add_combatant_from_monster(self, encounter_id: int, monster_id: int, display_name: str | None = None):
+    def add_combatants_from_monster(self, encounter_id: int, monster_id: int, quantity: int = 1) -> list[int]:
+        quantity = max(0, int(quantity))
+        if quantity == 0:
+            return []
         with connect(self.db_path) as conn:
             m = conn.execute("SELECT * FROM monsters WHERE id=?", (monster_id,)).fetchone()
             if not m:
-                return
-            count = conn.execute("SELECT COUNT(*) FROM combatants WHERE encounter_id=? AND source_type='monster' AND source_id=?", (encounter_id, monster_id)).fetchone()[0]
-            name = display_name or f"{m['name']} #{int(count)+1}"
-            conn.execute("""
+                raise ValueError(f"Monster id {monster_id} does not exist")
+            existing_count = int(conn.execute(
+                "SELECT COUNT(*) FROM combatants WHERE encounter_id=? AND source_type='monster' AND source_id=?",
+                (encounter_id, monster_id),
+            ).fetchone()[0])
+            next_order = int(conn.execute(
+                "SELECT COALESCE(MAX(sort_order),-1)+1 FROM combatants WHERE encounter_id=?",
+                (encounter_id,),
+            ).fetchone()[0])
+            ids: list[int] = []
+            for offset in range(quantity):
+                name = f"{m['name']} #{existing_count + offset + 1}"
+                cursor = conn.execute("""
+                    INSERT INTO combatants(encounter_id,source_type,source_id,name,armor_class,max_hp,current_hp,initiative_mod,initiative,sort_order)
+                    VALUES(?,?,?,?,?,?,?,?,NULL,?)
+                """, (
+                    encounter_id, 'monster', monster_id, name, m['armor_class'] or 10,
+                    m['hit_points'] or 1, m['hit_points'] or 1, 0, next_order + offset,
+                ))
+                ids.append(int(cursor.lastrowid))
+            return ids
+
+    def add_combatant_from_monster(self, encounter_id: int, monster_id: int, display_name: str | None = None):
+        if display_name is None:
+            ids = self.add_combatants_from_monster(encounter_id, monster_id, 1)
+            return ids[0] if ids else None
+        with connect(self.db_path) as conn:
+            m = conn.execute("SELECT * FROM monsters WHERE id=?", (monster_id,)).fetchone()
+            if not m:
+                raise ValueError(f"Monster id {monster_id} does not exist")
+            next_order = int(conn.execute(
+                "SELECT COALESCE(MAX(sort_order),-1)+1 FROM combatants WHERE encounter_id=?",
+                (encounter_id,),
+            ).fetchone()[0])
+            cursor = conn.execute("""
                 INSERT INTO combatants(encounter_id,source_type,source_id,name,armor_class,max_hp,current_hp,initiative_mod,initiative,sort_order)
                 VALUES(?,?,?,?,?,?,?,?,NULL,?)
-            """, (encounter_id, 'monster', monster_id, name, m['armor_class'] or 10, m['hit_points'] or 1, m['hit_points'] or 1, 0, int(count)))
+            """, (
+                encounter_id, 'monster', monster_id, display_name, m['armor_class'] or 10,
+                m['hit_points'] or 1, m['hit_points'] or 1, 0, next_order,
+            ))
+            return int(cursor.lastrowid)
 
     def add_combatant_from_player(self, encounter_id: int, player_id: int):
         with connect(self.db_path) as conn:
@@ -247,7 +289,10 @@ class Repository:
             exists = conn.execute("SELECT id FROM combatants WHERE encounter_id=? AND source_type='player' AND source_id=? AND is_active=1", (encounter_id, player_id)).fetchone()
             if exists:
                 return
-            order = conn.execute("SELECT COUNT(*) FROM combatants WHERE encounter_id=?", (encounter_id,)).fetchone()[0]
+            order = conn.execute(
+                "SELECT COALESCE(MAX(sort_order),-1)+1 FROM combatants WHERE encounter_id=?",
+                (encounter_id,),
+            ).fetchone()[0]
             conn.execute("""
                 INSERT INTO combatants(encounter_id,source_type,source_id,name,armor_class,max_hp,current_hp,initiative_mod,initiative,sort_order)
                 VALUES(?,?,?,?,?,?,?,?,NULL,?)

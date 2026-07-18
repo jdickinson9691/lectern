@@ -101,7 +101,7 @@
       "fields": {},
       "raw": {},
       "participants": [
-        { "source_key": "5E:npc:test-creature", "name": "Test Creature", "quantity": 2 }
+        { "source_key": "5E:npc:test-creature", "name": "Test Creature", "quantity": 2, "armor_class": 13, "hit_points": 12, "initiative_mod": 2, "raw": {} }
       ]
     }
   ],
