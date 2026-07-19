@@ -1,5 +1,11 @@
 # Changelog
 
+### Fantasy Grounds damage types
+
+- Added Lectern Sync 1.4.0 authoritative post-resolution damage capture with mixed damage components and rolled, applied, resisted, and vulnerability amounts.
+- Added schema-v9 normalized damage types and component JSON to combat-log rows, plus a **Damage Type** column and damage-type-aware search on the Combat Dashboard.
+- Historical Fantasy Grounds log reprocessing now recovers recognizable damage types from preserved metadata or `[TYPE: ...]` descriptions; manual or unavailable types remain `unknown`.
+
 ### Fantasy Grounds test-data reset
 
 - Added a previewed **Clear Selected FG Import** action that backs up the database, removes only selected Fantasy Grounds-linked campaigns, encounters, combatants, combat logs, player copies, and sync metadata, and preserves local Lectern data.

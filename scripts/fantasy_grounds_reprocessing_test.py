@@ -45,7 +45,7 @@ try:
                       "roll_total": 19, "target_ac": 16, "result": "Hit"},
         ),
         event(
-            "history:2", "damage", amount=4, description="Wounds increased",
+            "history:2", "damage", amount=4, description="Wounds increased [TYPE: piercing (9)]",
             metadata={"action_name": "Longsword", "roll_total": 9, "adjustment": -5,
                       "current_hp": 3, "maximum_hp": 7, "attribution": "matched_recent_roll"},
         ),
@@ -143,6 +143,8 @@ try:
         assert len(rows) == 8 and conn.execute("SELECT COUNT(*) FROM external_events WHERE source_id=?", (source_id,)).fetchone()[0] == 9
         assert "19 (dice 14; modifiers +5)" in rows[0]["details"] and "Against AC 16" in rows[0]["details"]
         assert "4 damage applied from 9 rolled (reduced by 5)" in rows[1]["details"]
+        assert rows[1]["damage_types"] == "piercing", "Historical damage type was not recovered from the preserved description"
+        assert rows[5]["damage_types"] == "unknown", "Manual historical damage was assigned a guessed type"
         assert rows[2]["details"] == "2 | Historical Goblin | Target HP 5/7 | Cure Wounds | 2 healing applied"
         assert "Critical Hit (25 vs AC 30)" in rows[3]["details"]
         assert "Automatic Miss (15 vs AC 10)" in rows[4]["details"]

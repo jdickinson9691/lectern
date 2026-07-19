@@ -395,7 +395,8 @@ class Repository:
     def log_turn(
         self, encounter_id: int, actor: str, action_type: str, details: str, *,
         actor_source_key: str = "", actor_side: str | None = None, amount: int | None = None,
-        result_code: str = "", natural_roll: int | None = None,
+        result_code: str = "", natural_roll: int | None = None, damage_types: str = "",
+        damage_components_json: str = "[]",
     ):
         with connect(self.db_path) as conn:
             enc = conn.execute("SELECT round FROM encounters WHERE id=?", (encounter_id,)).fetchone()
@@ -416,6 +417,8 @@ class Repository:
                 match = re.match(r"\s*(?:Damage|Healing)\s*:\s*(\d+)|\s*(\d+)\b", details, re.IGNORECASE)
                 if match:
                     amount = int(next(value for value in match.groups() if value is not None))
+            if action_type == "Damage" and not damage_types:
+                damage_types = "unknown"
             detail_result = details.casefold()
             if not result_code and action_type == "Attack":
                 if "critical hit" in detail_result:
@@ -426,11 +429,12 @@ class Repository:
                 """
                 INSERT INTO turn_log(
                     encounter_id,round,actor,action_type,details,actor_source_key,
-                    actor_side,amount,result_code,natural_roll
-                ) VALUES(?,?,?,?,?,?,?,?,?,?)
+                    actor_side,amount,result_code,natural_roll,damage_types,damage_components_json
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (encounter_id, enc['round'] if enc else 1, actor, action_type, details,
-                 actor_source_key, actor_side, amount, result_code, natural_roll),
+                 actor_source_key, actor_side, amount, result_code, natural_roll,
+                 damage_types, damage_components_json),
             )
 
     def list_turn_log(self, encounter_id: int):

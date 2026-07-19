@@ -38,6 +38,8 @@ try:
             (2,"Fighter1","Note","Older local free-text entry"),
         ]
         conn.executemany("INSERT INTO turn_log(encounter_id,round,actor,action_type,details) VALUES(?,?,?,?,?)",[(encounter_id,*row) for row in rows])
+        conn.execute("UPDATE turn_log SET damage_types='slashing, fire',damage_components_json='[{\"types\":[\"slashing\"],\"rolled\":6,\"applied\":3}]' WHERE encounter_id=? AND actor='Berserker 2' AND action_type LIKE 'Damage%'",(encounter_id,))
+        conn.execute("UPDATE turn_log SET damage_types='unknown' WHERE encounter_id=? AND actor='Manual / Unattributed'",(encounter_id,))
     historical_id=repo.create_encounter("Newer Historical Log")
     with connect(db) as conn:
         conn.execute("UPDATE encounters SET status='completed',round=11 WHERE id=?",(historical_id,))
@@ -45,12 +47,14 @@ try:
     page = CombatDashboardPage(repo); page.setStyleSheet("QWidget{background:#202124;color:#e8eaed} QTreeWidget,QLineEdit,QComboBox{background:#202124;border:1px solid #3c4043} QTreeWidget{alternate-background-color:#27292d} QTreeWidget::item{color:#e8eaed} QHeaderView::section{background:#2a2c30;color:#e8eaed;padding:6px}"); page.resize(1400,800); page.show(); app.processEvents()
     assert page.encounters.currentData()==encounter_id and page.current_encounter_id==encounter_id, "Dashboard did not prefer the active encounter over a newer historical log"
     page.current_encounter_id=encounter_id; page.refresh_log(); app.processEvents()
-    assert page.log_tree.columnCount()==7, "Combat log does not expose the structured columns"
+    assert page.log_tree.columnCount()==8, "Combat log does not expose the structured damage-type column"
     assert page.log_tree.topLevelItemCount()==3, "Filtered combat log did not group visible events by round"
     assert page.log_count.text()=="6 events", "Turn-marker toggle did not hide only system rows"
     round_four=page.log_tree.topLevelItem(0); assert round_four.text(0)=="Round 4 - 4 events" and round_four.isExpanded(), f"Round group heading is incorrect: {round_four.text(0)!r}, expanded={round_four.isExpanded()}"
     attack=next(round_four.child(i) for i in range(round_four.childCount()) if round_four.child(i).text(1)=="Attack")
-    assert [attack.text(i) for i in range(7)]==["Berserker 2","Attack","16 (dice 11; modifiers +5)","Fighter1","Against AC 16","Greataxe","Hit (16 vs AC 16)"], "Fantasy Grounds attack was parsed incorrectly"
+    assert [attack.text(i) for i in range(8)]==["Berserker 2","Attack","16 (dice 11; modifiers +5)","Fighter1","Against AC 16","Greataxe","","Hit (16 vs AC 16)"], "Fantasy Grounds attack was parsed incorrectly"
+    damage=next(round_four.child(i) for i in range(round_four.childCount()) if round_four.child(i).text(1)=="Damage" and round_four.child(i).text(0)=="Berserker 2")
+    assert damage.text(6)=="slashing, fire" and "Components:" in damage.child(0).text(0), "Damage type or component detail was not displayed"
     assert attack.childCount()==1 and attack.child(0).text(0).startswith("Original:"), "Expandable original details are missing"
     page.log_result_filter.setCurrentIndex(page.log_result_filter.findData("critical")); app.processEvents(); assert page.log_count.text()=="1 event", "Critical-hit filter failed"
     page.log_result_filter.setCurrentIndex(0); page.log_search.setText("greataxe"); app.processEvents(); assert page.log_count.text()=="3 events", "Combat-log search failed"

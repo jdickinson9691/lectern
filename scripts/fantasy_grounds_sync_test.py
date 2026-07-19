@@ -26,13 +26,14 @@ try:
     extension_manifest = (
         ROOT / "integrations" / "fantasy_grounds" / "extension" / "LecternSync" / "extension.xml"
     ).read_text(encoding="utf-8")
-    assert 'local EXTENSION_VERSION = "1.3.1"' in extension_source and "<version>1.3.1</version>" in extension_manifest, "Extension version metadata is inconsistent"
+    assert 'local EXTENSION_VERSION = "1.4.0"' in extension_source and "<version>1.4.0</version>" in extension_manifest, "Extension version metadata is inconsistent"
     assert 'Comm.registerSlashHandler("lectern-start", startEncounter' in extension_source, "Explicit encounter start command is missing"
     assert 'Comm.registerSlashHandler("lectern-end", endEncounter' in extension_source, "Explicit encounter end command is missing"
     assert 'Comm.registerSlashHandler("lectern-reset", resetEncounterJournal' in extension_source, "Safe encounter reset command is missing"
     assert 'sPersistedEventsJSON = ""' in extension_source and '"confirm"' in extension_source, "Encounter reset does not clear the journal safely"
     assert 'session-state.txt' in extension_source and 'loadSessionState()' in extension_source, "Durable session reload support is missing"
     assert 'extractArrayContents(sSnapshot or "", "events")' in extension_source and 'sMergedEvents = sPersistedEventsJSON' in extension_source, "Accumulated events are not retained across reloads"
+    assert 'archiveCurrentJournal()' in extension_source and 'for nIndex = 1, #aEventJournal do' in extension_source, "Mutable current-session events or prior sessions are not retained safely"
     assert 'lifecycle = "encounter_start"' in extension_source and 'lifecycle = "encounter_end"' in extension_source, "Encounter lifecycle events are missing"
     assert 'nodeNumber(node, "defenses.ac.total"' in extension_source, "2024 Fantasy Grounds character AC path is missing"
     assert 'if sCharacterName == "" then return nil end' in extension_source, "Unnamed Fantasy Grounds characters are not filtered"
@@ -45,6 +46,8 @@ try:
     assert 'diceValue(draginfo, "getNumberData", 0)' in extension_source, "Fantasy Grounds entity and effect modifiers are not captured"
     assert 'nRawRoll + nModifier' in extension_source, "Net roll does not include Fantasy Grounds modifiers"
     assert 'GameManager.addEventFunction("onAttackPostResolve", authoritativeAttackResolved)' in extension_source, "Authoritative 5E attack outcomes are not captured"
+    assert 'GameManager.addEventFunction("onDamagePostResolve", authoritativeDamageResolved)' in extension_source, "Authoritative 5E damage resolution is not captured"
+    assert 'rRoll.tResults' in extension_source and 'damage_components = tComponents' in extension_source, "Component-aware damage types are not exported"
     assert 'natural_roll = nRawRoll' in extension_source and 'authoritative_result = true' in extension_source, "Natural attack roll and authoritative result metadata are missing"
     assert 'contextForAppliedChange(tTarget, "damage")' in extension_source, "Applied damage attribution is not target matched and time bounded"
 
@@ -94,7 +97,9 @@ try:
     assert len(combatants) == 1 and combatants[0]["current_hp"] == 9, "Live combatant HP mapping failed"
     with connect(db) as conn:
         assert conn.execute("SELECT COUNT(*) FROM active_conditions").fetchone()[0] == 1, "Combat effects were not imported"
-        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == "8", "Schema version was not migrated"
+        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == "9", "Schema version was not migrated"
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(turn_log)")}
+        assert {"damage_types", "damage_components_json"} <= columns, "Damage-type schema columns are missing"
         assert conn.execute("SELECT COUNT(*) FROM rules_reference WHERE category LIKE 'Fantasy Grounds %'").fetchone()[0] == 5, "Catalog references were not normalized"
         source = conn.execute("SELECT * FROM external_sources").fetchone()
         assert source["last_sequence"] == 1 and not source["last_error"], "Sync source state is incorrect"
@@ -182,8 +187,12 @@ try:
         "round": 1, "encounter_source_key": "test-session-002", "type": "action",
         "actor": {"source_key": "5E:character:test-hero", "name": "Fantasy Grounds Test Hero"},
         "target": {"source_key": "5E:ct:id-00001", "name": "Test Creature"},
-        "amount": None, "description": "[DAMAGE (M)] Greataxe",
-        "metadata": {"action_name": "Greataxe", "roll_type": "damage", "raw_roll": 6, "modifier": 3, "roll_total": 9, "target_ac": 13},
+        "amount": None, "description": "[DAMAGE (M)] Greataxe [TYPE: slashing (6)] [TYPE: fire (3)]",
+        "metadata": {"action_name": "Greataxe", "roll_type": "damage", "raw_roll": 6, "modifier": 3, "roll_total": 9, "target_ac": 13,
+            "damage_types": ["slashing", "fire"], "damage_components": [
+                {"types": ["slashing"], "rolled": 6, "applied": 3, "resisted": 3, "vulnerable": 0},
+                {"types": ["fire"], "rolled": 3, "applied": 1, "resisted": 2, "vulnerable": 0},
+            ]},
     })
     new_session["events"].extend([
         {
@@ -210,7 +219,11 @@ try:
             "actor": {"source_key": "5E:character:test-hero", "name": "Fantasy Grounds Test Hero"},
             "target": {"source_key": "5E:ct:id-00001", "name": "Test Creature"}, "amount": 4,
             "description": "Wounds increased", "metadata": {"action_name": "Greataxe", "roll_total": 9,
-                "adjustment": -5, "attribution": "matched_recent_roll", "current_hp": 5, "maximum_hp": 12},
+                "adjustment": -5, "attribution": "matched_recent_roll", "current_hp": 5, "maximum_hp": 12,
+                "damage_types": ["slashing", "fire"], "damage_components": [
+                    {"types": ["slashing"], "rolled": 6, "applied": 3, "resisted": 3, "vulnerable": 0},
+                    {"types": ["fire"], "rolled": 3, "applied": 1, "resisted": 2, "vulnerable": 0},
+                ]},
         },
         {
             "event_id": "test-session-002:9", "sequence": 9, "timestamp": "2026-07-17T21:00:04Z",
@@ -225,12 +238,15 @@ try:
     with connect(db) as conn:
         encounter_ids = {row[0] for row in conn.execute("SELECT DISTINCT encounter_id FROM external_events").fetchall()}
         assert len(encounter_ids) == 2, "Separate Fantasy Grounds combat sessions were merged"
-        damage_roll = conn.execute("SELECT action_type,details FROM turn_log WHERE action_type='Damage Roll'").fetchone()
+        damage_roll = conn.execute("SELECT action_type,details,damage_types,damage_components_json FROM turn_log WHERE action_type='Damage Roll'").fetchone()
         assert damage_roll and damage_roll["details"] == "9 (dice 6; modifiers +3) | Test Creature | Against AC 13 | Greataxe | 9 damage rolled", "Damage roll value was not displayed"
+        assert damage_roll["damage_types"] == "slashing, fire", "Mixed damage types were not normalized"
+        assert json.loads(damage_roll["damage_components_json"])[0] == {"types": ["slashing"], "rolled": 6, "applied": 3, "resisted": 3, "vulnerable": 0}, "Damage component details were not preserved"
         assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE details LIKE '%Critical Hit (25 vs AC 30)%'").fetchone()[0] == 1, "Authoritative critical hit was not preserved"
         assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE details LIKE '%Automatic Miss (15 vs AC 10)%'").fetchone()[0] == 1, "Authoritative natural-one miss was not preserved"
         assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE details LIKE '%4 damage applied from 9 rolled (reduced by 5)%'").fetchone()[0] == 1, "Adjusted damage was not explained"
         assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE actor='Manual / Unattributed'").fetchone()[0] == 1, "Manual damage inherited a stale actor"
+        assert conn.execute("SELECT damage_types FROM turn_log WHERE actor='Manual / Unattributed'").fetchone()[0] == "unknown", "Manual damage type was guessed"
         explicit_encounter = conn.execute("SELECT id,status FROM encounters WHERE name='Explicit Test Combat'").fetchone()
         assert explicit_encounter and explicit_encounter["status"] == "active", "Explicit session name or open state was not imported"
 

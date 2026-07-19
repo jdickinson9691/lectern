@@ -157,7 +157,31 @@
         "target": { "$ref": "#/$defs/event_participant" },
         "amount": { "type": ["integer", "null"] },
         "description": { "type": "string" },
-        "metadata": { "type": "object" }
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "damage_types": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true
+            },
+            "damage_components": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["types", "rolled", "applied"],
+                "properties": {
+                  "types": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+                  "rolled": { "type": ["number", "null"] },
+                  "applied": { "type": ["number", "null"] },
+                  "resisted": { "type": "number" },
+                  "vulnerable": { "type": "number" }
+                }
+              }
+            },
+            "damage_resolution": { "enum": ["authoritative", "description"] }
+          }
+        }
       }
     }
   }

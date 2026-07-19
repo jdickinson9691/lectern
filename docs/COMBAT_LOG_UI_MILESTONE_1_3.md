@@ -6,7 +6,7 @@ Turn the Combat Dashboard's plain-text history into a readable review surface fo
 
 ## Delivered interface
 
-- Seven columns: Actor, Type, Roll, Target, Defense / HP, Action, and Result.
+- Eight columns: Actor, Type, Roll, Target, Defense / HP, Action, Damage Type, and Result.
 - Newest round first, with expanded round headings and event counts.
 - Color-backed result cells for critical hits, hits, misses, damage, healing, and manual or unattributed changes. Every color also has a text label.
 - Search across actors, targets, actions, result text, and original details.

@@ -75,6 +75,8 @@ CREATE TABLE IF NOT EXISTS turn_log (
  amount INTEGER,
  result_code TEXT DEFAULT '',
  natural_roll INTEGER,
+ damage_types TEXT DEFAULT '',
+ damage_components_json TEXT DEFAULT '[]',
  created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS active_conditions (
@@ -202,7 +204,9 @@ def initialize_database(db_path: Path) -> None:
             'amount': 'INTEGER',
             'result_code': "TEXT DEFAULT ''",
             'natural_roll': 'INTEGER',
+            'damage_types': "TEXT DEFAULT ''",
+            'damage_components_json': "TEXT DEFAULT '[]'",
         }.items():
             if col not in turn_log_columns:
                 conn.execute(f'ALTER TABLE turn_log ADD COLUMN {col} {decl}')
-        conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('schema_version','8')")
+        conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('schema_version','9')")
