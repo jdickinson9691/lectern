@@ -67,26 +67,36 @@ After the handoff folder has been created once, Lectern does not need to start f
 
 1. Build or open the encounter in Fantasy Grounds.
 2. Add it to the Fantasy Grounds Combat Tracker.
-3. Roll initiative and run combat normally in Fantasy Grounds.
-4. Keep Lectern's **Combat Dashboard** or **Fantasy Grounds Sync** screen open as a companion view.
+3. Before the first roll, start a named synchronized encounter:
+
+   ```text
+   /lectern-start Goblin Ambush
+   ```
+
+4. Confirm Fantasy Grounds reports the encounter started and Lectern's **Fantasy Grounds Sync** screen shows the session as **Open**.
+5. Roll initiative and run combat normally in Fantasy Grounds.
+6. Keep Lectern's **Combat Dashboard** or **Fantasy Grounds Sync** screen open as a companion view.
 
 Fantasy Grounds dice actions, applied damage and healing, turn changes, and temporary HP changes are appended automatically to the synchronized encounter's turn log. A damage roll is logged as an action; it becomes `Damage` only when wounds are actually applied in the Combat Tracker.
 
 When the encounter ends, record the GM-confirmed result in Fantasy Grounds chat:
 
 ```text
-/lectern-outcome victory
+/lectern-end victory
 ```
 
-The supported results are `victory`, `defeat`, `retreat`, and `unresolved`. The result completes the Lectern encounter and appears in its turn log. Clearing the Combat Tracker alone does not guess an outcome.
+The supported results are `victory`, `defeat`, `retreat`, and `unresolved`. The result captures the final roster, completes the Lectern encounter, and appears in its turn log. `/lectern-outcome` remains a compatibility alias for `/lectern-end`. Clearing the Combat Tracker alone does not guess an outcome.
+
+The open session is persisted under `lectern-sync` and resumes after a Fantasy Grounds reload. Only one session can be open at a time. Events rolled without an open session are intentionally not journaled, and Fantasy Grounds displays a `/lectern-start` reminder.
 
 HP, initiative, turns, participants, and effects originate in Fantasy Grounds. Synchronized encounters are read-only in Lectern's Encounter Builder and Combat Dashboard.
 
 ## Ending a session
 
-1. End or clear combat in Fantasy Grounds normally.
-2. Wait until Lectern displays the newest sequence and sync time.
-3. Close either application in any order.
+1. Run `/lectern-end` with the encounter outcome.
+2. Wait until Lectern displays the newest sequence, sync time, and **Closed** session state.
+3. End or clear combat in Fantasy Grounds normally.
+4. Close either application in any order.
 
 The newest snapshot stays in the Fantasy Grounds campaign folder for Lectern's next startup.
 

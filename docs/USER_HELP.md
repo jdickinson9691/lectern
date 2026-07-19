@@ -357,6 +357,21 @@ Source developers can instead run `scripts\Install-FantasyGroundsExtension.ps1` 
 
 Run `/lectern-export` once after each Fantasy Grounds campaign start and after changing the loaded Fantasy Grounds modules.
 
+### Start and end a combat encounter
+
+Lectern Sync 1.3 uses explicit encounter boundaries so a Fantasy Grounds reload cannot silently split one combat into several Lectern encounters.
+
+1. Populate the Combat Tracker and prepare initiative.
+2. In Fantasy Grounds chat, enter `/lectern-start Encounter Name` before the first combat roll.
+3. Confirm Fantasy Grounds reports that the Lectern encounter started and the Sync screen shows the session as **Open**.
+4. Run combat normally.
+5. Before clearing the Combat Tracker, enter `/lectern-end victory`, `/lectern-end defeat`, `/lectern-end retreat`, or `/lectern-end unresolved`.
+6. Confirm the Sync screen shows the session as **Closed**.
+
+The session identifier, name, event sequence, and open/closed state are stored in the campaign's `lectern-sync` folder. If Fantasy Grounds reloads during combat, the extension resumes the same open session. The existing `/lectern-outcome` command remains available as an alias for `/lectern-end`.
+
+Only one encounter can be open at a time. Rolls made without an open Lectern encounter are not added to the synchronized combat journal; Fantasy Grounds displays a reminder to run `/lectern-start`.
+
 ### Automatic updates
 
 Keep **Automatically import new snapshots** enabled. After the initial full export, Fantasy Grounds writes an updated snapshot whenever its Combat Tracker changes. Lectern checks for changes once per second.
@@ -375,7 +390,7 @@ Synchronized Fantasy Grounds encounters are read-only in Lectern's Encounter Bui
 
 Records that disappear from a later snapshot are marked stale rather than deleted. Commercial module content remains local and must not be redistributed.
 
-To finish a synchronized encounter, enter `/lectern-outcome victory`, `/lectern-outcome defeat`, `/lectern-outcome retreat`, or `/lectern-outcome unresolved` in Fantasy Grounds chat. Lectern does not infer an outcome when the Combat Tracker is cleared.
+Ending an encounter captures its final roster and outcome. Lectern retains the last non-empty roster if the Combat Tracker is subsequently cleared, so historical turn order, AC, and HP do not disappear. Lectern does not infer an outcome from clearing the tracker.
 
 ### Reprocess historical combat logs
 
@@ -392,6 +407,8 @@ For incomplete older dice events, Lectern preserves any reported die total and l
 - If Fantasy Grounds reports an export error, select the campaign folder in Lectern before running `/lectern-export`.
 - If the extension is missing, confirm `LecternSync.ext` or the unpacked `LecternSync` folder is directly beneath the Fantasy Grounds `extensions` folder.
 - If data is unchanged, click **Import Now** and run `/lectern-export` again.
+- If combat events are not appearing, confirm the Sync screen says the encounter session is **Open**. Run `/lectern-start Encounter Name` before rolling.
+- If Fantasy Grounds says an encounter is already open, finish it with `/lectern-end outcome` before starting another.
 - If modules changed, open the required modules in Fantasy Grounds and run a new full export.
 - Review **Error Logs** in Lectern and Fantasy Grounds logs for validation or mapping errors.
 

@@ -101,6 +101,9 @@
         "active_source_key": { "type": ["string", "null"] },
         "combatants": { "type": "array", "items": { "$ref": "#/$defs/combatant" } },
         "session_key": { "type": ["string", "null"] },
+        "session_name": { "type": ["string", "null"] },
+        "session_state": { "type": "string", "enum": ["inactive", "open", "closed"] },
+        "started_at": { "type": ["string", "null"], "format": "date-time" },
         "outcome": { "type": ["string", "null"], "enum": ["victory", "defeat", "retreat", "unresolved", null] },
         "completed_at": { "type": ["string", "null"], "format": "date-time" }
       }

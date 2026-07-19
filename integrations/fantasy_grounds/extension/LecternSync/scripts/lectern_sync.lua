@@ -1,7 +1,7 @@
--- Lectern Sync 1.2.0
+-- Lectern Sync 1.3.0
 -- One-way Fantasy Grounds Unity 5E export. This script never writes FG database nodes.
 
-local EXTENSION_VERSION = "1.2.0"
+local EXTENSION_VERSION = "1.3.0"
 local SCHEMA_VERSION = 1
 local bExporting = false
 local tCachedSnapshot = nil
@@ -10,6 +10,9 @@ local JSON_NULL = {}
 local aEventJournal = {}
 local nEventSequence = 0
 local sCombatSessionKey = nil
+local sCombatSessionName = nil
+local sSessionStartedAt = nil
+local sSessionState = "inactive"
 local sOutcome = nil
 local sCompletedAt = nil
 local tLastCombatants = {}
@@ -18,6 +21,10 @@ local bHaveCombatBaseline = false
 local bLastCombatActive = false
 local tLastRollContext = nil
 local bHaveAuthoritativeAttackHook = false
+local bWarnedNoSession = false
+local saveSessionState = nil
+local sPersistedEventsJSON = ""
+local nPersistedJournalCount = 0
 
 local tFallbackMappings = {
   class = { "class", "reference.classdata", "reference.classes" },
@@ -93,6 +100,32 @@ local function encodeJSON(vValue, tSeen)
   end
   tSeen[vValue] = nil
   return "{" .. table.concat(aParts, ",") .. "}"
+end
+
+local function extractArrayContents(sJSON, sKey)
+  local sMarker = '"' .. sKey .. '":['
+  local nMarker = sJSON and sJSON:find(sMarker, 1, true) or nil
+  if not nMarker then return "" end
+  local nStart = nMarker + #sMarker
+  local nDepth = 1
+  local bInString = false
+  local bEscaped = false
+  for nIndex = nStart, #sJSON do
+    local sChar = sJSON:sub(nIndex, nIndex)
+    if bInString then
+      if bEscaped then bEscaped = false
+      elseif sChar == "\\" then bEscaped = true
+      elseif sChar == '"' then bInString = false end
+    else
+      if sChar == '"' then bInString = true
+      elseif sChar == "[" then nDepth = nDepth + 1
+      elseif sChar == "]" then
+        nDepth = nDepth - 1
+        if nDepth == 0 then return sJSON:sub(nStart, nIndex - 1) end
+      end
+    end
+  end
+  return ""
 end
 
 local function nodeText(node, sPath, sDefault)
@@ -337,7 +370,11 @@ end
 local function combatState()
   local tCombat = {
     active = false, round = 0, active_source_key = JSON_NULL, combatants = {},
-    session_key = sCombatSessionKey or JSON_NULL, outcome = sOutcome or JSON_NULL,
+    session_key = sCombatSessionKey or JSON_NULL,
+    session_name = sCombatSessionName or JSON_NULL,
+    started_at = sSessionStartedAt or JSON_NULL,
+    session_state = sSessionState,
+    outcome = sOutcome or JSON_NULL,
     completed_at = sCompletedAt or JSON_NULL,
   }
   tCombat.round = nodeNumber("combattracker", "round", nodeNumber("combattracker", "roundcounter", 0))
@@ -392,14 +429,10 @@ local function campaignKey()
 end
 
 local function ensureCombatSession(tCombat)
-  if tCombat.active and (not sCombatSessionKey or (bHaveCombatBaseline and not bLastCombatActive)) then
-    local sStamp = isoTimestamp():gsub("[^%w]", "")
-    sCombatSessionKey = "combat-" .. campaignKey() .. "-" .. sStamp
-    sOutcome = nil
-    sCompletedAt = nil
-    bLastCombatActive = true
-  end
-  tCombat.session_key = sCombatSessionKey or "live-combat"
+  tCombat.session_key = sCombatSessionKey or JSON_NULL
+  tCombat.session_name = sCombatSessionName or JSON_NULL
+  tCombat.started_at = sSessionStartedAt or JSON_NULL
+  tCombat.session_state = sSessionState
   tCombat.outcome = sOutcome or JSON_NULL
   tCombat.completed_at = sCompletedAt or JSON_NULL
   return tCombat
@@ -492,6 +525,13 @@ local function contextForAppliedChange(tTarget, sKind)
 end
 
 local function appendEvent(sType, tActor, tTarget, nAmount, sDescription, tMetadata, tCombat)
+  if sSessionState ~= "open" or not sCombatSessionKey then
+    if not bWarnedNoSession then
+      chat("Combat event not recorded: run /lectern-start [encounter name] first.")
+      bWarnedNoSession = true
+    end
+    return false
+  end
   tCombat = ensureCombatSession(tCombat or combatState())
   nEventSequence = nEventSequence + 1
   local sSession = tCombat.session_key or "live-combat"
@@ -509,6 +549,8 @@ local function appendEvent(sType, tActor, tTarget, nAmount, sDescription, tMetad
     metadata = tMetadata or {},
   })
   while #aEventJournal > 1000 do table.remove(aEventJournal, 1) end
+  if saveSessionState then pcall(saveSessionState) end
+  return true
 end
 
 local function updateCombatBaseline(tCombat, bRecordEvents)
@@ -578,6 +620,42 @@ local function handoffFolder()
   return File.getCampaignFolder() .. "/lectern-sync"
 end
 
+local function sessionStatePath()
+  return handoffFolder() .. "/session-state.txt"
+end
+
+local function cleanStateLine(sValue)
+  return tostring(sValue or ""):gsub("[\r\n]+", " ")
+end
+
+saveSessionState = function()
+  local aLines = {
+    cleanStateLine(sCombatSessionKey), cleanStateLine(sCombatSessionName),
+    cleanStateLine(sSessionStartedAt), cleanStateLine(sSessionState),
+    cleanStateLine(sOutcome), cleanStateLine(sCompletedAt), tostring(nEventSequence),
+  }
+  return File.saveTextFile(sessionStatePath(), table.concat(aLines, "\n"))
+end
+
+local function loadSessionState()
+  local sSaved = File.openTextFile(sessionStatePath())
+  if not sSaved or sSaved == "" then return end
+  local aLines = {}
+  for sLine in (sSaved .. "\n"):gmatch("([^\r\n]*)[\r\n]+") do table.insert(aLines, sLine) end
+  local sState = aLines[4] or "inactive"
+  if (sState ~= "open" and sState ~= "closed") or not aLines[1] or aLines[1] == "" then return end
+  sCombatSessionKey = aLines[1]
+  sCombatSessionName = aLines[2] ~= "" and aLines[2] or nil
+  sSessionStartedAt = aLines[3] ~= "" and aLines[3] or nil
+  sSessionState = sState
+  sOutcome = aLines[5] ~= "" and aLines[5] or nil
+  sCompletedAt = aLines[6] ~= "" and aLines[6] or nil
+  nEventSequence = tonumber(aLines[7]) or 0
+  local sSnapshot = File.openTextFile(handoffFolder() .. "/snapshot.json")
+  sPersistedEventsJSON = extractArrayContents(sSnapshot or "", "events")
+  nPersistedJournalCount = 0
+end
+
 local function initializeSequence()
   local sStatus = File.openTextFile(handoffFolder() .. "/status.json")
   if sStatus then nSequence = tonumber(sStatus:match('"sequence"%s*:%s*(%d+)')) or 0 end
@@ -593,6 +671,9 @@ local function writeStatus(sState, sMessage, sError)
     state = sState,
     message = sMessage or "",
     error = sError or "",
+    combat_session_key = sCombatSessionKey or JSON_NULL,
+    combat_session_name = sCombatSessionName or JSON_NULL,
+    combat_session_state = sSessionState,
   }
   return File.saveTextFile(handoffFolder() .. "/status.json", encodeJSON(tStatus))
 end
@@ -629,7 +710,20 @@ end
 local function saveSnapshot(tSnapshot)
   tSnapshot.sequence = nSequence + 1
   tSnapshot.generated_at = isoTimestamp()
+  local aNewEvents = {}
+  for nIndex = nPersistedJournalCount + 1, #aEventJournal do
+    table.insert(aNewEvents, encodeJSON(aEventJournal[nIndex]))
+  end
+  local sMergedEvents = sPersistedEventsJSON
+  if #aNewEvents > 0 then
+    if sMergedEvents ~= "" then sMergedEvents = sMergedEvents .. "," end
+    sMergedEvents = sMergedEvents .. table.concat(aNewEvents, ",")
+  end
+  local aSnapshotEvents = tSnapshot.events
+  tSnapshot.events = {}
   local sJSON = encodeJSON(tSnapshot)
+  tSnapshot.events = aSnapshotEvents
+  sJSON = sJSON:gsub('"events":%[%]', function() return '"events":[' .. sMergedEvents .. ']' end, 1)
   local sSnapshotPath = handoffFolder() .. "/snapshot.json"
   File.saveTextFile(sSnapshotPath, sJSON)
   local sWritten = File.openTextFile(sSnapshotPath)
@@ -637,6 +731,8 @@ local function saveSnapshot(tSnapshot)
     error("Snapshot file could not be read after writing; create the lectern-sync folder from Lectern first")
   end
   nSequence = tSnapshot.sequence
+  sPersistedEventsJSON = sMergedEvents
+  nPersistedJournalCount = #aEventJournal
   writeStatus("ready", "Snapshot exported", "")
 end
 
@@ -763,12 +859,50 @@ local function onDiceLanded(draginfo)
   exportCombatUpdate()
 end
 
-local function setOutcome(_, sParameters)
+local function startEncounter(_, sParameters)
+  if not Session.IsHost then return end
+  if sSessionState == "open" and sCombatSessionKey then
+    chat("An encounter is already open: " .. tostring(sCombatSessionName or sCombatSessionKey) .. ". Run /lectern-end outcome first.")
+    return
+  end
+  local sName = tostring(sParameters or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  local sStarted = isoTimestamp()
+  if sName == "" then sName = "Fantasy Grounds Combat " .. sStarted:sub(1, 10) end
+  local sStamp = sStarted:gsub("[^%w]", "")
+  sCombatSessionKey = "combat-" .. campaignKey() .. "-" .. sStamp .. "-" .. tostring(nSequence + 1)
+  sCombatSessionName = sName
+  sSessionStartedAt = sStarted
+  sSessionState = "open"
+  sOutcome = nil
+  sCompletedAt = nil
+  nEventSequence = 0
+  aEventJournal = {}
+  nPersistedJournalCount = 0
+  tLastCombatants = {}
+  sLastActiveKey = nil
+  bHaveCombatBaseline = false
+  bLastCombatActive = false
+  tLastRollContext = nil
+  bWarnedNoSession = false
+  local tCombat = ensureCombatSession(combatState())
+  updateCombatBaseline(tCombat, false)
+  appendEvent("action", nil, nil, nil, "Encounter started: " .. sName,
+    { lifecycle = "encounter_start", session_name = sName, started_at = sStarted }, tCombat)
+  pcall(saveSessionState)
+  if tCachedSnapshot then exportCombatUpdate() else exportAll() end
+  chat("Started Lectern encounter: " .. sName)
+end
+
+local function endEncounter(_, sParameters)
   if not Session.IsHost then return end
   local sValue = string.lower(tostring(sParameters or "")):match("^%s*(%S+)") or ""
   local tAllowed = { victory = true, defeat = true, retreat = true, unresolved = true }
   if not tAllowed[sValue] then
-    chat("Usage: /lectern-outcome victory|defeat|retreat|unresolved")
+    chat("Usage: /lectern-end victory|defeat|retreat|unresolved")
+    return
+  end
+  if sSessionState ~= "open" or not sCombatSessionKey then
+    chat("No Lectern encounter is open. Run /lectern-start [encounter name] first.")
     return
   end
   local tCombat = ensureCombatSession(combatState())
@@ -776,9 +910,16 @@ local function setOutcome(_, sParameters)
   sCompletedAt = isoTimestamp()
   tCombat.outcome = sOutcome
   tCombat.completed_at = sCompletedAt
-  appendEvent("outcome", nil, nil, nil, "Encounter outcome: " .. sValue, { outcome = sValue }, tCombat)
-  exportCombatUpdate()
-  chat("Recorded encounter outcome for Lectern: " .. sValue)
+  appendEvent("outcome", nil, nil, nil, "Encounter ended: " .. sValue,
+    { lifecycle = "encounter_end", outcome = sValue, completed_at = sCompletedAt }, tCombat)
+  sSessionState = "closed"
+  pcall(saveSessionState)
+  if tCachedSnapshot then exportCombatUpdate() else exportAll() end
+  chat("Ended Lectern encounter " .. tostring(sCombatSessionName or sCombatSessionKey) .. ": " .. sValue)
+end
+
+local function setOutcome(_, sParameters)
+  endEncounter(nil, sParameters)
 end
 
 local function onCombatTrackerChanged()
@@ -793,8 +934,11 @@ end
 function onInit()
   if not Session.IsHost then return end
   initializeSequence()
+  loadSessionState()
   Comm.registerSlashHandler("lectern-export", exportAll, "Export 5E catalog, campaign, encounters, and combat to Lectern")
-  Comm.registerSlashHandler("lectern-outcome", setOutcome, "Send an encounter outcome to Lectern")
+  Comm.registerSlashHandler("lectern-start", startEncounter, "Start and name a durable Lectern combat encounter")
+  Comm.registerSlashHandler("lectern-end", endEncounter, "End the current Lectern encounter with an outcome")
+  Comm.registerSlashHandler("lectern-outcome", setOutcome, "Compatibility alias for /lectern-end")
   Comm.addKeyedEventHandler("onDiceLanded", "", onDiceLanded)
   if GameManager and type(GameManager.addEventFunction) == "function" then
     GameManager.addEventFunction("onAttackPostResolve", authoritativeAttackResolved)
@@ -808,12 +952,17 @@ function onInit()
   DB.addHandler("combattracker.list", "onChildDeleted", onCombatTrackerChanged)
   Module.addEventHandler("onModuleLoad", onModuleChanged)
   Module.addEventHandler("onModuleUnload", onModuleChanged)
-  pcall(writeStatus, "waiting", "Run /lectern-export to create the first snapshot", "")
-  chat("Ready. In Lectern select this campaign folder, then enter /lectern-export.")
+  local sReadyMessage = "Run /lectern-export to create the first snapshot"
+  if sSessionState == "open" then
+    sReadyMessage = "Resumed open encounter: " .. tostring(sCombatSessionName or sCombatSessionKey)
+  end
+  pcall(writeStatus, "waiting", sReadyMessage, "")
+  chat("Ready. Run /lectern-start [name] before combat and /lectern-end outcome when it finishes.")
 end
 
 function onClose()
   if not Session.IsHost then return end
+  pcall(saveSessionState)
   if bHaveAuthoritativeAttackHook and GameManager and type(GameManager.removeEventFunction) == "function" then
     GameManager.removeEventFunction("onAttackPostResolve", authoritativeAttackResolved)
   end

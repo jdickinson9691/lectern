@@ -1292,6 +1292,9 @@ class FantasyGroundsSyncPage(QWidget):
         self.status = QLabel("No Fantasy Grounds snapshot imported yet.")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
+        self.session_status = QLabel("Encounter session: not reported by the extension.")
+        self.session_status.setWordWrap(True)
+        layout.addWidget(self.session_status)
         self.counts = QLabel()
         self.counts.setWordWrap(True)
         layout.addWidget(self.counts)
@@ -1306,7 +1309,8 @@ class FantasyGroundsSyncPage(QWidget):
         steps = QLabel(
             "Run together: (1) load the 5E campaign with Lectern Sync enabled, "
             "(2) select that campaign folder here, (3) enter /lectern-export in Fantasy Grounds, "
-            "and (4) leave both applications open during play."
+            "(4) run /lectern-start Encounter Name before combat, and "
+            "(5) run /lectern-end outcome before clearing the Combat Tracker."
         )
         steps.setWordWrap(True)
         layout.addWidget(steps)
@@ -1441,6 +1445,13 @@ class FantasyGroundsSyncPage(QWidget):
             sequence = extension_status.get("sequence", "-")
             message = extension_status.get("error") or extension_status.get("message") or ""
             self.status.setToolTip(f"Extension state: {state}; sequence: {sequence}; {message}")
+            session_state = str(extension_status.get("combat_session_state") or "inactive").title()
+            session_name = extension_status.get("combat_session_name")
+            session_key = extension_status.get("combat_session_key")
+            identity = session_name or session_key or "No encounter"
+            self.session_status.setText(f"Encounter session: {session_state} - {identity}")
+        elif not extension_status:
+            self.session_status.setText("Encounter session: no extension status available.")
 
     def refresh_sources(self):
         selected = self.source_select.currentData()

@@ -174,6 +174,14 @@ def validate_snapshot(payload: Any) -> dict[str, Any]:
         _require(isinstance(combatant.get("raw"), dict), f"{field}.raw must be an object")
 
     _require(combat.get("session_key") is None or isinstance(combat.get("session_key"), str), "combat.session_key must be a string or null")
+    _require(combat.get("session_name") is None or isinstance(combat.get("session_name"), str), "combat.session_name must be a string or null")
+    _require(combat.get("session_state") is None or combat.get("session_state") in {"inactive", "open", "closed"}, "combat.session_state is invalid")
+    _require(combat.get("started_at") is None or isinstance(combat.get("started_at"), str), "combat.started_at must be a string or null")
+    if combat.get("started_at"):
+        try:
+            datetime.fromisoformat(combat["started_at"].replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise FantasyGroundsSyncError("combat.started_at must be an ISO-8601 timestamp") from exc
     _require(combat.get("outcome") is None or combat.get("outcome") in {"victory", "defeat", "retreat", "unresolved"}, "combat.outcome is invalid")
     _require(combat.get("completed_at") is None or isinstance(combat.get("completed_at"), str), "combat.completed_at must be a string or null")
     if combat.get("completed_at"):
@@ -284,6 +292,11 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
         f"{metadata.get('roll_type', '')} {description}"
     ).lower()
     action_type = "Damage Roll" if is_damage_roll else ACTION_TYPES[event_type]
+    lifecycle = str(metadata.get("lifecycle") or "")
+    if lifecycle == "encounter_start":
+        action_type = "Encounter Start"
+    elif lifecycle == "encounter_end":
+        action_type = "Encounter End"
     incomplete = not bool(actor.get("name"))
 
     roll_text = str(roll_total) if roll_total is not None else "Roll not reported"
@@ -775,16 +788,20 @@ class FantasyGroundsSyncService:
                 )
                 order += 1
 
-    def _upsert_live_combat(self, conn, source_id: int, campaign_id: int, campaign_name: str, combat: dict[str, Any], sequence: int) -> int:
+    def _upsert_live_combat(self, conn, source_id: int, campaign_id: int, campaign_name: str, combat: dict[str, Any], sequence: int) -> int | None:
+        session_state = combat.get("session_state")
+        if session_state == "inactive" and not combat.get("session_key"):
+            return None
         session_key = str(combat.get("session_key") or "live-combat")
         source_key = f"live-combat:{session_key}" if session_key != "live-combat" else "live-combat"
         encounter_id = self._find_link(conn, source_id, source_key, "encounter")
         if encounter_id and not conn.execute("SELECT 1 FROM encounters WHERE id=?", (encounter_id,)).fetchone():
             encounter_id = None
-        name = self._unique_name(conn, "encounters", f"{campaign_name} - Fantasy Grounds Live Combat", encounter_id)
+        requested_name = str(combat.get("session_name") or f"{campaign_name} - Fantasy Grounds Live Combat")
+        name = self._unique_name(conn, "encounters", requested_name, encounter_id)
         outcome = str(combat.get("outcome") or "")
         completed_at = combat.get("completed_at")
-        status = "completed" if outcome else ("active" if combat["active"] else "completed")
+        status = "completed" if session_state == "closed" or outcome else ("active" if session_state == "open" or combat["active"] else "completed")
         active_key = combat.get("active_source_key")
         active_index = 0
         for index, item in enumerate(combat["combatants"]):
@@ -796,7 +813,8 @@ class FantasyGroundsSyncService:
                 "UPDATE encounters SET name=?,campaign_id=?,status=?,round=?,active_index=?,outcome=?,completed_at=? WHERE id=?",
                 (name, campaign_id, status, max(1, combat["round"]), active_index, outcome, completed_at, encounter_id),
             )
-            conn.execute("DELETE FROM combatants WHERE encounter_id=?", (encounter_id,))
+            if combat["combatants"]:
+                conn.execute("DELETE FROM combatants WHERE encounter_id=?", (encounter_id,))
         else:
             cursor = conn.execute(
                 "INSERT INTO encounters(name,status,round,active_index,campaign_id,outcome,completed_at) VALUES(?,?,?,?,?,?,?)",

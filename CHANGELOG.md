@@ -1,5 +1,12 @@
 # Changelog
 
+### Fantasy Grounds explicit encounter lifecycle
+
+- Added Lectern Sync 1.3.0 `/lectern-start [name]` and `/lectern-end outcome` commands, with `/lectern-outcome` retained as a compatibility alias.
+- Persisted session identity, name, state, timestamps, event sequence, and accumulated journal data in the Fantasy Grounds campaign handoff folder so an extension reload resumes the same encounter.
+- Added open/closed encounter status to the Sync screen, explicit lifecycle log events, stable named encounter import, and final-roster retention after Combat Tracker clearing.
+- Updated the user help, run-together guide, integration readme, handoff notes, snapshot contract, and regression coverage for the explicit lifecycle.
+
 ### Combat Dashboard incomplete-event display fix
 
 - Preserved available raw die totals when older Fantasy Grounds events lack actor, target, action, or result data, and labeled each unavailable structured field explicitly after reprocessing.
