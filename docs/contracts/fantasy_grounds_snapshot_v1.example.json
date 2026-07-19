@@ -137,7 +137,7 @@
       "target": { "source_key": "5E:ct:id-00001", "name": "Test Creature" },
       "amount": null,
       "description": "Longsword attack: 18",
-        "metadata": { "action_name": "Longsword", "roll_type": "attack", "raw_roll": 13, "modifier": 5, "roll_total": 18, "target_ac": 13, "result": "Hit" }
+        "metadata": { "action_name": "Longsword", "roll_type": "attack", "raw_roll": 13, "modifier": 5, "roll_total": 18, "target_ac": 13, "natural_roll": 13, "result": "Hit", "authoritative_result": true }
     },
     {
       "event_id": "test-session-001:2",
@@ -150,7 +150,7 @@
       "target": { "source_key": "5E:ct:id-00001", "name": "Test Creature" },
       "amount": 3,
       "description": "Wounds increased from 0 to 3",
-        "metadata": { "action_name": "Longsword", "raw_roll": 1, "modifier": 2, "roll_total": 3, "target_ac": 13, "previous_wounds": 0, "current_wounds": 3, "current_hp": 9, "maximum_hp": 12 }
+        "metadata": { "action_name": "Longsword", "raw_roll": 1, "modifier": 2, "roll_total": 3, "target_ac": 13, "adjustment": 0, "attribution": "matched_recent_roll", "previous_wounds": 0, "current_wounds": 3, "current_hp": 9, "maximum_hp": 12 }
     }
   ]
 }

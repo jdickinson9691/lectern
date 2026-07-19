@@ -26,7 +26,7 @@ try:
     extension_manifest = (
         ROOT / "integrations" / "fantasy_grounds" / "extension" / "LecternSync" / "extension.xml"
     ).read_text(encoding="utf-8")
-    assert 'local EXTENSION_VERSION = "1.1.5"' in extension_source and "<version>1.1.5</version>" in extension_manifest, "Extension version metadata is inconsistent"
+    assert 'local EXTENSION_VERSION = "1.2.0"' in extension_source and "<version>1.2.0</version>" in extension_manifest, "Extension version metadata is inconsistent"
     assert 'nodeNumber(node, "defenses.ac.total"' in extension_source, "2024 Fantasy Grounds character AC path is missing"
     assert 'if sCharacterName == "" then return nil end' in extension_source, "Unnamed Fantasy Grounds characters are not filtered"
     assert 'not moduleName(node)' in extension_source, "Module reference battles are not filtered from campaign encounters"
@@ -37,6 +37,9 @@ try:
     assert 's:gsub("[\\r\\n]+", " ")' in extension_source, "Roll cleanup must preserve the letter r"
     assert 'diceValue(draginfo, "getNumberData", 0)' in extension_source, "Fantasy Grounds entity and effect modifiers are not captured"
     assert 'nRawRoll + nModifier' in extension_source, "Net roll does not include Fantasy Grounds modifiers"
+    assert 'GameManager.addEventFunction("onAttackPostResolve", authoritativeAttackResolved)' in extension_source, "Authoritative 5E attack outcomes are not captured"
+    assert 'natural_roll = nRawRoll' in extension_source and 'authoritative_result = true' in extension_source, "Natural attack roll and authoritative result metadata are missing"
+    assert 'contextForAppliedChange(tTarget, "damage")' in extension_source, "Applied damage attribution is not target matched and time bounded"
 
     db = temp_dir / "lectern.db"
     initialize_database(db)
@@ -94,7 +97,7 @@ try:
         assert [row["action_type"] for row in logs] == ["Attack", "Damage"], "Combat event types were not mapped"
         assert logs[0]["actor"] == "Fantasy Grounds Test Hero", "Combat actor was not imported"
         assert logs[0]["details"] == "18 (dice 13; modifiers +5) | Test Creature | Against AC 13 | Longsword | Hit (18 vs AC 13)", "Attack resolution format is incorrect"
-        assert logs[1]["details"] == "3 | Test Creature | Target HP 9/12 | Longsword | 3 damage applied", "Damage resolution format is incorrect"
+        assert logs[1]["details"] == "3 | Test Creature | Target HP 9/12 | Longsword | 3 damage applied from 3 rolled", "Damage resolution format is incorrect"
 
     repeat = service.import_snapshot(snapshot)
     assert not repeat.applied and repeat.sequence == 1, "Repeated sequence should be ignored"
@@ -172,6 +175,41 @@ try:
         "amount": None, "description": "[DAMAGE (M)] Greataxe",
         "metadata": {"action_name": "Greataxe", "roll_type": "damage", "raw_roll": 6, "modifier": 3, "roll_total": 9, "target_ac": 13},
     })
+    new_session["events"].extend([
+        {
+            "event_id": "test-session-002:6", "sequence": 6, "timestamp": "2026-07-17T21:00:01Z",
+            "round": 1, "encounter_source_key": "test-session-002", "type": "attack",
+            "actor": {"source_key": "5E:character:test-hero", "name": "Fantasy Grounds Test Hero"},
+            "target": {"source_key": "5E:ct:id-00001", "name": "Test Creature"}, "amount": None,
+            "description": "[ATTACK (M)] Longsword", "metadata": {"action_name": "Longsword", "raw_roll": 20,
+                "modifier": 5, "roll_total": 25, "target_ac": 30, "natural_roll": 20,
+                "result": "Critical Hit", "authoritative_result": True},
+        },
+        {
+            "event_id": "test-session-002:7", "sequence": 7, "timestamp": "2026-07-17T21:00:02Z",
+            "round": 1, "encounter_source_key": "test-session-002", "type": "attack",
+            "actor": {"source_key": "5E:character:test-hero", "name": "Fantasy Grounds Test Hero"},
+            "target": {"source_key": "5E:ct:id-00001", "name": "Test Creature"}, "amount": None,
+            "description": "[ATTACK (M)] Longsword", "metadata": {"action_name": "Longsword", "raw_roll": 1,
+                "modifier": 14, "roll_total": 15, "target_ac": 10, "natural_roll": 1,
+                "result": "Automatic Miss", "authoritative_result": True},
+        },
+        {
+            "event_id": "test-session-002:8", "sequence": 8, "timestamp": "2026-07-17T21:00:03Z",
+            "round": 1, "encounter_source_key": "test-session-002", "type": "damage",
+            "actor": {"source_key": "5E:character:test-hero", "name": "Fantasy Grounds Test Hero"},
+            "target": {"source_key": "5E:ct:id-00001", "name": "Test Creature"}, "amount": 4,
+            "description": "Wounds increased", "metadata": {"action_name": "Greataxe", "roll_total": 9,
+                "adjustment": -5, "attribution": "matched_recent_roll", "current_hp": 5, "maximum_hp": 12},
+        },
+        {
+            "event_id": "test-session-002:9", "sequence": 9, "timestamp": "2026-07-17T21:00:04Z",
+            "round": 1, "encounter_source_key": "test-session-002", "type": "damage",
+            "actor": None, "target": {"source_key": "5E:ct:id-00001", "name": "Test Creature"}, "amount": 2,
+            "description": "Manual wounds change", "metadata": {"attribution": "manual_or_unattributed",
+                "current_hp": 3, "maximum_hp": 12},
+        },
+    ])
     snapshot.write_text(json.dumps(new_session), encoding="utf-8")
     service.import_configured_snapshot()
     with connect(db) as conn:
@@ -179,6 +217,10 @@ try:
         assert len(encounter_ids) == 2, "Separate Fantasy Grounds combat sessions were merged"
         damage_roll = conn.execute("SELECT action_type,details FROM turn_log WHERE action_type='Damage Roll'").fetchone()
         assert damage_roll and damage_roll["details"] == "9 (dice 6; modifiers +3) | Test Creature | Against AC 13 | Greataxe | 9 damage rolled", "Damage roll value was not displayed"
+        assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE details LIKE '%Critical Hit (25 vs AC 30)%'").fetchone()[0] == 1, "Authoritative critical hit was not preserved"
+        assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE details LIKE '%Automatic Miss (15 vs AC 10)%'").fetchone()[0] == 1, "Authoritative natural-one miss was not preserved"
+        assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE details LIKE '%4 damage applied from 9 rolled (reduced by 5)%'").fetchone()[0] == 1, "Adjusted damage was not explained"
+        assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE actor='Manual / Unattributed'").fetchone()[0] == 1, "Manual damage inherited a stale actor"
 
     duplicate_event = copy.deepcopy(new_session)
     duplicate_event["sequence"] = 5
