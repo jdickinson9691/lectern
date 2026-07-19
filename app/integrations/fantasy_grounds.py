@@ -588,20 +588,48 @@ class FantasyGroundsSyncService:
             event_type = event["type"]
             amount = event.get("amount")
             description = event.get("description", "").strip()
-            if event_type in {"damage", "healing"}:
-                details = f"{action_types[event_type]}: {max(0, int(amount or 0))}"
+            metadata = event.get("metadata") or {}
+            is_damage_roll = event_type == "action" and "damage" in (
+                f"{metadata.get('roll_type', '')} {description}"
+            ).lower()
+            action_name = str(metadata.get("action_name") or "").strip()
+            target_name = str(target.get("name") or "No target")
+            roll_total = metadata.get("roll_total")
+            raw_roll = metadata.get("raw_roll")
+            modifier = metadata.get("modifier")
+            target_ac = metadata.get("target_ac")
+            result = str(metadata.get("result") or "").strip()
+            log_action_type = "Damage Roll" if is_damage_roll else action_types[event_type]
+            roll_text = str(roll_total) if roll_total is not None else "Roll not reported"
+            if roll_total is not None and raw_roll is not None and modifier is not None:
+                modifier_text = f"{modifier:+g}" if isinstance(modifier, (int, float)) else str(modifier)
+                roll_text += f" (dice {raw_roll}; modifiers {modifier_text})"
+            if event_type == "attack":
+                defense = f"Against AC {target_ac}" if target_ac is not None else "Target AC not reported"
+                outcome = result or (f"Net attack roll {roll_total}" if roll_total is not None else "Result not reported")
+                if result and roll_total is not None and target_ac is not None:
+                    outcome += f" ({roll_total} vs AC {target_ac})"
+                details = " | ".join((roll_text, target_name, defense, action_name or "Attack", outcome))
+            elif is_damage_roll:
+                defense = f"Against AC {target_ac}" if target_ac is not None else "Target AC not reported"
+                outcome = f"{roll_total} damage rolled" if roll_total is not None else "Damage result not reported"
+                details = " | ".join((roll_text, target_name, defense, action_name or "Damage", outcome))
+            elif event_type in {"damage", "healing"}:
+                applied = max(0, int(amount or 0))
+                hp = "Target HP not reported"
+                if metadata.get("current_hp") is not None:
+                    hp_value = str(metadata["current_hp"])
+                    if metadata.get("maximum_hp") is not None:
+                        hp_value += f"/{metadata['maximum_hp']}"
+                    hp = f"Target HP {hp_value}"
+                verb = "damage applied" if event_type == "damage" else "healing applied"
+                details = " | ".join((str(applied), target_name, hp, action_name or action_types[event_type], f"{applied} {verb}"))
             else:
-                details = f"{action_types[event_type]}: {description or event_type.replace('_', ' ').title()}"
-            qualifiers = []
-            if target.get("name"):
-                qualifiers.append(f"target: {target['name']}")
-            if description and event_type in {"damage", "healing"}:
-                qualifiers.append(description)
-            if qualifiers:
-                details += "; " + "; ".join(qualifiers)
+                details = description or action_name or event_type.replace("_", " ").title()
             cursor = conn.execute(
                 "INSERT INTO turn_log(encounter_id,round,actor,action_type,details,created_at) VALUES(?,?,?,?,?,?)",
-                (encounter_id, max(1, int(event["round"])), actor_name, action_types[event_type], details, event["timestamp"]),
+                (encounter_id, max(1, int(event["round"])), actor_name,
+                 log_action_type, details, event["timestamp"]),
             )
             turn_log_id = int(cursor.lastrowid)
             conn.execute(

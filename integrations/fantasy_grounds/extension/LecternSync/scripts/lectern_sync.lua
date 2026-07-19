@@ -1,7 +1,7 @@
--- Lectern Sync 1.1.3
+-- Lectern Sync 1.1.5
 -- One-way Fantasy Grounds Unity 5E export. This script never writes FG database nodes.
 
-local EXTENSION_VERSION = "1.1.3"
+local EXTENSION_VERSION = "1.1.5"
 local SCHEMA_VERSION = 1
 local bExporting = false
 local tCachedSnapshot = nil
@@ -16,6 +16,7 @@ local tLastCombatants = {}
 local sLastActiveKey = nil
 local bHaveCombatBaseline = false
 local bLastCombatActive = false
+local tLastRollContext = nil
 
 local tFallbackMappings = {
   class = { "class", "reference.classdata", "reference.classes" },
@@ -408,6 +409,64 @@ local function eventParticipant(sSourceKey, sName)
   return { source_key = sSourceKey or JSON_NULL, name = sName }
 end
 
+local function combatantByKey(tCombat, sKey)
+  if not sKey or sKey == JSON_NULL then return nil end
+  for _, tEntry in ipairs(tCombat.combatants or {}) do
+    if tEntry.source_key == sKey then return tEntry end
+  end
+  return nil
+end
+
+local function participantForCombatant(tEntry)
+  if not tEntry then return JSON_NULL end
+  return eventParticipant(tEntry.source_key, tEntry.name)
+end
+
+local function combatantForNode(node, tCombat)
+  if not node then return nil end
+  local sNodePath = DB.getPath(node) or ""
+  for _, tEntry in ipairs(tCombat.combatants or {}) do
+    local sCombatantPath = tEntry.raw and tEntry.raw.source_path or ""
+    if sCombatantPath ~= "" and
+      (sNodePath == sCombatantPath or sNodePath:sub(1, #sCombatantPath + 1) == sCombatantPath .. ".") then
+      return tEntry
+    end
+  end
+  return nil
+end
+
+local function targetForCombatant(tEntry, tCombat)
+  local sPath = tEntry and tEntry.raw and tEntry.raw.source_path or nil
+  local nodeActor = sPath and DB.findNode(sPath) or nil
+  if not nodeActor then return JSON_NULL, nil end
+  for _, nodeTarget in ipairs(DB.getChildList(nodeActor, "targets")) do
+    local sTargetPath = nodeText(nodeTarget, "noderef", "")
+    local nodeTargetCombatant = sTargetPath ~= "" and DB.findNode(sTargetPath) or nil
+    if nodeTargetCombatant then
+      local sTargetKey = sourceKey(nodeTargetCombatant, "ct")
+      local tTargetEntry = combatantByKey(tCombat, sTargetKey)
+      if tTargetEntry then return participantForCombatant(tTargetEntry), tTargetEntry end
+      return eventParticipant(sTargetKey, nodeText(nodeTargetCombatant, "name", "Target")), nil
+    end
+  end
+  return JSON_NULL, nil
+end
+
+local function cleanRollDescription(sDescription)
+  local s = tostring(sDescription or "")
+  s = s:gsub("%[__ActionsManagerRoll__%]", " ")
+  s = s:gsub("[\r\n]+", " ")
+  s = s:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+  return s
+end
+
+local function rollActionName(sDescription)
+  local s = cleanRollDescription(sDescription)
+  s = s:gsub("%[[^%]]+%]", " ")
+  s = s:gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
+  return s
+end
+
 local function appendEvent(sType, tActor, tTarget, nAmount, sDescription, tMetadata, tCombat)
   tCombat = ensureCombatSession(tCombat or combatState())
   nEventSequence = nEventSequence + 1
@@ -431,6 +490,7 @@ end
 local function updateCombatBaseline(tCombat, bRecordEvents)
   local tCurrent = {}
   if bRecordEvents and bHaveCombatBaseline and sLastActiveKey ~= tCombat.active_source_key then
+    tLastRollContext = nil
     if sLastActiveKey and sLastActiveKey ~= JSON_NULL then
       local tPrevious = tLastCombatants[sLastActiveKey]
       if tPrevious then appendEvent("turn_end", eventParticipant(tPrevious.source_key, tPrevious.name), nil, nil, "Turn ended", {}, tCombat) end
@@ -452,13 +512,21 @@ local function updateCombatBaseline(tCombat, bRecordEvents)
     if bRecordEvents and bHaveCombatBaseline and tPrevious then
       local nDelta = nWounds - tPrevious.wounds
       if nDelta > 0 then
-        appendEvent("damage", nil, eventParticipant(tEntry.source_key, tEntry.name), nDelta,
+        local tContext = tLastRollContext or {}
+        appendEvent("damage", tContext.actor, eventParticipant(tEntry.source_key, tEntry.name), nDelta,
           "Wounds increased from " .. tostring(tPrevious.wounds) .. " to " .. tostring(nWounds),
-          { previous_wounds = tPrevious.wounds, current_wounds = nWounds, current_hp = tHP.current }, tCombat)
+          { action_name = tContext.action_name or JSON_NULL, raw_roll = tContext.raw_roll or JSON_NULL,
+            modifier = tContext.modifier or JSON_NULL, roll_total = tContext.roll_total or JSON_NULL,
+            previous_wounds = tPrevious.wounds, current_wounds = nWounds,
+            current_hp = tHP.current, maximum_hp = tHP.maximum }, tCombat)
       elseif nDelta < 0 then
-        appendEvent("healing", nil, eventParticipant(tEntry.source_key, tEntry.name), -nDelta,
+        local tContext = tLastRollContext or {}
+        appendEvent("healing", tContext.actor, eventParticipant(tEntry.source_key, tEntry.name), -nDelta,
           "Wounds decreased from " .. tostring(tPrevious.wounds) .. " to " .. tostring(nWounds),
-          { previous_wounds = tPrevious.wounds, current_wounds = nWounds, current_hp = tHP.current }, tCombat)
+          { action_name = tContext.action_name or JSON_NULL, raw_roll = tContext.raw_roll or JSON_NULL,
+            modifier = tContext.modifier or JSON_NULL, roll_total = tContext.roll_total or JSON_NULL,
+            previous_wounds = tPrevious.wounds, current_wounds = nWounds,
+            current_hp = tHP.current, maximum_hp = tHP.maximum }, tCombat)
       end
       if nTemporary ~= tPrevious.temporary then
         appendEvent("effect", nil, eventParticipant(tEntry.source_key, tEntry.name), nil,
@@ -585,6 +653,7 @@ end
 local function classifyRoll(sRollType, sDescription)
   local s = string.lower(tostring(sRollType or "") .. " " .. tostring(sDescription or ""))
   if s:find("attack", 1, true) then return "attack" end
+  if s:find("damage", 1, true) or s:find("heal", 1, true) then return "action" end
   if s:find("save", 1, true) then return "save" end
   if s:find("spell", 1, true) or s:find("cast", 1, true) then return "spell" end
   return "action"
@@ -593,17 +662,36 @@ end
 local function onDiceLanded(draginfo)
   if not Session.IsHost then return end
   local sRollType = tostring(diceValue(draginfo, "getType", "roll") or "roll")
-  local sDescription = tostring(diceValue(draginfo, "getDescription", sRollType) or sRollType)
+  local sDescription = cleanRollDescription(diceValue(draginfo, "getDescription", sRollType) or sRollType)
   local tDice = diceValue(draginfo, "getDiceData", {})
-  local nTotal = type(tDice) == "table" and tonumber(tDice.total) or nil
+  local nRawRoll = type(tDice) == "table" and tonumber(tDice.total) or nil
+  local nModifier = tonumber(diceValue(draginfo, "getNumberData", 0)) or 0
+  local nTotal = nRawRoll and (nRawRoll + nModifier) or nil
+  local tCombat = combatState()
   local node = diceValue(draginfo, "getDatabaseNode", nil)
-  local tActor = nil
-  if node then
-    local sName = nodeText(node, "name", DB.getName(node) or "Fantasy Grounds Actor")
-    tActor = eventParticipant(sourceKey(node, "actor"), sName)
+  local tActorCombatant = combatantForNode(node, tCombat) or combatantByKey(tCombat, tCombat.active_source_key)
+  local tActor = participantForCombatant(tActorCombatant)
+  local tTarget, tTargetCombatant = targetForCombatant(tActorCombatant, tCombat)
+  local sActionName = rollActionName(sDescription)
+  local sResult = JSON_NULL
+  local sLower = string.lower(sDescription)
+  if sLower:find("[hit]", 1, true) then sResult = "Hit"
+  elseif sLower:find("[miss]", 1, true) then sResult = "Miss" end
+  local sEventType = classifyRoll(sRollType, sDescription)
+  local nTargetAC = tTargetCombatant and tonumber(tTargetCombatant.armor_class) or nil
+  if sEventType == "attack" and sResult == JSON_NULL and nTotal and nTargetAC then
+    sResult = nTotal >= nTargetAC and "Hit" or "Miss"
   end
-  appendEvent(classifyRoll(sRollType, sDescription), tActor, nil, nil, sDescription,
-    { roll_type = sRollType, roll_total = nTotal or JSON_NULL }, combatState())
+  tLastRollContext = {
+    actor = tActor, target = tTarget, action_name = sActionName,
+    raw_roll = nRawRoll or JSON_NULL, modifier = nModifier,
+    roll_total = nTotal or JSON_NULL, result = sResult,
+  }
+  appendEvent(sEventType, tActor, tTarget, nil, sDescription,
+    { action_name = sActionName, roll_type = sRollType,
+      raw_roll = nRawRoll or JSON_NULL, modifier = nModifier,
+      roll_total = nTotal or JSON_NULL, target_ac = nTargetAC or JSON_NULL,
+      result = sResult }, tCombat)
   exportCombatUpdate()
 end
 
@@ -640,9 +728,12 @@ function onInit()
   Comm.registerSlashHandler("lectern-export", exportAll, "Export 5E catalog, campaign, encounters, and combat to Lectern")
   Comm.registerSlashHandler("lectern-outcome", setOutcome, "Send an encounter outcome to Lectern")
   Comm.addKeyedEventHandler("onDiceLanded", "", onDiceLanded)
-  DB.addHandler("combattracker", "onChildUpdate", onCombatTrackerChanged)
-  DB.addHandler("combattracker", "onChildAdded", onCombatTrackerChanged)
-  DB.addHandler("combattracker", "onChildDeleted", onCombatTrackerChanged)
+  DB.addHandler("combattracker.list.*.wounds", "onUpdate", onCombatTrackerChanged)
+  DB.addHandler("combattracker.list.*.hptemp", "onUpdate", onCombatTrackerChanged)
+  DB.addHandler("combattracker.list.*.active", "onUpdate", onCombatTrackerChanged)
+  DB.addHandler("combattracker.round", "onUpdate", onCombatTrackerChanged)
+  DB.addHandler("combattracker.list", "onChildAdded", onCombatTrackerChanged)
+  DB.addHandler("combattracker.list", "onChildDeleted", onCombatTrackerChanged)
   Module.addEventHandler("onModuleLoad", onModuleChanged)
   Module.addEventHandler("onModuleUnload", onModuleChanged)
   pcall(writeStatus, "waiting", "Run /lectern-export to create the first snapshot", "")
@@ -651,9 +742,12 @@ end
 
 function onClose()
   if not Session.IsHost then return end
-  DB.removeHandler("combattracker", "onChildUpdate", onCombatTrackerChanged)
-  DB.removeHandler("combattracker", "onChildAdded", onCombatTrackerChanged)
-  DB.removeHandler("combattracker", "onChildDeleted", onCombatTrackerChanged)
+  DB.removeHandler("combattracker.list.*.wounds", "onUpdate", onCombatTrackerChanged)
+  DB.removeHandler("combattracker.list.*.hptemp", "onUpdate", onCombatTrackerChanged)
+  DB.removeHandler("combattracker.list.*.active", "onUpdate", onCombatTrackerChanged)
+  DB.removeHandler("combattracker.round", "onUpdate", onCombatTrackerChanged)
+  DB.removeHandler("combattracker.list", "onChildAdded", onCombatTrackerChanged)
+  DB.removeHandler("combattracker.list", "onChildDeleted", onCombatTrackerChanged)
   Module.removeEventHandler("onModuleLoad", onModuleChanged)
   Module.removeEventHandler("onModuleUnload", onModuleChanged)
   Comm.removeKeyedEventHandler("onDiceLanded", "", onDiceLanded)
