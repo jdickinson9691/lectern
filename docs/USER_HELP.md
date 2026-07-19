@@ -361,7 +361,7 @@ Run `/lectern-export` once after each Fantasy Grounds campaign start and after c
 
 ### Start and end a combat encounter
 
-Lectern Sync 1.4.0 uses explicit encounter boundaries so a Fantasy Grounds reload cannot silently split one combat into several Lectern encounters. It also captures authoritative damage types and mixed damage components from the 5E ruleset.
+Lectern Sync 1.4.1 uses explicit encounter boundaries so a Fantasy Grounds reload cannot silently split one combat into several Lectern encounters. It also captures authoritative damage types and mixed damage components from the 5E ruleset.
 
 1. Populate the Combat Tracker and prepare initiative.
 2. In Fantasy Grounds chat, enter `/lectern-start Encounter Name` before the first combat roll.

@@ -254,6 +254,13 @@ def load_snapshot(path: Path) -> dict[str, Any]:
         payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError) as exc:
         raise FantasyGroundsSyncError(f"Could not read snapshot: {exc}") from exc
+    # Lectern Sync 1.4.0 encoded an empty Lua metadata table as [] instead of {}.
+    # Normalize only that unambiguous empty value so already-recorded encounters
+    # remain importable; non-empty arrays still fail contract validation.
+    if isinstance(payload, dict) and isinstance(payload.get("events"), list):
+        for event in payload["events"]:
+            if isinstance(event, dict) and event.get("metadata") == []:
+                event["metadata"] = {}
     return validate_snapshot(payload)
 
 

@@ -16,7 +16,7 @@ os.environ["LECTERN_DATA_DIR"] = str(temp_dir / "user-data")
 
 from app.database.repositories import Repository
 from app.database.schema import connect, initialize_database
-from app.integrations.fantasy_grounds import FantasyGroundsSyncError, FantasyGroundsSyncService, validate_snapshot
+from app.integrations.fantasy_grounds import FantasyGroundsSyncError, FantasyGroundsSyncService, load_snapshot, validate_snapshot
 
 
 try:
@@ -26,7 +26,8 @@ try:
     extension_manifest = (
         ROOT / "integrations" / "fantasy_grounds" / "extension" / "LecternSync" / "extension.xml"
     ).read_text(encoding="utf-8")
-    assert 'local EXTENSION_VERSION = "1.4.0"' in extension_source and "<version>1.4.0</version>" in extension_manifest, "Extension version metadata is inconsistent"
+    assert 'local EXTENSION_VERSION = "1.4.1"' in extension_source and "<version>1.4.1</version>" in extension_manifest, "Extension version metadata is inconsistent"
+    assert 'if vValue == JSON_EMPTY_OBJECT then return "{}" end' in extension_source, "Empty event metadata is not encoded as a JSON object"
     assert 'Comm.registerSlashHandler("lectern-start", startEncounter' in extension_source, "Explicit encounter start command is missing"
     assert 'Comm.registerSlashHandler("lectern-end", endEncounter' in extension_source, "Explicit encounter end command is missing"
     assert 'Comm.registerSlashHandler("lectern-reset", resetEncounterJournal' in extension_source, "Safe encounter reset command is missing"
@@ -63,6 +64,13 @@ try:
     for field in ("session_key", "outcome", "completed_at"):
         legacy_payload["combat"].pop(field)
     validate_snapshot(legacy_payload)
+
+    empty_metadata_payload = copy.deepcopy(payload)
+    empty_metadata_payload["events"][0]["metadata"] = []
+    empty_metadata_path = temp_dir / "snapshot-empty-metadata.json"
+    empty_metadata_path.write_text(json.dumps(empty_metadata_payload), encoding="utf-8")
+    normalized_payload = load_snapshot(empty_metadata_path)
+    assert normalized_payload["events"][0]["metadata"] == {}, "Lectern Sync 1.4.0 empty metadata was not recovered"
 
     handoff = temp_dir / "campaign" / "lectern-sync"
     handoff.mkdir(parents=True)

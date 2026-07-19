@@ -1,12 +1,13 @@
--- Lectern Sync 1.4.0
+-- Lectern Sync 1.4.1
 -- One-way Fantasy Grounds Unity 5E export. This script never writes FG database nodes.
 
-local EXTENSION_VERSION = "1.4.0"
+local EXTENSION_VERSION = "1.4.1"
 local SCHEMA_VERSION = 1
 local bExporting = false
 local tCachedSnapshot = nil
 local nSequence = 0
 local JSON_NULL = {}
+local JSON_EMPTY_OBJECT = {}
 local aEventJournal = {}
 local nEventSequence = 0
 local sCombatSessionKey = nil
@@ -80,6 +81,7 @@ end
 
 local function encodeJSON(vValue, tSeen)
   if vValue == JSON_NULL then return "null" end
+  if vValue == JSON_EMPTY_OBJECT then return "{}" end
   local sType = type(vValue)
   if sType == "nil" then return "null" end
   if sType == "boolean" then return vValue and "true" or "false" end
@@ -590,6 +592,7 @@ local function appendEvent(sType, tActor, tTarget, nAmount, sDescription, tMetad
   tCombat = ensureCombatSession(tCombat or combatState())
   nEventSequence = nEventSequence + 1
   local sSession = tCombat.session_key or "live-combat"
+  if type(tMetadata) ~= "table" or next(tMetadata) == nil then tMetadata = JSON_EMPTY_OBJECT end
   table.insert(aEventJournal, {
     event_id = sSession .. ":" .. tostring(nEventSequence),
     sequence = nEventSequence,
@@ -601,7 +604,7 @@ local function appendEvent(sType, tActor, tTarget, nAmount, sDescription, tMetad
     target = tTarget or JSON_NULL,
     amount = nAmount == nil and JSON_NULL or math.floor(tonumber(nAmount) or 0),
     description = sDescription or "",
-    metadata = tMetadata or {},
+    metadata = tMetadata,
   })
   while #aEventJournal > 1000 do table.remove(aEventJournal, 1) end
   if saveSessionState then pcall(saveSessionState) end

@@ -79,7 +79,7 @@ After the handoff folder has been created once, Lectern does not need to start f
 
 Fantasy Grounds dice actions, applied damage and healing, turn changes, and temporary HP changes are appended automatically to the synchronized encounter's turn log. A damage roll is logged as an action; it becomes `Damage` only when wounds are actually applied in the Combat Tracker.
 
-Lectern Sync 1.4.0 also records the damage types resolved by the 5E ruleset. Mixed damage remains component-aware, and expanded Combat Dashboard rows preserve rolled and applied values after resistance, immunity, vulnerability, wards, and similar adjustments. Manual wound edits are labeled with an unknown damage type.
+Lectern Sync 1.4.1 also records the damage types resolved by the 5E ruleset. Mixed damage remains component-aware, and expanded Combat Dashboard rows preserve rolled and applied values after resistance, immunity, vulnerability, wards, and similar adjustments. Manual wound edits are labeled with an unknown damage type.
 
 When the encounter ends, record the GM-confirmed result in Fantasy Grounds chat:
 
