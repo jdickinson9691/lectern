@@ -26,10 +26,17 @@ try:
     extension_manifest = (
         ROOT / "integrations" / "fantasy_grounds" / "extension" / "LecternSync" / "extension.xml"
     ).read_text(encoding="utf-8")
-    assert 'local EXTENSION_VERSION = "1.1.3"' in extension_source and "<version>1.1.3</version>" in extension_manifest, "Extension version metadata is inconsistent"
+    assert 'local EXTENSION_VERSION = "1.1.5"' in extension_source and "<version>1.1.5</version>" in extension_manifest, "Extension version metadata is inconsistent"
     assert 'nodeNumber(node, "defenses.ac.total"' in extension_source, "2024 Fantasy Grounds character AC path is missing"
     assert 'if sCharacterName == "" then return nil end' in extension_source, "Unnamed Fantasy Grounds characters are not filtered"
     assert 'not moduleName(node)' in extension_source, "Module reference battles are not filtered from campaign encounters"
+    assert 'DB.addHandler("combattracker.list.*.wounds", "onUpdate"' in extension_source, "Combat Tracker wound changes are not observed"
+    assert 'targetForCombatant(tActorCombatant, tCombat)' in extension_source, "Selected Combat Tracker targets are not captured"
+    assert 'combatantForNode(node, tCombat) or combatantByKey' in extension_source, "Roll actors do not use source or active Combat Tracker context"
+    assert 'actor = tActor, target = tTarget, action_name = sActionName' in extension_source, "Roll context is not retained for applied results"
+    assert 's:gsub("[\\r\\n]+", " ")' in extension_source, "Roll cleanup must preserve the letter r"
+    assert 'diceValue(draginfo, "getNumberData", 0)' in extension_source, "Fantasy Grounds entity and effect modifiers are not captured"
+    assert 'nRawRoll + nModifier' in extension_source, "Net roll does not include Fantasy Grounds modifiers"
 
     db = temp_dir / "lectern.db"
     initialize_database(db)
@@ -83,9 +90,11 @@ try:
         assert source["last_sequence"] == 1 and not source["last_error"], "Sync source state is incorrect"
         assert conn.execute("SELECT COUNT(*) FROM external_records WHERE is_stale=0").fetchone()[0] >= 8, "External provenance records are missing"
         assert conn.execute("SELECT COUNT(*) FROM external_events").fetchone()[0] == 2, "Combat events were not imported"
-        logs = conn.execute("SELECT action_type,details FROM turn_log ORDER BY id").fetchall()
+        logs = conn.execute("SELECT actor,action_type,details FROM turn_log ORDER BY id").fetchall()
         assert [row["action_type"] for row in logs] == ["Attack", "Damage"], "Combat event types were not mapped"
-        assert logs[1]["details"].startswith("Damage: 3;"), "Damage details are not dashboard-compatible"
+        assert logs[0]["actor"] == "Fantasy Grounds Test Hero", "Combat actor was not imported"
+        assert logs[0]["details"] == "18 (dice 13; modifiers +5) | Test Creature | Against AC 13 | Longsword | Hit (18 vs AC 13)", "Attack resolution format is incorrect"
+        assert logs[1]["details"] == "3 | Test Creature | Target HP 9/12 | Longsword | 3 damage applied", "Damage resolution format is incorrect"
 
     repeat = service.import_snapshot(snapshot)
     assert not repeat.applied and repeat.sequence == 1, "Repeated sequence should be ignored"
@@ -130,7 +139,7 @@ try:
     assert all(row["armor_class"] == 14 and row["max_hp"] == 20 and row["initiative_mod"] == 3 for row in refreshed_participants), "Prepared participant updates were not applied"
     with connect(db) as conn:
         assert conn.execute("SELECT COUNT(*) FROM turn_log").fetchone()[0] == 3, "Only the new event should be appended"
-        assert conn.execute("SELECT details FROM turn_log WHERE action_type='Healing'").fetchone()[0].startswith("Healing: 2;"), "Healing was not mapped"
+        assert conn.execute("SELECT details FROM turn_log WHERE action_type='Healing'").fetchone()[0].startswith("2 | Test Creature |"), "Healing was not mapped"
 
     stale = copy.deepcopy(updated)
     stale["sequence"] = 3
@@ -159,13 +168,17 @@ try:
         "event_id": "test-session-002:5", "sequence": 5, "timestamp": "2026-07-17T21:00:00Z",
         "round": 1, "encounter_source_key": "test-session-002", "type": "action",
         "actor": {"source_key": "5E:character:test-hero", "name": "Fantasy Grounds Test Hero"},
-        "target": None, "amount": None, "description": "New combat session action", "metadata": {},
+        "target": {"source_key": "5E:ct:id-00001", "name": "Test Creature"},
+        "amount": None, "description": "[DAMAGE (M)] Greataxe",
+        "metadata": {"action_name": "Greataxe", "roll_type": "damage", "raw_roll": 6, "modifier": 3, "roll_total": 9, "target_ac": 13},
     })
     snapshot.write_text(json.dumps(new_session), encoding="utf-8")
     service.import_configured_snapshot()
     with connect(db) as conn:
         encounter_ids = {row[0] for row in conn.execute("SELECT DISTINCT encounter_id FROM external_events").fetchall()}
         assert len(encounter_ids) == 2, "Separate Fantasy Grounds combat sessions were merged"
+        damage_roll = conn.execute("SELECT action_type,details FROM turn_log WHERE action_type='Damage Roll'").fetchone()
+        assert damage_roll and damage_roll["details"] == "9 (dice 6; modifiers +3) | Test Creature | Against AC 13 | Greataxe | 9 damage rolled", "Damage roll value was not displayed"
 
     duplicate_event = copy.deepcopy(new_session)
     duplicate_event["sequence"] = 5
