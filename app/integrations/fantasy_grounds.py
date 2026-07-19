@@ -401,15 +401,27 @@ class FantasyGroundsSyncService:
         self.db_path = Path(db_path)
         self.config_path = user_data_dir() / "config" / CONFIG_FILE
 
-    def configured_folder(self) -> Path | None:
+    def _config_data(self) -> dict[str, Any]:
         try:
             data = json.loads(self.config_path.read_text(encoding="utf-8"))
-            folder_text = data.get("handoff_folder", "")
-            if not isinstance(folder_text, str) or not folder_text.strip():
-                return None
-            return Path(folder_text)
+            return data if isinstance(data, dict) else {}
         except (OSError, json.JSONDecodeError, TypeError):
+            return {}
+
+    def configured_folder(self) -> Path | None:
+        folder_text = self._config_data().get("handoff_folder", "")
+        if not isinstance(folder_text, str) or not folder_text.strip():
             return None
+        return Path(folder_text)
+
+    def automatic_import_enabled(self) -> bool:
+        return bool(self._config_data().get("automatic_import_enabled", True))
+
+    def set_automatic_import_enabled(self, enabled: bool) -> None:
+        data = self._config_data()
+        data["automatic_import_enabled"] = bool(enabled)
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        self.config_path.write_text(_json(data), encoding="utf-8")
 
     def configure_folder(self, selected: Path) -> Path:
         selected = Path(selected).expanduser().resolve()
@@ -418,8 +430,10 @@ class FantasyGroundsSyncService:
         else:
             folder = selected / "lectern-sync"
         folder.mkdir(parents=True, exist_ok=True)
+        data = self._config_data()
+        data["handoff_folder"] = str(folder)
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        self.config_path.write_text(_json({"handoff_folder": str(folder)}), encoding="utf-8")
+        self.config_path.write_text(_json(data), encoding="utf-8")
         return folder
 
     def snapshot_path(self) -> Path | None:
@@ -560,6 +574,7 @@ class FantasyGroundsSyncService:
             raise
         except Exception as exc:
             raise FantasyGroundsSyncError(f"Clearing imported Fantasy Grounds data failed and was rolled back: {exc}") from exc
+        self.set_automatic_import_enabled(False)
         return ClearImportResult(preview, backup)
 
     def preview_log_reprocessing(self) -> ReprocessPreview:

@@ -283,6 +283,7 @@ try:
     assert preview.local_encounters_detached == 1, "Clear preview did not identify the local encounter to preserve"
     clear_result = service.clear_imported_data(source_id)
     assert clear_result.backup_path.exists(), "Clear operation did not create a safety backup"
+    assert not service.automatic_import_enabled(), "Automatic import was not persistently paused after clearing"
     with connect(db) as conn:
         assert conn.execute("SELECT COUNT(*) FROM external_sources WHERE provider='fantasy_grounds'").fetchone()[0] == 0, "Sync metadata was not cleared"
         assert conn.execute("SELECT COUNT(*) FROM campaigns WHERE id=?", (imported_campaign_id,)).fetchone()[0] == 0, "Imported campaign was not cleared"
