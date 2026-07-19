@@ -100,6 +100,17 @@ HP, initiative, turns, participants, and effects originate in Fantasy Grounds. S
 
 The newest snapshot stays in the Fantasy Grounds campaign folder for Lectern's next startup.
 
+## Resetting for a fresh test
+
+1. End any open session with `/lectern-end outcome`.
+2. Enter `/lectern-reset confirm` in Fantasy Grounds. The extension refuses this command while an encounter is open.
+3. Wait for the clean snapshot to reach **Ready** in Lectern.
+4. On **Fantasy Grounds Sync**, select the imported campaign and click **Clear Selected FG Import**.
+5. Confirm the preview. Lectern creates a safety backup, clears only linked imported data, and turns automatic import off.
+6. Begin the new test with `/lectern-start Encounter Name`, then re-enable automatic import or click **Import Now**.
+
+The reset command clears the extension's closed session and accumulated event journal. The Lectern button removes the selected linked campaign, encounters, combatants, log rows, imported player copies, and synchronization metadata. Unlinked Lectern data is preserved.
+
 ## Developer workflow
 
 After changing `integrations/fantasy_grounds/extension/LecternSync`, rerun the installation script. It replaces only the installed `LecternSync` development folder. Return to the Fantasy Grounds launcher and reload the campaign.

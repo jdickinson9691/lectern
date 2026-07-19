@@ -1,5 +1,11 @@
 # Changelog
 
+### Fantasy Grounds test-data reset
+
+- Added a previewed **Clear Selected FG Import** action that backs up the database, removes only selected Fantasy Grounds-linked campaigns, encounters, combatants, combat logs, player copies, and sync metadata, and preserves local Lectern data.
+- Added Lectern Sync 1.3.1 `/lectern-reset confirm` to safely clear a closed extension session and accumulated exported event journal; open encounters must be ended first.
+- Automatic import is disabled after clearing so a stale snapshot cannot immediately repopulate the database.
+
 ### Fantasy Grounds explicit encounter lifecycle
 
 - Added Lectern Sync 1.3.0 `/lectern-start [name]` and `/lectern-end outcome` commands, with `/lectern-outcome` retained as a compatibility alias.

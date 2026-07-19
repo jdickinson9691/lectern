@@ -265,6 +265,32 @@ try:
     except FantasyGroundsSyncError:
         pass
 
+    with connect(db) as conn:
+        source_id = int(conn.execute("SELECT id FROM external_sources WHERE provider='fantasy_grounds'").fetchone()[0])
+        imported_campaign_id = int(conn.execute(
+            "SELECT entity_id FROM external_entity_links WHERE source_id=? AND entity_type='campaign'", (source_id,)
+        ).fetchone()[0])
+        local_encounter_id = int(conn.execute(
+            "INSERT INTO encounters(name,status,campaign_id) VALUES('Local Encounter To Preserve','draft',?) RETURNING id",
+            (imported_campaign_id,),
+        ).fetchone()[0])
+        conn.execute(
+            "INSERT INTO turn_log(encounter_id,round,actor,action_type,details) VALUES(?,1,'Local Hero','Action','Local row')",
+            (local_encounter_id,),
+        )
+    preview = service.preview_clear_imported_data(source_id)
+    assert preview.campaigns == 1 and preview.encounters >= 2 and preview.combat_log_rows >= 1, "Clear preview omitted imported data"
+    assert preview.local_encounters_detached == 1, "Clear preview did not identify the local encounter to preserve"
+    clear_result = service.clear_imported_data(source_id)
+    assert clear_result.backup_path.exists(), "Clear operation did not create a safety backup"
+    with connect(db) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM external_sources WHERE provider='fantasy_grounds'").fetchone()[0] == 0, "Sync metadata was not cleared"
+        assert conn.execute("SELECT COUNT(*) FROM campaigns WHERE id=?", (imported_campaign_id,)).fetchone()[0] == 0, "Imported campaign was not cleared"
+        local_encounter = conn.execute("SELECT campaign_id FROM encounters WHERE id=?", (local_encounter_id,)).fetchone()
+        assert local_encounter and local_encounter["campaign_id"] is None, "Local encounter was not preserved and detached"
+        assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE encounter_id=?", (local_encounter_id,)).fetchone()[0] == 1, "Local combat log row was removed"
+        assert conn.execute("SELECT COUNT(*) FROM players WHERE name='Fantasy Grounds Test Hero'").fetchone()[0] == 1, "Original local player was removed"
+
     print("Fantasy Grounds sync test passed.")
 finally:
     shutil.rmtree(temp_dir, ignore_errors=True)

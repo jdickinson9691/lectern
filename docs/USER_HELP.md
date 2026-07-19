@@ -359,7 +359,7 @@ Run `/lectern-export` once after each Fantasy Grounds campaign start and after c
 
 ### Start and end a combat encounter
 
-Lectern Sync 1.3 uses explicit encounter boundaries so a Fantasy Grounds reload cannot silently split one combat into several Lectern encounters.
+Lectern Sync 1.3.1 uses explicit encounter boundaries so a Fantasy Grounds reload cannot silently split one combat into several Lectern encounters.
 
 1. Populate the Combat Tracker and prepare initiative.
 2. In Fantasy Grounds chat, enter `/lectern-start Encounter Name` before the first combat roll.
@@ -371,6 +371,18 @@ Lectern Sync 1.3 uses explicit encounter boundaries so a Fantasy Grounds reload 
 The session identifier, name, event sequence, and open/closed state are stored in the campaign's `lectern-sync` folder. If Fantasy Grounds reloads during combat, the extension resumes the same open session. The existing `/lectern-outcome` command remains available as an alias for `/lectern-end`.
 
 Only one encounter can be open at a time. Rolls made without an open Lectern encounter are not added to the synchronized combat journal; Fantasy Grounds displays a reminder to run `/lectern-start`.
+
+### Clear Fantasy Grounds test data
+
+Use this workflow when you need a completely fresh synchronization test:
+
+1. End any open encounter with `/lectern-end outcome`.
+2. In Fantasy Grounds chat, enter `/lectern-reset confirm`. This clears the extension's closed session and accumulated exported event journal, then writes a clean snapshot.
+3. In Lectern, open **Fantasy Grounds Sync**, select the imported campaign, and click **Clear Selected FG Import**.
+4. Review the preview and confirm the deletion. Lectern creates a database backup automatically and turns off automatic import so the previous snapshot cannot immediately restore the data.
+5. Start the next test with `/lectern-start Encounter Name`, then re-enable automatic import or click **Import Now**.
+
+Clearing removes only the selected Fantasy Grounds-linked campaign, encounters, combatants, combat logs, imported player copies, and synchronization metadata. Local Lectern campaigns, encounters, logs, and players are preserved. If a local encounter was attached to the imported campaign, it is kept and changed to have no campaign. Fantasy Grounds catalog reference entries remain available because they may be shared by other imported campaigns.
 
 ### Automatic updates
 
@@ -409,6 +421,7 @@ For incomplete older dice events, Lectern preserves any reported die total and l
 - If data is unchanged, click **Import Now** and run `/lectern-export` again.
 - If combat events are not appearing, confirm the Sync screen says the encounter session is **Open**. Run `/lectern-start Encounter Name` before rolling.
 - If Fantasy Grounds says an encounter is already open, finish it with `/lectern-end outcome` before starting another.
+- If old events return after clearing, run `/lectern-reset confirm` in Fantasy Grounds before importing the next snapshot.
 - If modules changed, open the required modules in Fantasy Grounds and run a new full export.
 - Review **Error Logs** in Lectern and Fantasy Grounds logs for validation or mapping errors.
 
