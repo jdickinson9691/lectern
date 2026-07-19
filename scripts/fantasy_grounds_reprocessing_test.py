@@ -72,6 +72,10 @@ try:
         event(
             "history:7", "attack", actor=None, target=None, description="", metadata={},
         ),
+        event(
+            "history:8", "action", actor=None, target=None, description="",
+            metadata={"action_name": "", "raw_roll": 14, "modifier": 0, "roll_total": 14, "roll_type": "dice"},
+        ),
     ]
     with connect(db) as conn:
         campaign_id = conn.execute("INSERT INTO campaigns(name) VALUES('History')").lastrowid
@@ -126,9 +130,9 @@ try:
 
     service = FantasyGroundsSyncService(db)
     preview = service.preview_log_reprocessing()
-    assert tuple(preview.__dict__.values()) == (1, 8, 7, 2), "Reprocessing preview counts are incorrect"
+    assert tuple(preview.__dict__.values()) == (1, 9, 8, 3), "Reprocessing preview counts are incorrect"
     result = service.reprocess_imported_logs()
-    assert result.updated == 6 and result.unchanged == 0 and result.incomplete == 1 and result.failed == 1
+    assert result.updated == 6 and result.unchanged == 0 and result.incomplete == 2 and result.failed == 1
     assert result.backup_path.exists(), "A safety backup was not created"
     with connect(db) as conn:
         rows = conn.execute(
@@ -136,7 +140,7 @@ try:
             "WHERE ee.source_id=? AND json_valid(ee.raw_json) ORDER BY ee.id",
             (source_id,),
         ).fetchall()
-        assert len(rows) == 7 and conn.execute("SELECT COUNT(*) FROM external_events WHERE source_id=?", (source_id,)).fetchone()[0] == 8
+        assert len(rows) == 8 and conn.execute("SELECT COUNT(*) FROM external_events WHERE source_id=?", (source_id,)).fetchone()[0] == 9
         assert "19 (dice 14; modifiers +5)" in rows[0]["details"] and "Against AC 16" in rows[0]["details"]
         assert "4 damage applied from 9 rolled (reduced by 5)" in rows[1]["details"]
         assert rows[2]["details"] == "2 | Historical Goblin | Target HP 5/7 | Cure Wounds | 2 healing applied"
@@ -147,6 +151,7 @@ try:
         assert rows[3]["result_code"] == "critical_hit" and rows[4]["result_code"] == "critical_miss", "Critical results were not normalized"
         assert rows[5]["actor"] == "Manual / Unattributed"
         assert "not reported" in rows[6]["details"].lower()
+        assert rows[7]["details"] == "14 (dice 14; modifiers +0) | Target not reported | Defense not reported | Action not reported | Result not reported", "Incomplete raw dice roll was hidden"
         assert all(row["round"] == 3 and row["created_at"] == events[index]["timestamp"] for index, row in enumerate(rows))
         untouched_after = {
             row["id"]: bytes(str(tuple(row)).encode())
@@ -156,9 +161,9 @@ try:
         assert [row[0] for row in conn.execute("SELECT raw_json FROM external_events WHERE source_id=? ORDER BY id", (source_id,))] == raw_before, "Raw event evidence was modified"
 
     repeat = service.reprocess_imported_logs()
-    assert repeat.updated == 0 and repeat.unchanged == 6 and repeat.incomplete == 1 and repeat.failed == 1
+    assert repeat.updated == 0 and repeat.unchanged == 6 and repeat.incomplete == 2 and repeat.failed == 1
     with connect(db) as conn:
-        assert conn.execute("SELECT COUNT(*) FROM turn_log").fetchone()[0] == 11, "Reprocessing created duplicate log rows"
+        assert conn.execute("SELECT COUNT(*) FROM turn_log").fetchone()[0] == 12, "Reprocessing created duplicate log rows"
 
         rollback_first = event("rollback:8", "effect", description="First transactional update")
         rollback_second = event("rollback:9", "effect", description="Trigger rollback")

@@ -801,16 +801,26 @@ class CombatDashboardPage(QWidget):
         header=self.log_tree.header(); header.setSectionResizeMode(0,QHeaderView.ResizeToContents); header.setSectionResizeMode(1,QHeaderView.ResizeToContents); header.setSectionResizeMode(2,QHeaderView.ResizeToContents); header.setSectionResizeMode(3,QHeaderView.ResizeToContents); header.setSectionResizeMode(4,QHeaderView.ResizeToContents); header.setSectionResizeMode(5,QHeaderView.ResizeToContents); header.setSectionResizeMode(6,QHeaderView.Stretch)
         self.log_tree.itemDoubleClicked.connect(self.toggle_log_details); root.addWidget(self.log_tree,1); self.refresh()
     def refresh(self):
+        previous_id=self.current_encounter_id; encounters=list(self.repo.list_encounters())
+        status_order={"active":0,"draft":1,"completed":2}
+        encounters.sort(key=lambda row:(status_order.get(str(row['status'] or '').casefold(),3),-int(row['id'])))
         self.encounters.blockSignals(True); self.encounters.clear()
-        for e in self.repo.list_encounters(): self.encounters.addItem(e['name'], e['id'])
+        for e in encounters: self.encounters.addItem(e['name'], e['id'])
+        preferred=self.encounters.findData(previous_id) if previous_id is not None else -1
+        if preferred < 0 and self.encounters.count(): preferred=0
+        if preferred >= 0: self.encounters.setCurrentIndex(preferred); self.current_encounter_id=self.encounters.itemData(preferred)
+        else: self.current_encounter_id=None
         self.encounters.blockSignals(False)
-        if self.current_encounter_id is None and self.encounters.count(): self.current_encounter_id=self.encounters.itemData(0)
         self.refresh_board()
     def select_encounter(self): self.current_encounter_id=self.encounters.currentData(); self.refresh_board()
     def rows(self): return self.repo.list_combatants(self.current_encounter_id) if self.current_encounter_id else []
     def refresh_board(self):
         rows=self.rows(); enc=self.repo.get_encounter(self.current_encounter_id) if self.current_encounter_id else None; active=(enc['active_index'] if enc else 0) or 0
         external=self.repo.is_external_encounter(self.current_encounter_id); self.external_notice.setVisible(external)
+        if external and not rows and enc and enc['status']=='completed':
+            self.external_notice.setText("Historical Fantasy Grounds log: no combatant snapshot was preserved for this encounter. Select an active or session-specific Fantasy Grounds Live Combat encounter to view turn order, AC, and HP.")
+        else:
+            self.external_notice.setText("Fantasy Grounds controls this encounter. Source-owned combat fields are read-only in Lectern.")
         for widget in [self.prev_button,self.next_button,self.hp_delta,self.damage_button,self.heal_button,self.action,self.details,self.add_log_button]: widget.setEnabled(not external)
         active_name=rows[active]['name'] if rows and active < len(rows) else '-'; self.round_label.setText(f"Round {enc['round'] if enc else '-'} | Active: {active_name}")
         self.order.setRowCount(len(rows))
@@ -1267,10 +1277,14 @@ class FantasyGroundsSyncPage(QWidget):
         self.import_button.clicked.connect(self.import_now)
         self.reprocess_button = QPushButton("Reprocess Imported Combat Logs")
         self.reprocess_button.clicked.connect(self.reprocess_logs)
+        self.clear_import_button = QPushButton("Clear Selected FG Import")
+        self.clear_import_button.clicked.connect(self.clear_selected_import)
         self.auto_import = QCheckBox("Automatically import new snapshots")
-        self.auto_import.setChecked(True)
+        self.auto_import.setChecked(self.service.automatic_import_enabled())
+        self.auto_import.toggled.connect(self.service.set_automatic_import_enabled)
         controls.addWidget(self.import_button)
         controls.addWidget(self.reprocess_button)
+        controls.addWidget(self.clear_import_button)
         controls.addWidget(self.auto_import)
         controls.addStretch()
         controls.addWidget(QLabel("Imported campaign:"))
@@ -1282,6 +1296,9 @@ class FantasyGroundsSyncPage(QWidget):
         self.status = QLabel("No Fantasy Grounds snapshot imported yet.")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
+        self.session_status = QLabel("Encounter session: not reported by the extension.")
+        self.session_status.setWordWrap(True)
+        layout.addWidget(self.session_status)
         self.counts = QLabel()
         self.counts.setWordWrap(True)
         layout.addWidget(self.counts)
@@ -1296,7 +1313,8 @@ class FantasyGroundsSyncPage(QWidget):
         steps = QLabel(
             "Run together: (1) load the 5E campaign with Lectern Sync enabled, "
             "(2) select that campaign folder here, (3) enter /lectern-export in Fantasy Grounds, "
-            "and (4) leave both applications open during play."
+            "(4) run /lectern-start Encounter Name before combat, and "
+            "(5) run /lectern-end outcome before clearing the Combat Tracker."
         )
         steps.setWordWrap(True)
         layout.addWidget(steps)
@@ -1421,6 +1439,64 @@ class FantasyGroundsSyncPage(QWidget):
             self.reprocess_button.setEnabled(True)
             self._importing = False
 
+    def clear_selected_import(self):
+        if self._importing:
+            return
+        source_id = self.source_select.currentData()
+        if source_id is None:
+            QMessageBox.information(
+                self, "Clear Fantasy Grounds Import", "No imported Fantasy Grounds campaign is selected."
+            )
+            return
+        try:
+            preview = self.service.preview_clear_imported_data(int(source_id))
+        except FantasyGroundsSyncError as exc:
+            QMessageBox.warning(self, "Clear Fantasy Grounds Import", str(exc))
+            return
+        prompt = (
+            f"Clear the imported Fantasy Grounds data for {preview.campaign_name}?\n\n"
+            f"Campaigns: {preview.campaigns}\n"
+            f"Encounters: {preview.encounters}\n"
+            f"Combatants: {preview.combatants}\n"
+            f"Combat log rows: {preview.combat_log_rows}\n"
+            f"Imported players: {preview.players}\n"
+            f"Sync records: {preview.external_records}\n\n"
+            "A database backup will be created first. Local Lectern campaigns, encounters, and logs are preserved. "
+            "Any local encounter attached to the imported campaign is kept and detached from that campaign.\n\n"
+            "For a completely fresh test, first run /lectern-reset in Fantasy Grounds. Automatic import will be "
+            "turned off after clearing so an older snapshot cannot immediately restore the data. Continue?"
+        )
+        if QMessageBox.question(self, "Clear Fantasy Grounds Import", prompt) != QMessageBox.Yes:
+            return
+        self._importing = True
+        self.import_button.setEnabled(False)
+        self.reprocess_button.setEnabled(False)
+        self.clear_import_button.setEnabled(False)
+        self.auto_import.setChecked(False)
+        try:
+            result = self.service.clear_imported_data(int(source_id))
+            self._last_snapshot_stamp = None
+            self.refresh_callback()
+            self.refresh_sources()
+            self.status.setText(
+                f"Cleared imported Fantasy Grounds data for {result.preview.campaign_name}. Automatic import is off."
+            )
+            QMessageBox.information(
+                self,
+                "Fantasy Grounds Import Cleared",
+                f"The selected imported campaign, encounters, combatants, logs, players, and sync metadata were cleared.\n\n"
+                f"Backup: {result.backup_path}\n\n"
+                "When ready, start a new Fantasy Grounds encounter and re-enable automatic import or click Import Now.",
+            )
+        except FantasyGroundsSyncError as exc:
+            self.status.setText(f"Clear error: {exc}")
+            QMessageBox.critical(self, "Clear Failed", str(exc))
+        finally:
+            self.import_button.setEnabled(True)
+            self.reprocess_button.setEnabled(True)
+            self.clear_import_button.setEnabled(True)
+            self._importing = False
+
     def refresh(self):
         configured = self.service.configured_folder()
         self.folder.setText(str(configured) if configured else "")
@@ -1431,6 +1507,13 @@ class FantasyGroundsSyncPage(QWidget):
             sequence = extension_status.get("sequence", "-")
             message = extension_status.get("error") or extension_status.get("message") or ""
             self.status.setToolTip(f"Extension state: {state}; sequence: {sequence}; {message}")
+            session_state = str(extension_status.get("combat_session_state") or "inactive").title()
+            session_name = extension_status.get("combat_session_name")
+            session_key = extension_status.get("combat_session_key")
+            identity = session_name or session_key or "No encounter"
+            self.session_status.setText(f"Encounter session: {session_state} - {identity}")
+        elif not extension_status:
+            self.session_status.setText("Encounter session: no extension status available.")
 
     def refresh_sources(self):
         selected = self.source_select.currentData()

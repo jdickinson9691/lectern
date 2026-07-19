@@ -1,5 +1,24 @@
 # Changelog
 
+### Fantasy Grounds test-data reset
+
+- Added a previewed **Clear Selected FG Import** action that backs up the database, removes only selected Fantasy Grounds-linked campaigns, encounters, combatants, combat logs, player copies, and sync metadata, and preserves local Lectern data.
+- Added Lectern Sync 1.3.1 `/lectern-reset confirm` to safely clear a closed extension session and accumulated exported event journal; open encounters must be ended first.
+- Automatic import is disabled after clearing so a stale snapshot cannot immediately repopulate the database.
+
+### Fantasy Grounds explicit encounter lifecycle
+
+- Added Lectern Sync 1.3.0 `/lectern-start [name]` and `/lectern-end outcome` commands, with `/lectern-outcome` retained as a compatibility alias.
+- Persisted session identity, name, state, timestamps, event sequence, and accumulated journal data in the Fantasy Grounds campaign handoff folder so an extension reload resumes the same encounter.
+- Added open/closed encounter status to the Sync screen, explicit lifecycle log events, stable named encounter import, and final-roster retention after Combat Tracker clearing.
+- Updated the user help, run-together guide, integration readme, handoff notes, snapshot contract, and regression coverage for the explicit lifecycle.
+
+### Combat Dashboard incomplete-event display fix
+
+- Preserved available raw die totals when older Fantasy Grounds events lack actor, target, action, or result data, and labeled each unavailable structured field explicitly after reprocessing.
+- Made the Combat Dashboard prefer active encounters on initial load instead of a newer completed historical log with no combatant snapshot, and added a clear notice for log-only Fantasy Grounds encounters.
+- Corrected the application database schema-version constant to match the schema-v8 combat-statistics migration.
+
 ### Campaign party combat statistics
 
 - Added party DPR, party HPR, critical-hit leader, critical-miss leader, tie handling, and data-coverage reporting to the selected Campaign Dashboard.

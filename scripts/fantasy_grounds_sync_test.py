@@ -26,7 +26,14 @@ try:
     extension_manifest = (
         ROOT / "integrations" / "fantasy_grounds" / "extension" / "LecternSync" / "extension.xml"
     ).read_text(encoding="utf-8")
-    assert 'local EXTENSION_VERSION = "1.2.0"' in extension_source and "<version>1.2.0</version>" in extension_manifest, "Extension version metadata is inconsistent"
+    assert 'local EXTENSION_VERSION = "1.3.1"' in extension_source and "<version>1.3.1</version>" in extension_manifest, "Extension version metadata is inconsistent"
+    assert 'Comm.registerSlashHandler("lectern-start", startEncounter' in extension_source, "Explicit encounter start command is missing"
+    assert 'Comm.registerSlashHandler("lectern-end", endEncounter' in extension_source, "Explicit encounter end command is missing"
+    assert 'Comm.registerSlashHandler("lectern-reset", resetEncounterJournal' in extension_source, "Safe encounter reset command is missing"
+    assert 'sPersistedEventsJSON = ""' in extension_source and '"confirm"' in extension_source, "Encounter reset does not clear the journal safely"
+    assert 'session-state.txt' in extension_source and 'loadSessionState()' in extension_source, "Durable session reload support is missing"
+    assert 'extractArrayContents(sSnapshot or "", "events")' in extension_source and 'sMergedEvents = sPersistedEventsJSON' in extension_source, "Accumulated events are not retained across reloads"
+    assert 'lifecycle = "encounter_start"' in extension_source and 'lifecycle = "encounter_end"' in extension_source, "Encounter lifecycle events are missing"
     assert 'nodeNumber(node, "defenses.ac.total"' in extension_source, "2024 Fantasy Grounds character AC path is missing"
     assert 'if sCharacterName == "" then return nil end' in extension_source, "Unnamed Fantasy Grounds characters are not filtered"
     assert 'not moduleName(node)' in extension_source, "Module reference battles are not filtered from campaign encounters"
@@ -166,7 +173,10 @@ try:
 
     new_session = copy.deepcopy(stale)
     new_session["sequence"] = 4
-    new_session["combat"].update({"active": True, "session_key": "test-session-002", "outcome": None, "completed_at": None})
+    new_session["combat"].update({
+        "active": True, "session_key": "test-session-002", "session_name": "Explicit Test Combat",
+        "session_state": "open", "started_at": "2026-07-17T21:00:00Z", "outcome": None, "completed_at": None,
+    })
     new_session["events"].append({
         "event_id": "test-session-002:5", "sequence": 5, "timestamp": "2026-07-17T21:00:00Z",
         "round": 1, "encounter_source_key": "test-session-002", "type": "action",
@@ -221,6 +231,28 @@ try:
         assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE details LIKE '%Automatic Miss (15 vs AC 10)%'").fetchone()[0] == 1, "Authoritative natural-one miss was not preserved"
         assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE details LIKE '%4 damage applied from 9 rolled (reduced by 5)%'").fetchone()[0] == 1, "Adjusted damage was not explained"
         assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE actor='Manual / Unattributed'").fetchone()[0] == 1, "Manual damage inherited a stale actor"
+        explicit_encounter = conn.execute("SELECT id,status FROM encounters WHERE name='Explicit Test Combat'").fetchone()
+        assert explicit_encounter and explicit_encounter["status"] == "active", "Explicit session name or open state was not imported"
+
+    closed_session = copy.deepcopy(new_session)
+    closed_session["sequence"] = 5
+    closed_session["combat"].update({
+        "active": False, "combatants": [], "active_source_key": None, "session_state": "closed",
+        "outcome": "victory", "completed_at": "2026-07-17T21:05:00Z",
+    })
+    closed_session["events"].append({
+        "event_id": "test-session-002:10", "sequence": 10, "timestamp": "2026-07-17T21:05:00Z",
+        "round": 2, "encounter_source_key": "test-session-002", "type": "outcome",
+        "actor": None, "target": None, "amount": None, "description": "Encounter ended: victory",
+        "metadata": {"lifecycle": "encounter_end", "outcome": "victory", "completed_at": "2026-07-17T21:05:00Z"},
+    })
+    snapshot.write_text(json.dumps(closed_session), encoding="utf-8")
+    service.import_configured_snapshot()
+    with connect(db) as conn:
+        explicit_encounter = conn.execute("SELECT id,status,outcome FROM encounters WHERE name='Explicit Test Combat'").fetchone()
+        assert tuple(explicit_encounter)[1:] == ("completed", "victory"), "Explicit end state was not imported"
+        assert conn.execute("SELECT COUNT(*) FROM combatants WHERE encounter_id=?", (explicit_encounter["id"],)).fetchone()[0] == 1, "Final roster was discarded after Combat Tracker clearing"
+        assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE encounter_id=? AND action_type='Encounter End'", (explicit_encounter["id"],)).fetchone()[0] == 1, "Encounter-end event was not formatted"
 
     duplicate_event = copy.deepcopy(new_session)
     duplicate_event["sequence"] = 5
@@ -232,6 +264,33 @@ try:
         raise AssertionError("Duplicate event ID was accepted")
     except FantasyGroundsSyncError:
         pass
+
+    with connect(db) as conn:
+        source_id = int(conn.execute("SELECT id FROM external_sources WHERE provider='fantasy_grounds'").fetchone()[0])
+        imported_campaign_id = int(conn.execute(
+            "SELECT entity_id FROM external_entity_links WHERE source_id=? AND entity_type='campaign'", (source_id,)
+        ).fetchone()[0])
+        local_encounter_id = int(conn.execute(
+            "INSERT INTO encounters(name,status,campaign_id) VALUES('Local Encounter To Preserve','draft',?) RETURNING id",
+            (imported_campaign_id,),
+        ).fetchone()[0])
+        conn.execute(
+            "INSERT INTO turn_log(encounter_id,round,actor,action_type,details) VALUES(?,1,'Local Hero','Action','Local row')",
+            (local_encounter_id,),
+        )
+    preview = service.preview_clear_imported_data(source_id)
+    assert preview.campaigns == 1 and preview.encounters >= 2 and preview.combat_log_rows >= 1, "Clear preview omitted imported data"
+    assert preview.local_encounters_detached == 1, "Clear preview did not identify the local encounter to preserve"
+    clear_result = service.clear_imported_data(source_id)
+    assert clear_result.backup_path.exists(), "Clear operation did not create a safety backup"
+    assert not service.automatic_import_enabled(), "Automatic import was not persistently paused after clearing"
+    with connect(db) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM external_sources WHERE provider='fantasy_grounds'").fetchone()[0] == 0, "Sync metadata was not cleared"
+        assert conn.execute("SELECT COUNT(*) FROM campaigns WHERE id=?", (imported_campaign_id,)).fetchone()[0] == 0, "Imported campaign was not cleared"
+        local_encounter = conn.execute("SELECT campaign_id FROM encounters WHERE id=?", (local_encounter_id,)).fetchone()
+        assert local_encounter and local_encounter["campaign_id"] is None, "Local encounter was not preserved and detached"
+        assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE encounter_id=?", (local_encounter_id,)).fetchone()[0] == 1, "Local combat log row was removed"
+        assert conn.execute("SELECT COUNT(*) FROM players WHERE name='Fantasy Grounds Test Hero'").fetchone()[0] == 1, "Original local player was removed"
 
     print("Fantasy Grounds sync test passed.")
 finally:

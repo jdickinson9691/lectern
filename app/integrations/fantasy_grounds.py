@@ -68,6 +68,26 @@ class ReprocessResult:
     backup_path: Path
 
 
+@dataclass(frozen=True)
+class ClearImportPreview:
+    source_id: int
+    campaign_name: str
+    campaigns: int
+    encounters: int
+    combatants: int
+    combat_log_rows: int
+    players: int
+    external_records: int
+    external_events: int
+    local_encounters_detached: int
+
+
+@dataclass(frozen=True)
+class ClearImportResult:
+    preview: ClearImportPreview
+    backup_path: Path
+
+
 def _require(condition: bool, message: str) -> None:
     if not condition:
         raise FantasyGroundsSyncError(message)
@@ -174,6 +194,14 @@ def validate_snapshot(payload: Any) -> dict[str, Any]:
         _require(isinstance(combatant.get("raw"), dict), f"{field}.raw must be an object")
 
     _require(combat.get("session_key") is None or isinstance(combat.get("session_key"), str), "combat.session_key must be a string or null")
+    _require(combat.get("session_name") is None or isinstance(combat.get("session_name"), str), "combat.session_name must be a string or null")
+    _require(combat.get("session_state") is None or combat.get("session_state") in {"inactive", "open", "closed"}, "combat.session_state is invalid")
+    _require(combat.get("started_at") is None or isinstance(combat.get("started_at"), str), "combat.started_at must be a string or null")
+    if combat.get("started_at"):
+        try:
+            datetime.fromisoformat(combat["started_at"].replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise FantasyGroundsSyncError("combat.started_at must be an ISO-8601 timestamp") from exc
     _require(combat.get("outcome") is None or combat.get("outcome") in {"victory", "defeat", "retreat", "unresolved"}, "combat.outcome is invalid")
     _require(combat.get("completed_at") is None or isinstance(combat.get("completed_at"), str), "combat.completed_at must be a string or null")
     if combat.get("completed_at"):
@@ -284,6 +312,11 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
         f"{metadata.get('roll_type', '')} {description}"
     ).lower()
     action_type = "Damage Roll" if is_damage_roll else ACTION_TYPES[event_type]
+    lifecycle = str(metadata.get("lifecycle") or "")
+    if lifecycle == "encounter_start":
+        action_type = "Encounter Start"
+    elif lifecycle == "encounter_end":
+        action_type = "Encounter End"
     incomplete = not bool(actor.get("name"))
 
     roll_text = str(roll_total) if roll_total is not None else "Roll not reported"
@@ -339,6 +372,19 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
             incomplete = False
         details = " | ".join((str(applied), target_name, hp, action_name or ACTION_TYPES[event_type], outcome))
         incomplete = incomplete or amount is None or not bool(target.get("name")) or metadata.get("current_hp") is None
+    elif roll_total is not None:
+        if event_type == "save":
+            defense = f"Against DC {target_ac}" if target_ac is not None else "Save DC not reported"
+        elif target_ac is not None:
+            defense = f"Against defense {target_ac}"
+        else:
+            defense = "Defense not reported"
+        outcome = result or "Result not reported"
+        details = " | ".join((
+            roll_text, target_name, defense,
+            action_name or f"{ACTION_TYPES[event_type]} not reported", outcome,
+        ))
+        incomplete = True
     else:
         details = description or action_name or f"{ACTION_TYPES[event_type]} details not reported"
         incomplete = incomplete or not bool(description or action_name)
@@ -355,15 +401,27 @@ class FantasyGroundsSyncService:
         self.db_path = Path(db_path)
         self.config_path = user_data_dir() / "config" / CONFIG_FILE
 
-    def configured_folder(self) -> Path | None:
+    def _config_data(self) -> dict[str, Any]:
         try:
             data = json.loads(self.config_path.read_text(encoding="utf-8"))
-            folder_text = data.get("handoff_folder", "")
-            if not isinstance(folder_text, str) or not folder_text.strip():
-                return None
-            return Path(folder_text)
+            return data if isinstance(data, dict) else {}
         except (OSError, json.JSONDecodeError, TypeError):
+            return {}
+
+    def configured_folder(self) -> Path | None:
+        folder_text = self._config_data().get("handoff_folder", "")
+        if not isinstance(folder_text, str) or not folder_text.strip():
             return None
+        return Path(folder_text)
+
+    def automatic_import_enabled(self) -> bool:
+        return bool(self._config_data().get("automatic_import_enabled", True))
+
+    def set_automatic_import_enabled(self, enabled: bool) -> None:
+        data = self._config_data()
+        data["automatic_import_enabled"] = bool(enabled)
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        self.config_path.write_text(_json(data), encoding="utf-8")
 
     def configure_folder(self, selected: Path) -> Path:
         selected = Path(selected).expanduser().resolve()
@@ -372,8 +430,10 @@ class FantasyGroundsSyncService:
         else:
             folder = selected / "lectern-sync"
         folder.mkdir(parents=True, exist_ok=True)
+        data = self._config_data()
+        data["handoff_folder"] = str(folder)
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
-        self.config_path.write_text(_json({"handoff_folder": str(folder)}), encoding="utf-8")
+        self.config_path.write_text(_json(data), encoding="utf-8")
         return folder
 
     def snapshot_path(self) -> Path | None:
@@ -408,6 +468,114 @@ class FantasyGroundsSyncService:
                 """,
                 (source_id,),
             ).fetchall()
+
+    def _exclusive_linked_ids(self, conn, source_id: int, entity_type: str) -> list[int]:
+        return [
+            int(row[0])
+            for row in conn.execute(
+                """
+                SELECT DISTINCT own.entity_id
+                FROM external_entity_links own
+                WHERE own.source_id=? AND own.entity_type=?
+                  AND NOT EXISTS (
+                    SELECT 1 FROM external_entity_links other
+                    WHERE other.source_id<>own.source_id
+                      AND other.entity_type=own.entity_type
+                      AND other.entity_id=own.entity_id
+                  )
+                """,
+                (source_id, entity_type),
+            ).fetchall()
+        ]
+
+    def preview_clear_imported_data(self, source_id: int) -> ClearImportPreview:
+        with connect(self.db_path) as conn:
+            source = conn.execute(
+                "SELECT id,campaign_name FROM external_sources WHERE id=? AND provider=?",
+                (source_id, PROVIDER),
+            ).fetchone()
+            if not source:
+                raise FantasyGroundsSyncError("The selected Fantasy Grounds import no longer exists")
+            campaign_ids = self._exclusive_linked_ids(conn, source_id, "campaign")
+            encounter_ids = self._exclusive_linked_ids(conn, source_id, "encounter")
+            player_ids = self._exclusive_linked_ids(conn, source_id, "player")
+            event_log_ids = {
+                int(row[0]) for row in conn.execute(
+                    "SELECT turn_log_id FROM external_events WHERE source_id=?", (source_id,)
+                ).fetchall()
+            }
+            combatants = 0
+            combat_log_ids = set(event_log_ids)
+            if encounter_ids:
+                placeholders = ",".join("?" for _ in encounter_ids)
+                combatants = int(conn.execute(
+                    f"SELECT COUNT(*) FROM combatants WHERE encounter_id IN ({placeholders})", encounter_ids
+                ).fetchone()[0])
+                combat_log_ids.update(
+                    int(row[0]) for row in conn.execute(
+                        f"SELECT id FROM turn_log WHERE encounter_id IN ({placeholders})", encounter_ids
+                    ).fetchall()
+                )
+            detached = 0
+            if campaign_ids:
+                placeholders = ",".join("?" for _ in campaign_ids)
+                parameters = [*campaign_ids, *encounter_ids]
+                exclusion = ""
+                if encounter_ids:
+                    exclusion = f" AND id NOT IN ({','.join('?' for _ in encounter_ids)})"
+                detached = int(conn.execute(
+                    f"SELECT COUNT(*) FROM encounters WHERE campaign_id IN ({placeholders}){exclusion}", parameters
+                ).fetchone()[0])
+            return ClearImportPreview(
+                int(source["id"]), str(source["campaign_name"]), len(campaign_ids), len(encounter_ids),
+                combatants, len(combat_log_ids), len(player_ids),
+                int(conn.execute("SELECT COUNT(*) FROM external_records WHERE source_id=?", (source_id,)).fetchone()[0]),
+                int(conn.execute("SELECT COUNT(*) FROM external_events WHERE source_id=?", (source_id,)).fetchone()[0]),
+                detached,
+            )
+
+    def clear_imported_data(self, source_id: int) -> ClearImportResult:
+        preview = self.preview_clear_imported_data(source_id)
+        workflow = DataWorkflowService(self.db_path)
+        backup_stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        backup = workflow.backup_database(
+            workflow.backup_dir / f"pre_fg_clear_{backup_stamp}.db"
+        )
+        try:
+            with connect(self.db_path) as conn:
+                campaign_ids = self._exclusive_linked_ids(conn, source_id, "campaign")
+                encounter_ids = self._exclusive_linked_ids(conn, source_id, "encounter")
+                player_ids = self._exclusive_linked_ids(conn, source_id, "player")
+                event_log_ids = [
+                    int(row[0]) for row in conn.execute(
+                        "SELECT turn_log_id FROM external_events WHERE source_id=?", (source_id,)
+                    ).fetchall()
+                ]
+                if event_log_ids:
+                    placeholders = ",".join("?" for _ in event_log_ids)
+                    conn.execute(f"DELETE FROM turn_log WHERE id IN ({placeholders})", event_log_ids)
+                if encounter_ids:
+                    placeholders = ",".join("?" for _ in encounter_ids)
+                    conn.execute(f"DELETE FROM turn_log WHERE encounter_id IN ({placeholders})", encounter_ids)
+                    conn.execute(f"DELETE FROM encounters WHERE id IN ({placeholders})", encounter_ids)
+                if campaign_ids:
+                    placeholders = ",".join("?" for _ in campaign_ids)
+                    conn.execute(f"UPDATE encounters SET campaign_id=NULL WHERE campaign_id IN ({placeholders})", campaign_ids)
+                    conn.execute(f"DELETE FROM campaigns WHERE id IN ({placeholders})", campaign_ids)
+                if player_ids:
+                    placeholders = ",".join("?" for _ in player_ids)
+                    conn.execute(f"DELETE FROM players WHERE id IN ({placeholders})", player_ids)
+                deleted = conn.execute(
+                    "DELETE FROM external_sources WHERE id=? AND provider=?", (source_id, PROVIDER)
+                ).rowcount
+                if deleted != 1:
+                    raise FantasyGroundsSyncError("The selected Fantasy Grounds import no longer exists")
+        except FantasyGroundsSyncError:
+            raise
+        except Exception as exc:
+            raise FantasyGroundsSyncError(f"Clearing imported Fantasy Grounds data failed and was rolled back: {exc}") from exc
+        self.set_automatic_import_enabled(False)
+        return ClearImportResult(preview, backup)
 
     def preview_log_reprocessing(self) -> ReprocessPreview:
         improvable = 0
@@ -762,16 +930,20 @@ class FantasyGroundsSyncService:
                 )
                 order += 1
 
-    def _upsert_live_combat(self, conn, source_id: int, campaign_id: int, campaign_name: str, combat: dict[str, Any], sequence: int) -> int:
+    def _upsert_live_combat(self, conn, source_id: int, campaign_id: int, campaign_name: str, combat: dict[str, Any], sequence: int) -> int | None:
+        session_state = combat.get("session_state")
+        if session_state == "inactive" and not combat.get("session_key"):
+            return None
         session_key = str(combat.get("session_key") or "live-combat")
         source_key = f"live-combat:{session_key}" if session_key != "live-combat" else "live-combat"
         encounter_id = self._find_link(conn, source_id, source_key, "encounter")
         if encounter_id and not conn.execute("SELECT 1 FROM encounters WHERE id=?", (encounter_id,)).fetchone():
             encounter_id = None
-        name = self._unique_name(conn, "encounters", f"{campaign_name} - Fantasy Grounds Live Combat", encounter_id)
+        requested_name = str(combat.get("session_name") or f"{campaign_name} - Fantasy Grounds Live Combat")
+        name = self._unique_name(conn, "encounters", requested_name, encounter_id)
         outcome = str(combat.get("outcome") or "")
         completed_at = combat.get("completed_at")
-        status = "completed" if outcome else ("active" if combat["active"] else "completed")
+        status = "completed" if session_state == "closed" or outcome else ("active" if session_state == "open" or combat["active"] else "completed")
         active_key = combat.get("active_source_key")
         active_index = 0
         for index, item in enumerate(combat["combatants"]):
@@ -783,7 +955,8 @@ class FantasyGroundsSyncService:
                 "UPDATE encounters SET name=?,campaign_id=?,status=?,round=?,active_index=?,outcome=?,completed_at=? WHERE id=?",
                 (name, campaign_id, status, max(1, combat["round"]), active_index, outcome, completed_at, encounter_id),
             )
-            conn.execute("DELETE FROM combatants WHERE encounter_id=?", (encounter_id,))
+            if combat["combatants"]:
+                conn.execute("DELETE FROM combatants WHERE encounter_id=?", (encounter_id,))
         else:
             cursor = conn.execute(
                 "INSERT INTO encounters(name,status,round,active_index,campaign_id,outcome,completed_at) VALUES(?,?,?,?,?,?,?)",
