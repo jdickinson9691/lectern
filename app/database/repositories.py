@@ -1,9 +1,14 @@
 from __future__ import annotations
+import json
 import re
 from pathlib import Path
 from .schema import connect
 
 ABILITY_FIELDS = ['str', 'dex', 'con', 'int', 'wis', 'cha']
+DND5E_DAMAGE_TYPES = (
+    'acid', 'bludgeoning', 'cold', 'fire', 'force', 'lightning', 'necrotic',
+    'piercing', 'poison', 'psychic', 'radiant', 'slashing', 'thunder',
+)
 PLAYER_COLUMNS = [
     'name','species','class_name','subclass','background','level','armor_class','max_hp','current_hp','initiative_mod',
     'str_base','dex_base','con_base','int_base','wis_base','cha_base',
@@ -209,7 +214,8 @@ class Repository:
             encounters = conn.execute("SELECT COUNT(*) total, SUM(status='completed') completed, SUM(outcome='Victory') victories, SUM(outcome='Defeat') defeats, SUM(outcome='Retreat') retreats, COALESCE(SUM(round),0) rounds FROM encounters WHERE campaign_id=?", (campaign_id,)).fetchone()
             rows = conn.execute(
                 """
-                SELECT actor,actor_source_key,action_type,details,actor_side,amount,result_code,round
+                SELECT actor,actor_source_key,action_type,details,actor_side,amount,result_code,round,
+                       damage_types,damage_components_json
                 FROM turn_log WHERE encounter_id IN (SELECT id FROM encounters WHERE campaign_id=?)
                 """,
                 (campaign_id,),
@@ -249,6 +255,65 @@ class Repository:
             high = max(counts.values(), default=0)
             return sorted({names[key] for key, count in counts.items() if count == high}, key=str.casefold), high
 
+        damage_by_type: dict[str, dict[str, dict[str, int | str]]] = {
+            damage_type: {} for damage_type in DND5E_DAMAGE_TYPES
+        }
+        for row in rows:
+            if row["action_type"] != "Damage" or row["actor_side"] != "party":
+                continue
+            component_totals: dict[str, int] = {}
+            try:
+                components = json.loads(str(row["damage_components_json"] or "[]"))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                components = []
+            if isinstance(components, list):
+                for component in components:
+                    if not isinstance(component, dict):
+                        continue
+                    applied = component.get("applied")
+                    if not isinstance(applied, (int, float)) or isinstance(applied, bool):
+                        continue
+                    applied_amount = max(0, int(applied))
+                    component_types = component.get("types", [])
+                    if isinstance(component_types, str):
+                        component_types = component_types.split(",")
+                    if not isinstance(component_types, list):
+                        continue
+                    for value in {str(item or "").strip().casefold() for item in component_types}:
+                        if value in damage_by_type:
+                            component_totals[value] = component_totals.get(value, 0) + applied_amount
+            if not component_totals:
+                fallback_types = {
+                    value.strip().casefold() for value in str(row["damage_types"] or "").split(",")
+                    if value.strip().casefold() in damage_by_type
+                }
+                if len(fallback_types) == 1:
+                    component_totals[next(iter(fallback_types))] = logged_amount(row)
+            actor_name = str(row["actor"] or "Unknown character")
+            actor_key = str(row["actor_source_key"] or f"name:{actor_name.casefold()}")
+            for damage_type, applied_amount in component_totals.items():
+                if applied_amount <= 0:
+                    continue
+                actor = damage_by_type[damage_type].setdefault(
+                    actor_key, {"name": actor_name, "damage": 0, "events": 0}
+                )
+                actor["damage"] = int(actor["damage"]) + applied_amount
+                actor["events"] = int(actor["events"]) + 1
+
+        damage_type_leaders = []
+        for damage_type in DND5E_DAMAGE_TYPES:
+            actors = damage_by_type[damage_type]
+            high = max((int(actor["damage"]) for actor in actors.values()), default=0)
+            type_leaders = sorted(
+                (dict(actor) for actor in actors.values() if int(actor["damage"]) == high and high > 0),
+                key=lambda actor: str(actor["name"]).casefold(),
+            )
+            damage_type_leaders.append({
+                "damage_type": damage_type,
+                "leaders": type_leaders,
+                "damage": high,
+            })
+
         critical_hit_leaders, critical_hit_count = leaders("critical_hit")
         critical_miss_leaders, critical_miss_count = leaders("critical_miss")
         return {
@@ -259,6 +324,7 @@ class Repository:
             "critical_hit_leaders": critical_hit_leaders, "critical_hit_count": critical_hit_count,
             "critical_miss_leaders": critical_miss_leaders, "critical_miss_count": critical_miss_count,
             "stat_events": len(stat_rows), "attributed_stat_events": attributed,
+            "damage_type_leaders": damage_type_leaders,
         }
 
     def get_encounter(self, encounter_id: int):

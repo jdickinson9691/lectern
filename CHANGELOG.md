@@ -2,6 +2,7 @@
 
 ### Fantasy Grounds damage types
 
+- Added a Campaign Dashboard **Party Damage Type Leaders** table for all 13 standard 5E damage types, including cumulative applied damage, contributing event counts, and tied leaders.
 - Added Lectern Sync 1.4.1 authoritative post-resolution damage capture with mixed damage components and rolled, applied, resisted, and vulnerability amounts.
 - Fixed empty event metadata being exported as a JSON array; Lectern also recovers affected 1.4.0 snapshots without losing their combat events.
 - Added schema-v9 normalized damage types and component JSON to combat-log rows, plus a **Damage Type** column and damage-type-aware search on the Combat Dashboard.

@@ -956,6 +956,11 @@ class CampaignDashboardPage(QWidget):
         stats_layout.addWidget(self.critical_hits,1,0); stats_layout.addWidget(self.critical_misses,1,1)
         self.stats_coverage=QLabel(); self.stats_coverage.setWordWrap(True); stats_layout.addWidget(self.stats_coverage,2,0,1,2)
         root.addWidget(stats)
+        damage_types=QGroupBox("Party Damage Type Leaders"); damage_types_layout=QVBoxLayout(damage_types)
+        damage_types_note=QLabel("Leaders are based on applied party damage across campaign encounters. Unknown damage and non-damage qualifiers are excluded."); damage_types_note.setWordWrap(True); damage_types_layout.addWidget(damage_types_note)
+        self.damage_type_leaders=QTableWidget(); self.damage_type_leaders.setColumnCount(4); self.damage_type_leaders.setHorizontalHeaderLabels(["Damage Type","Leading Combatant(s)","Applied Damage","Damaging Events"]); self.damage_type_leaders.setAlternatingRowColors(True); self.damage_type_leaders.setSelectionBehavior(QAbstractItemView.SelectRows); self.damage_type_leaders.setEditTriggers(QAbstractItemView.NoEditTriggers); self.damage_type_leaders.verticalHeader().setVisible(False); self.damage_type_leaders.setMinimumHeight(260); self.damage_type_leaders.setMaximumHeight(320)
+        damage_header=self.damage_type_leaders.horizontalHeader(); damage_header.setSectionResizeMode(0,QHeaderView.ResizeToContents); damage_header.setSectionResizeMode(1,QHeaderView.Stretch); damage_header.setSectionResizeMode(2,QHeaderView.ResizeToContents); damage_header.setSectionResizeMode(3,QHeaderView.ResizeToContents)
+        damage_types_layout.addWidget(self.damage_type_leaders); root.addWidget(damage_types)
         self.history=QTableWidget(); self.history.setColumnCount(7); self.history.setHorizontalHeaderLabels(["Encounter","Status","Outcome","Rounds","Combatants","Actions","Completed"]); root.addWidget(self.history,1); self.refresh()
     def refresh(self):
         campaign_id=self.campaigns.currentData(); self.campaigns.blockSignals(True); self.campaigns.clear()
@@ -978,7 +983,7 @@ class CampaignDashboardPage(QWidget):
         if not campaign_id:
             self.summary.setText("Create a campaign, then add encounters to see cumulative results.")
             for label in (self.party_dpr,self.party_hpr,self.critical_hits,self.critical_misses,self.stats_coverage): label.clear()
-            self.history.setRowCount(0); return
+            self.damage_type_leaders.setRowCount(0); self.history.setRowCount(0); return
         s=self.repo.campaign_summary(campaign_id); self.summary.setText(f"<b>{s['total']} encounters</b> · {s['completed'] or 0} completed · {s['victories'] or 0} victories · {s['defeats'] or 0} defeats · {s['retreats'] or 0} retreats · {s['rounds']} rounds · {s['actions']} actions · {s['damage']} damage · {s['healing']} healing")
         hit_names=", ".join(s['critical_hit_leaders']) or "No recorded critical hits"
         miss_names=", ".join(s['critical_miss_leaders']) or "No recorded critical misses"
@@ -988,6 +993,15 @@ class CampaignDashboardPage(QWidget):
         self.critical_misses.setText(f"<b>Critical-miss leader</b><br>{miss_names}<br>{s['critical_miss_count']} critical miss{'es' if s['critical_miss_count'] != 1 else ''}")
         coverage=(100*s['attributed_stat_events']/s['stat_events']) if s['stat_events'] else 0
         self.stats_coverage.setText(f"Statistics coverage: {s['attributed_stat_events']} of {s['stat_events']} attack, damage, and healing events have party/hostile attribution ({coverage:.0f}%). Unattributed events are excluded from party metrics.")
+        damage_rows=s['damage_type_leaders']; self.damage_type_leaders.setRowCount(len(damage_rows))
+        for r,damage_row in enumerate(damage_rows):
+            leaders=damage_row['leaders']; leader_names=", ".join(str(leader['name']) for leader in leaders) or "No recorded party damage"
+            if not leaders: event_text="0"
+            elif len(leaders)==1: event_text=str(leaders[0]['events'])
+            elif len({int(leader['events']) for leader in leaders})==1: event_text=f"{leaders[0]['events']} each"
+            else: event_text="; ".join(f"{leader['name']}: {leader['events']}" for leader in leaders)
+            values=[str(damage_row['damage_type']).replace('-', ' ').title(),leader_names,damage_row['damage'],event_text]
+            for c,value in enumerate(values): self.damage_type_leaders.setItem(r,c,QTableWidgetItem(str(value)))
         rows=self.repo.campaign_encounters(campaign_id); self.history.setRowCount(len(rows))
         for r,row in enumerate(rows):
             for c,value in enumerate([row['name'],row['status'],row['outcome'],row['round'],row['combatant_count'],row['action_count'],row['completed_at'] or '']): self.history.setItem(r,c,QTableWidgetItem(str(value or '')))

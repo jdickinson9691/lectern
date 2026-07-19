@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import sqlite3
@@ -50,7 +51,8 @@ try:
     def log(encounter_id, actor, action_type, details, **fields):
         repo.log_turn(encounter_id, actor, action_type, details, **fields)
 
-    log(encounter_one, "Aria", "Damage", "24 | Ogre | Target HP 20/44 | Sword | 24 damage applied", actor_side="party", amount=24)
+    log(encounter_one, "Aria", "Damage", "24 | Ogre | Target HP 20/44 | Sword | 24 damage applied", actor_side="party", amount=24,
+        damage_types="slashing", damage_components_json=json.dumps([{"types": ["slashing", "magic"], "applied": 24}]))
     log(encounter_one, "Aria", "Healing", "5 | Aria | Target HP 25/44 | Potion | 5 healing applied", actor_side="party", amount=5)
     for _ in range(2):
         log(encounter_one, "Aria", "Attack", "Critical Hit", actor_side="party", result_code="critical_hit", natural_roll=20)
@@ -60,25 +62,43 @@ try:
     log(encounter_one, "Mira", "Healing", "10 | Aria | Target HP 35/44 | Cure Wounds | 10 healing applied", actor_side="party", amount=10)
     log(encounter_one, "Ogre", "Damage", "50 | Aria | Target HP 0/44 | Club | 50 damage applied", actor_side="hostile", amount=50)
     log(encounter_one, "Manual / Unattributed", "Damage", "99 | Unknown | Target HP not reported | Damage | 99 damage applied", actor_side="unknown", amount=99)
-    log(encounter_two, "Aria", "Damage", "16 | Goblin | Target HP 0/7 | Sword | 16 damage applied", actor_side="party", amount=16)
+    log(encounter_two, "Aria", "Damage", "16 | Goblin | Target HP 0/7 | Sword | 16 damage applied", actor_side="party", amount=16,
+        damage_types="slashing", damage_components_json=json.dumps([{"types": ["slashing"], "applied": 16}]))
+    log(encounter_two, "Rook", "Damage", "6 fire damage applied", actor_side="party", amount=6,
+        damage_types="fire, magic", damage_components_json=json.dumps([{"types": ["fire", "magic"], "applied": 6}]))
+    log(encounter_two, "Mira", "Damage", "6 fire damage applied", actor_side="party", amount=6,
+        damage_types="fire", damage_components_json=json.dumps([{"types": ["fire"], "applied": 6}]))
+    log(encounter_two, "Rook", "Damage", "4 poison damage applied", actor_side="party", amount=4,
+        damage_types="poison")
 
     summary = repo.campaign_summary(campaign_id)
     assert summary["combat_rounds"] == 5, "Campaign combat rounds were not aggregated per encounter"
-    assert summary["party_damage"] == 40 and summary["party_dpr"] == 8.0, "Party DPR is incorrect"
+    assert summary["party_damage"] == 56 and summary["party_dpr"] == 11.2, "Party DPR is incorrect"
     assert summary["party_healing"] == 15 and summary["party_hpr"] == 3.0, "Party HPR is incorrect"
     assert summary["critical_hit_leaders"] == ["Aria", "Rook"] and summary["critical_hit_count"] == 2, "Critical-hit tie was not retained"
     assert summary["critical_miss_leaders"] == ["Mira"] and summary["critical_miss_count"] == 2, "Critical-miss leader is incorrect"
-    assert summary["stat_events"] == 12 and summary["attributed_stat_events"] == 11, "Statistics coverage is incorrect"
-    assert summary["damage"] == 189 and summary["healing"] == 15, "Existing all-source totals changed"
+    assert summary["stat_events"] == 15 and summary["attributed_stat_events"] == 14, "Statistics coverage is incorrect"
+    assert summary["damage"] == 205 and summary["healing"] == 15, "Existing all-source totals changed"
+    type_rows = {row["damage_type"]: row for row in summary["damage_type_leaders"]}
+    assert len(type_rows) == 13, "All standard 5E damage types were not reported"
+    assert type_rows["slashing"] == {"damage_type": "slashing", "leaders": [{"name": "Aria", "damage": 40, "events": 2}], "damage": 40}, "Slashing leader is incorrect"
+    assert [leader["name"] for leader in type_rows["fire"]["leaders"]] == ["Mira", "Rook"] and type_rows["fire"]["damage"] == 6, "Fire tie was not retained"
+    assert type_rows["poison"]["leaders"] == [{"name": "Rook", "damage": 4, "events": 1}], "Single-type legacy fallback is incorrect"
+    assert not type_rows["acid"]["leaders"] and "magic" not in type_rows, "Unknown or non-damage qualifiers were included"
 
     app = QApplication.instance() or QApplication([])
     page = CampaignDashboardPage(repo, lambda: None)
     page.campaigns.setCurrentIndex(page.campaigns.findData(campaign_id))
     page.refresh_dashboard()
     app.processEvents()
-    assert "8.0" in page.party_dpr.text() and "3.0" in page.party_hpr.text(), "DPR/HPR cards were not populated"
+    assert "11.2" in page.party_dpr.text() and "3.0" in page.party_hpr.text(), "DPR/HPR cards were not populated"
     assert "Aria, Rook" in page.critical_hits.text() and "Mira" in page.critical_misses.text(), "Critical leader cards were not populated"
-    assert "11 of 12" in page.stats_coverage.text(), "Coverage note was not populated"
+    assert "14 of 15" in page.stats_coverage.text(), "Coverage note was not populated"
+    ui_type_rows = {page.damage_type_leaders.item(row, 0).text(): row for row in range(page.damage_type_leaders.rowCount())}
+    assert len(ui_type_rows) == 13, "Damage-type leader table does not show every standard type"
+    fire_row = ui_type_rows["Fire"]
+    assert page.damage_type_leaders.item(fire_row, 1).text() == "Mira, Rook" and page.damage_type_leaders.item(fire_row, 2).text() == "6" and page.damage_type_leaders.item(fire_row, 3).text() == "1 each", "Damage-type tie was not rendered"
+    assert page.damage_type_leaders.item(ui_type_rows["Acid"], 1).text() == "No recorded party damage", "Empty damage type state was not rendered"
     page.close()
 
     print("Campaign Dashboard statistics test passed.")

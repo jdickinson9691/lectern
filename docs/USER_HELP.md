@@ -67,8 +67,11 @@ The campaign summary includes:
 - Party healing per round (HPR), using applied healing credited to party actors
 - The character or tied characters with the most critical hits
 - The character or tied characters with the most critical misses (authoritative natural-1 attack results)
+- A **Party Damage Type Leaders** table covering acid, bludgeoning, cold, fire, force, lightning, necrotic, piercing, poison, psychic, radiant, slashing, and thunder
 
 DPR and HPR divide party totals by the sum of the highest logged round in each campaign encounter. Rolled-but-unapplied damage, hostile actions, and manual or unattributed events are excluded. The statistics coverage note shows how many attack, damage, and healing events have enough actor affiliation data to classify them safely.
+
+For each standard 5E damage type, the leaders table shows the party combatant or tied combatants with the highest cumulative applied damage, the leading total, and the number of contributing damage events. It uses Fantasy Grounds component-level applied values so mixed damage is allocated to the correct types after resistance, immunity, vulnerability, and similar adjustments. Older rows are counted only when they identify exactly one standard damage type. Unknown damage and qualifiers such as `magic`, `silver`, or `adamantine` are excluded rather than guessed.
 
 Historical Fantasy Grounds events gain normalized affiliation, amount, and critical-result fields when they are imported or reprocessed. Older local entries that cannot be attributed remain in the combat log and existing overall totals but are not guessed into party statistics.
 
