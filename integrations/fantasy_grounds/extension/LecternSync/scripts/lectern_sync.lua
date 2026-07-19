@@ -1,7 +1,7 @@
--- Lectern Sync 1.3.1
+-- Lectern Sync 1.4.0
 -- One-way Fantasy Grounds Unity 5E export. This script never writes FG database nodes.
 
-local EXTENSION_VERSION = "1.3.1"
+local EXTENSION_VERSION = "1.4.0"
 local SCHEMA_VERSION = 1
 local bExporting = false
 local tCachedSnapshot = nil
@@ -21,10 +21,10 @@ local bHaveCombatBaseline = false
 local bLastCombatActive = false
 local tLastRollContext = nil
 local bHaveAuthoritativeAttackHook = false
+local bHaveAuthoritativeDamageHook = false
 local bWarnedNoSession = false
 local saveSessionState = nil
 local sPersistedEventsJSON = ""
-local nPersistedJournalCount = 0
 
 local tFallbackMappings = {
   class = { "class", "reference.classdata", "reference.classes" },
@@ -33,6 +33,13 @@ local tFallbackMappings = {
   feat = { "feat", "reference.featdata", "reference.feats" },
   background = { "background", "reference.backgrounddata", "reference.backgrounds" },
   battle = { "battle", "reference.battledata", "reference.battles" },
+}
+
+local tSupportedDamageTypes = {
+  acid = true, bludgeoning = true, cold = true, fire = true, force = true,
+  lightning = true, necrotic = true, piercing = true, poison = true,
+  psychic = true, radiant = true, slashing = true, thunder = true,
+  adamantine = true, ["cold-forged iron"] = true, magic = true, silver = true,
 }
 
 local function chat(sText)
@@ -509,6 +516,54 @@ local function rollActionName(sDescription)
   return s
 end
 
+local function appendUnique(tValues, sValue)
+  sValue = tostring(sValue or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+  if not tSupportedDamageTypes[sValue] then return end
+  for _, sExisting in ipairs(tValues) do if sExisting == sValue then return end end
+  table.insert(tValues, sValue)
+end
+
+local function damageTypesFromText(sText)
+  local tTypes = {}
+  for sValue in tostring(sText or ""):gmatch("[^,]+") do appendUnique(tTypes, sValue) end
+  return tTypes
+end
+
+local function damageDataFromDescription(sDescription)
+  local tTypes, tComponents = {}, {}
+  for sTypeText in tostring(sDescription or ""):gmatch("%[TYPE:%s*([^%]]+)%]") do
+    local sTotal = sTypeText:match("%(([%+%-]?%d+)%)%s*$")
+    local sCleanTypes = sTypeText:gsub("%s*%([%+%-]?%d+%)%s*$", "")
+    local tComponentTypes = damageTypesFromText(sCleanTypes)
+    for _, sType in ipairs(tComponentTypes) do appendUnique(tTypes, sType) end
+    if #tComponentTypes > 0 then
+      table.insert(tComponents, {
+        types = tComponentTypes,
+        rolled = tonumber(sTotal) or JSON_NULL,
+        applied = JSON_NULL,
+      })
+    end
+  end
+  return tTypes, tComponents
+end
+
+local function damageDataFromResults(rRoll)
+  local tTypes, tComponents = {}, {}
+  for sTypeText, tResult in pairs((rRoll and rRoll.tResults) or {}) do
+    local tComponentTypes = damageTypesFromText(sTypeText)
+    for _, sType in ipairs(tComponentTypes) do appendUnique(tTypes, sType) end
+    table.insert(tComponents, {
+      types = tComponentTypes,
+      rolled = tonumber(tResult.nBase) or 0,
+      applied = tonumber(tResult.nTotal) or 0,
+      resisted = tonumber(tResult.nResist) or 0,
+      vulnerable = tonumber(tResult.nVulnerable) or 0,
+    })
+  end
+  if #tTypes == 0 then table.insert(tTypes, "unknown") end
+  return tTypes, tComponents
+end
+
 local function contextForAppliedChange(tTarget, sKind)
   local tContext = tLastRollContext
   if not tContext or tContext.action_kind ~= sKind then return {} end
@@ -587,6 +642,7 @@ local function updateCombatBaseline(tCombat, bRecordEvents)
           "Wounds increased from " .. tostring(tPrevious.wounds) .. " to " .. tostring(nWounds),
           { action_name = tContext.action_name or JSON_NULL, raw_roll = tContext.raw_roll or JSON_NULL,
             modifier = tContext.modifier or JSON_NULL, roll_total = tContext.roll_total or JSON_NULL,
+            damage_types = tContext.damage_types or {}, damage_components = tContext.damage_components or {},
             adjustment = nAdjustment or JSON_NULL, attribution = bAttributed and "matched_recent_roll" or "manual_or_unattributed",
             previous_wounds = tPrevious.wounds, current_wounds = nWounds,
             current_hp = tHP.current, maximum_hp = tHP.maximum }, tCombat)
@@ -653,7 +709,6 @@ local function loadSessionState()
   nEventSequence = tonumber(aLines[7]) or 0
   local sSnapshot = File.openTextFile(handoffFolder() .. "/snapshot.json")
   sPersistedEventsJSON = extractArrayContents(sSnapshot or "", "events")
-  nPersistedJournalCount = 0
 end
 
 local function initializeSequence()
@@ -711,7 +766,7 @@ local function saveSnapshot(tSnapshot)
   tSnapshot.sequence = nSequence + 1
   tSnapshot.generated_at = isoTimestamp()
   local aNewEvents = {}
-  for nIndex = nPersistedJournalCount + 1, #aEventJournal do
+  for nIndex = 1, #aEventJournal do
     table.insert(aNewEvents, encodeJSON(aEventJournal[nIndex]))
   end
   local sMergedEvents = sPersistedEventsJSON
@@ -731,8 +786,6 @@ local function saveSnapshot(tSnapshot)
     error("Snapshot file could not be read after writing; create the lectern-sync folder from Lectern first")
   end
   nSequence = tSnapshot.sequence
-  sPersistedEventsJSON = sMergedEvents
-  nPersistedJournalCount = #aEventJournal
   writeStatus("ready", "Snapshot exported", "")
 end
 
@@ -819,6 +872,54 @@ local function authoritativeAttackResolved(rSource, rTarget, rRoll)
   exportCombatUpdate()
 end
 
+local function sameEventTarget(tEvent, tTarget)
+  if not tTarget or tTarget == JSON_NULL then return true end
+  local tEventTarget = tEvent and tEvent.target
+  if not tEventTarget or tEventTarget == JSON_NULL then return true end
+  return tEventTarget.source_key == tTarget.source_key
+end
+
+local function authoritativeDamageResolved(rSource, rTarget, rRoll)
+  if not Session.IsHost or not rRoll then return end
+  local tCombat = combatState()
+  local tActorEntry = combatantForActor(rSource, tCombat)
+  local tTargetEntry = combatantForActor(rTarget, tCombat)
+  local tActor = participantForCombatant(tActorEntry)
+  local tTarget = participantForCombatant(tTargetEntry)
+  local tDamageTypes, tComponents = damageDataFromResults(rRoll)
+  local nApplied = 0
+  for _, tComponent in ipairs(tComponents) do nApplied = nApplied + (tonumber(tComponent.applied) or 0) end
+  local bAppliedEventFound = false
+  local nUpdated = 0
+  for nIndex = #aEventJournal, math.max(1, #aEventJournal - 5), -1 do
+    local tEvent = aEventJournal[nIndex]
+    local tMetadata = tEvent.metadata or {}
+    local bDamageRoll = tEvent.type == "action" and
+      tostring(tMetadata.roll_type or ""):lower():find("damage", 1, true)
+    if sameEventTarget(tEvent, tTarget) and (tEvent.type == "damage" or bDamageRoll) then
+      tMetadata.damage_types = tDamageTypes
+      tMetadata.damage_components = tComponents
+      tMetadata.damage_resolution = "authoritative"
+      tEvent.metadata = tMetadata
+      if tEvent.type == "damage" then bAppliedEventFound = true end
+      nUpdated = nUpdated + 1
+      if nUpdated >= 2 then break end
+    end
+  end
+  if not bAppliedEventFound then
+    local tHP = tTargetEntry and tTargetEntry.hit_points or {}
+    appendEvent("damage", tActor, tTarget, nApplied,
+      "Damage resolved by Fantasy Grounds", {
+        action_name = rollActionName(rRoll.sDesc or "Damage"),
+        roll_total = tonumber(rRoll.nTotal) or JSON_NULL,
+        damage_types = tDamageTypes, damage_components = tComponents,
+        damage_resolution = "authoritative", attribution = "matched_recent_roll",
+        current_hp = tHP.current or JSON_NULL, maximum_hp = tHP.maximum or JSON_NULL,
+      }, tCombat)
+  end
+  exportCombatUpdate()
+end
+
 local function onDiceLanded(draginfo)
   if not Session.IsHost then return end
   local sRollType = tostring(diceValue(draginfo, "getType", "roll") or "roll")
@@ -843,20 +944,35 @@ local function onDiceLanded(draginfo)
   if sEventType == "attack" and sResult == JSON_NULL and nTotal and nTargetAC then
     sResult = nTotal >= nTargetAC and "Hit" or "Miss"
   end
+  local tDamageTypes, tDamageComponents = {}, {}
+  if sLower:find("damage", 1, true) then
+    tDamageTypes, tDamageComponents = damageDataFromDescription(sDescription)
+  end
   tLastRollContext = {
     actor = tActor, target = tTarget, action_name = sActionName,
     action_kind = sLower:find("damage", 1, true) and "damage" or
       (sLower:find("heal", 1, true) and "healing" or sEventType),
     raw_roll = nRawRoll or JSON_NULL, modifier = nModifier,
     roll_total = nTotal or JSON_NULL, result = sResult,
+    damage_types = tDamageTypes, damage_components = tDamageComponents,
     captured_at = os and os.time and os.time() or 0,
   }
   appendEvent(sEventType, tActor, tTarget, nil, sDescription,
     { action_name = sActionName, roll_type = sRollType,
       raw_roll = nRawRoll or JSON_NULL, modifier = nModifier,
       roll_total = nTotal or JSON_NULL, target_ac = nTargetAC or JSON_NULL,
-      result = sResult }, tCombat)
+      result = sResult, damage_types = tDamageTypes,
+      damage_components = tDamageComponents }, tCombat)
   exportCombatUpdate()
+end
+
+local function archiveCurrentJournal()
+  if #aEventJournal == 0 then return end
+  local tEncoded = {}
+  for _, tEvent in ipairs(aEventJournal) do table.insert(tEncoded, encodeJSON(tEvent)) end
+  if sPersistedEventsJSON ~= "" then sPersistedEventsJSON = sPersistedEventsJSON .. "," end
+  sPersistedEventsJSON = sPersistedEventsJSON .. table.concat(tEncoded, ",")
+  aEventJournal = {}
 end
 
 local function startEncounter(_, sParameters)
@@ -876,8 +992,7 @@ local function startEncounter(_, sParameters)
   sOutcome = nil
   sCompletedAt = nil
   nEventSequence = 0
-  aEventJournal = {}
-  nPersistedJournalCount = 0
+  archiveCurrentJournal()
   tLastCombatants = {}
   sLastActiveKey = nil
   bHaveCombatBaseline = false
@@ -941,7 +1056,6 @@ local function resetEncounterJournal(_, sParameters)
   nEventSequence = 0
   aEventJournal = {}
   sPersistedEventsJSON = ""
-  nPersistedJournalCount = 0
   tLastCombatants = {}
   sLastActiveKey = nil
   bHaveCombatBaseline = false
@@ -975,7 +1089,9 @@ function onInit()
   Comm.addKeyedEventHandler("onDiceLanded", "", onDiceLanded)
   if GameManager and type(GameManager.addEventFunction) == "function" then
     GameManager.addEventFunction("onAttackPostResolve", authoritativeAttackResolved)
+    GameManager.addEventFunction("onDamagePostResolve", authoritativeDamageResolved)
     bHaveAuthoritativeAttackHook = true
+    bHaveAuthoritativeDamageHook = true
   end
   DB.addHandler("combattracker.list.*.wounds", "onUpdate", onCombatTrackerChanged)
   DB.addHandler("combattracker.list.*.hptemp", "onUpdate", onCombatTrackerChanged)
@@ -998,6 +1114,9 @@ function onClose()
   pcall(saveSessionState)
   if bHaveAuthoritativeAttackHook and GameManager and type(GameManager.removeEventFunction) == "function" then
     GameManager.removeEventFunction("onAttackPostResolve", authoritativeAttackResolved)
+  end
+  if bHaveAuthoritativeDamageHook and GameManager and type(GameManager.removeEventFunction) == "function" then
+    GameManager.removeEventFunction("onDamagePostResolve", authoritativeDamageResolved)
   end
   DB.removeHandler("combattracker.list.*.wounds", "onUpdate", onCombatTrackerChanged)
   DB.removeHandler("combattracker.list.*.hptemp", "onUpdate", onCombatTrackerChanged)

@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 from pathlib import Path
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -788,7 +789,7 @@ class CombatDashboardPage(QWidget):
         root.addLayout(buttons)
         logrow=QHBoxLayout(); self.action=QComboBox(); self.action.addItems(["Attack","Spell","Save","Condition","Reaction","Lair Action","Note"]); self.details=QLineEdit(); self.details.setPlaceholderText("Action details"); self.add_log_button=QPushButton("Log Action"); self.add_log_button.clicked.connect(self.log_action); logrow.addWidget(self.action); logrow.addWidget(self.details); logrow.addWidget(self.add_log_button); root.addLayout(logrow)
         self.external_notice=QLabel("Fantasy Grounds controls this encounter. Source-owned combat fields are read-only in Lectern."); self.external_notice.setWordWrap(True); self.external_notice.setVisible(False); root.addWidget(self.external_notice)
-        log_filters=QHBoxLayout(); self.log_search=QLineEdit(); self.log_search.setPlaceholderText("Search actor, target, action, or result"); self.log_search.setClearButtonEnabled(True); self.log_search.textChanged.connect(self.refresh_log)
+        log_filters=QHBoxLayout(); self.log_search=QLineEdit(); self.log_search.setPlaceholderText("Search actor, target, action, damage type, or result"); self.log_search.setClearButtonEnabled(True); self.log_search.textChanged.connect(self.refresh_log)
         self.log_action_filter=QComboBox(); self.log_action_filter.addItem("All action types", ""); self.log_action_filter.currentIndexChanged.connect(self.refresh_log)
         self.log_result_filter=QComboBox(); self.log_result_filter.addItem("All results", "")
         for label,key in (("Critical hits","critical"),("Hits","hit"),("Misses","miss"),("Damage","damage"),("Healing","healing"),("Manual / unattributed","manual")): self.log_result_filter.addItem(label,key)
@@ -797,8 +798,8 @@ class CombatDashboardPage(QWidget):
         self.log_count=QLabel("0 events")
         for w in (self.log_search,self.log_action_filter,self.log_result_filter,self.hide_system_events,self.log_count): log_filters.addWidget(w)
         root.addLayout(log_filters)
-        self.log_tree=QTreeWidget(); self.log_tree.setColumnCount(7); self.log_tree.setHeaderLabels(["Actor","Type","Roll","Target","Defense / HP","Action","Result"]); self.log_tree.setAlternatingRowColors(True); self.log_tree.setRootIsDecorated(True); self.log_tree.setUniformRowHeights(False); self.log_tree.setSelectionBehavior(QAbstractItemView.SelectRows); self.log_tree.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        header=self.log_tree.header(); header.setSectionResizeMode(0,QHeaderView.ResizeToContents); header.setSectionResizeMode(1,QHeaderView.ResizeToContents); header.setSectionResizeMode(2,QHeaderView.ResizeToContents); header.setSectionResizeMode(3,QHeaderView.ResizeToContents); header.setSectionResizeMode(4,QHeaderView.ResizeToContents); header.setSectionResizeMode(5,QHeaderView.ResizeToContents); header.setSectionResizeMode(6,QHeaderView.Stretch)
+        self.log_tree=QTreeWidget(); self.log_tree.setColumnCount(8); self.log_tree.setHeaderLabels(["Actor","Type","Roll","Target","Defense / HP","Action","Damage Type","Result"]); self.log_tree.setAlternatingRowColors(True); self.log_tree.setRootIsDecorated(True); self.log_tree.setUniformRowHeights(False); self.log_tree.setSelectionBehavior(QAbstractItemView.SelectRows); self.log_tree.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        header=self.log_tree.header(); header.setSectionResizeMode(0,QHeaderView.ResizeToContents); header.setSectionResizeMode(1,QHeaderView.ResizeToContents); header.setSectionResizeMode(2,QHeaderView.ResizeToContents); header.setSectionResizeMode(3,QHeaderView.ResizeToContents); header.setSectionResizeMode(4,QHeaderView.ResizeToContents); header.setSectionResizeMode(5,QHeaderView.ResizeToContents); header.setSectionResizeMode(6,QHeaderView.ResizeToContents); header.setSectionResizeMode(7,QHeaderView.Stretch)
         self.log_tree.itemDoubleClicked.connect(self.toggle_log_details); root.addWidget(self.log_tree,1); self.refresh()
     def refresh(self):
         previous_id=self.current_encounter_id; encounters=list(self.repo.list_encounters())
@@ -883,13 +884,33 @@ class CombatDashboardPage(QWidget):
             events=grouped[round_no]
             round_item=QTreeWidgetItem([f"Round {round_no} - {len(events)} event{'s' if len(events)!=1 else ''}"]); round_item.setFirstColumnSpanned(True); round_item.setFont(0,QFont('',10,QFont.Bold)); round_item.setBackground(0,QBrush(QColor('#2f3540'))); self.log_tree.addTopLevelItem(round_item)
             for row,fields in events:
-                item=QTreeWidgetItem([fields['actor'],fields['type'],fields['roll'],fields['target'],fields['defense'],fields['action'],fields['result']]); item.setData(0,Qt.UserRole,row['id']); item.setToolTip(6,"Double-click to show the original event details")
-                background,foreground=self.LOG_BADGES.get(fields['category'],self.LOG_BADGES['default']); item.setBackground(6,QBrush(QColor(background))); item.setForeground(6,QBrush(QColor(foreground))); item.setFont(6,QFont('',9,QFont.Bold))
+                item=QTreeWidgetItem([fields['actor'],fields['type'],fields['roll'],fields['target'],fields['defense'],fields['action'],fields['damage_type'],fields['result']]); item.setData(0,Qt.UserRole,row['id']); item.setToolTip(7,"Double-click to show the original event details")
+                background,foreground=self.LOG_BADGES.get(fields['category'],self.LOG_BADGES['default']); item.setBackground(7,QBrush(QColor(background))); item.setForeground(7,QBrush(QColor(foreground))); item.setFont(7,QFont('',9,QFont.Bold))
                 detail_text=f"Original: {row['details'] or '(none)'}"
+                component_summary=self.damage_component_summary(row['damage_components_json'])
+                if component_summary: detail_text+=f"  -  Components: {component_summary}"
                 if row['created_at']: detail_text+=f"  -  {row['created_at']}"
                 detail=QTreeWidgetItem([detail_text]); detail.setFirstColumnSpanned(True); detail.setForeground(0,QBrush(QColor('#bdc1c6'))); item.addChild(detail); round_item.addChild(item); shown+=1
             round_item.setExpanded(True)
         self.log_count.setText(f"{shown} event{'s' if shown!=1 else ''}")
+
+    @staticmethod
+    def damage_component_summary(raw_json):
+        try: components=json.loads(str(raw_json or '[]'))
+        except (TypeError,ValueError,json.JSONDecodeError): return ''
+        summaries=[]
+        for component in components if isinstance(components,list) else []:
+            if not isinstance(component,dict): continue
+            types=component.get('types') if isinstance(component.get('types'),list) else []
+            label=' + '.join(str(value) for value in types if value) or 'unknown'
+            rolled=component.get('rolled'); applied=component.get('applied')
+            summary=f"{label}: {rolled if rolled is not None else '?'} rolled -> {applied if applied is not None else '?'} applied"
+            adjustments=[]
+            if component.get('resisted'): adjustments.append(f"{component['resisted']} resisted")
+            if component.get('vulnerable'): adjustments.append(f"+{component['vulnerable']} vulnerable")
+            if adjustments: summary+=f" ({', '.join(adjustments)})"
+            summaries.append(summary)
+        return '; '.join(summaries)
 
     @staticmethod
     def combat_log_fields(row):
@@ -908,8 +929,10 @@ class CombatDashboardPage(QWidget):
         elif 'damage' in action_type.casefold() or 'damage applied' in combined: category='damage'
         else: category='default'
         system=action_type.casefold() in {'turn start','turn end'}
-        search=' '.join((actor,action_type,details,roll,target,defense,action,result)).casefold()
-        return {'actor':actor,'type':action_type,'roll':roll,'target':target,'defense':defense,'action':action,'result':result,'category':category,'system':system,'search':search}
+        damage_type=str(row['damage_types'] or '')
+        if category=='damage' and not damage_type: damage_type='Not reported'
+        search=' '.join((actor,action_type,details,roll,target,defense,action,damage_type,result)).casefold()
+        return {'actor':actor,'type':action_type,'roll':roll,'target':target,'defense':defense,'action':action,'damage_type':damage_type,'result':result,'category':category,'system':system,'search':search}
 
     @staticmethod
     def toggle_log_details(item,_column):

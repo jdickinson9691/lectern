@@ -16,7 +16,7 @@ This folder is now the canonical evolving source tree for the Lectern - D&D Camp
    `.venv\Scripts\python.exe scripts\fantasy_grounds_reprocessing_test.py`
    `.venv\Scripts\python.exe scripts\campaign_dashboard_stats_test.py`
 
-   The Fantasy Grounds regression covers event validation, duplicate suppression, explicit durable encounter sessions, final-roster retention, dashboard-compatible damage and healing rows, and encounter outcomes. Complete the live checklist in `docs\FANTASY_GROUNDS_RUN_TOGETHER.md` before release.
+   The Fantasy Grounds regression covers event validation, duplicate suppression, explicit durable encounter sessions, final-roster retention, authoritative mixed damage types/components, dashboard-compatible damage and healing rows, and encounter outcomes. Complete the live checklist in `docs\FANTASY_GROUNDS_RUN_TOGETHER.md` before release.
 5. Install the unpacked Fantasy Grounds extension into a development data folder:
    `scripts\Install-FantasyGroundsExtension.ps1 -FantasyGroundsDataPath "<path>"`
 6. Build only when ready to test the packaged executable and `LecternSync.ext`:

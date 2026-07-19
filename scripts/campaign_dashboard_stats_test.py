@@ -32,7 +32,7 @@ try:
         columns = {row[1] for row in conn.execute("PRAGMA table_info(turn_log)")}
         assert {"actor_source_key", "actor_side", "amount", "result_code", "natural_roll"} <= columns, "Schema-v8 log columns were not migrated"
         assert conn.execute("SELECT details FROM turn_log").fetchone()[0] == "Legacy row", "Schema migration changed a historical log row"
-        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == "8"
+        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == "9"
 
     db = temp_dir / "lectern.db"
     initialize_database(db)

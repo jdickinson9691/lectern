@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,6 +24,11 @@ ACTION_TYPES = {
     "healing": "Healing", "outcome": "Outcome", "save": "Save", "spell": "Spell",
     "turn_end": "Turn End", "turn_start": "Turn Start",
 }
+FG_DAMAGE_TYPES = (
+    "acid", "bludgeoning", "cold", "fire", "force", "lightning", "necrotic",
+    "piercing", "poison", "psychic", "radiant", "slashing", "thunder",
+    "adamantine", "cold-forged iron", "magic", "silver",
+)
 
 
 class FantasyGroundsSyncError(ValueError):
@@ -49,6 +55,8 @@ class FormattedLogEvent:
     amount: int | None = None
     result_code: str = ""
     natural_roll: int | None = None
+    damage_types: str = ""
+    damage_components_json: str = "[]"
 
 
 @dataclass(frozen=True)
@@ -270,6 +278,63 @@ def _field(fields: dict[str, Any], *names: str, default: Any = None) -> Any:
     return default
 
 
+def _damage_metadata(metadata: dict[str, Any], description: str, is_damage: bool) -> tuple[str, str]:
+    """Return canonical damage types and component JSON, with legacy description fallback."""
+    types: list[str] = []
+    components: list[dict[str, Any]] = []
+
+    def add_type(value: Any) -> None:
+        candidate = str(value or "").strip().casefold()
+        if candidate in FG_DAMAGE_TYPES and candidate not in types:
+            types.append(candidate)
+
+    raw_types = metadata.get("damage_types")
+    if isinstance(raw_types, list):
+        for value in raw_types:
+            add_type(value)
+    elif isinstance(raw_types, str):
+        for value in raw_types.split(","):
+            add_type(value)
+
+    raw_components = metadata.get("damage_components")
+    if isinstance(raw_components, list):
+        for raw in raw_components:
+            if not isinstance(raw, dict):
+                continue
+            component_types = raw.get("types")
+            if isinstance(component_types, str):
+                component_types = component_types.split(",")
+            normalized_types: list[str] = []
+            if isinstance(component_types, list):
+                for value in component_types:
+                    candidate = str(value or "").strip().casefold()
+                    if candidate in FG_DAMAGE_TYPES and candidate not in normalized_types:
+                        normalized_types.append(candidate)
+                        add_type(candidate)
+            component: dict[str, Any] = {"types": normalized_types}
+            for key in ("rolled", "applied", "resisted", "vulnerable"):
+                value = raw.get(key)
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    component[key] = value
+            if normalized_types or len(component) > 1:
+                components.append(component)
+
+    if not types and is_damage:
+        lower_description = description.casefold()
+        for match in re.finditer(r"\[type:\s*([^\]]+)\]", lower_description):
+            type_text = re.sub(r"\s*\([-+]?\d+(?:\.\d+)?\)\s*$", "", match.group(1))
+            for value in type_text.split(","):
+                add_type(value)
+        if not types:
+            for candidate in FG_DAMAGE_TYPES:
+                if re.search(rf"(?<![a-z-]){re.escape(candidate)}(?![a-z-])", lower_description):
+                    add_type(candidate)
+
+    if is_damage and not types:
+        types.append("unknown")
+    return ", ".join(types), _json(components)
+
+
 def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
     """Convert one Fantasy Grounds event into the canonical Lectern log fields."""
     if not isinstance(event, dict):
@@ -311,6 +376,9 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
     is_damage_roll = event_type == "action" and "damage" in (
         f"{metadata.get('roll_type', '')} {description}"
     ).lower()
+    damage_types, damage_components_json = _damage_metadata(
+        metadata, description, is_damage_roll or event_type == "damage"
+    )
     action_type = "Damage Roll" if is_damage_roll else ACTION_TYPES[event_type]
     lifecycle = str(metadata.get("lifecycle") or "")
     if lifecycle == "encounter_start":
@@ -392,7 +460,7 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
     normalized_amount = applied if event_type in {"damage", "healing"} else None
     return FormattedLogEvent(
         actor_name, action_type, details, incomplete, actor_source_key, actor_side,
-        normalized_amount, result_code, natural_roll,
+        normalized_amount, result_code, natural_roll, damage_types, damage_components_json,
     )
 
 
@@ -596,10 +664,12 @@ class FantasyGroundsSyncService:
                 current = (
                     row["actor"], row["action_type"], row["details"], row["actor_source_key"],
                     row["actor_side"], row["amount"], row["result_code"], row["natural_roll"],
+                    row["damage_types"], row["damage_components_json"],
                 )
                 desired = (
                     formatted.actor, formatted.action_type, formatted.details, formatted.actor_source_key,
                     actor_side, formatted.amount, formatted.result_code, formatted.natural_roll,
+                    formatted.damage_types, formatted.damage_components_json,
                 )
                 if row["log_id"] is not None and current != desired:
                     improvable += 1
@@ -633,16 +703,19 @@ class FantasyGroundsSyncService:
                     desired = (
                         formatted.actor, formatted.action_type, formatted.details, formatted.actor_source_key,
                         actor_side, formatted.amount, formatted.result_code, formatted.natural_roll,
+                        formatted.damage_types, formatted.damage_components_json,
                     )
                     current = (
                         row["actor"], row["action_type"], row["details"], row["actor_source_key"],
                         row["actor_side"], row["amount"], row["result_code"], row["natural_roll"],
+                        row["damage_types"], row["damage_components_json"],
                     )
                     if current != desired:
                         conn.execute(
                             """
                             UPDATE turn_log SET actor=?,action_type=?,details=?,actor_source_key=?,
-                                actor_side=?,amount=?,result_code=?,natural_roll=? WHERE id=?
+                                actor_side=?,amount=?,result_code=?,natural_roll=?,damage_types=?,
+                                damage_components_json=? WHERE id=?
                             """,
                             (*desired, row["turn_log_id"]),
                         )
@@ -665,7 +738,8 @@ class FantasyGroundsSyncService:
                 """
                 SELECT ee.source_id,ee.encounter_id,ee.turn_log_id,ee.raw_json,
                        tl.id AS log_id,tl.actor,tl.action_type,tl.details,tl.actor_source_key,
-                       tl.actor_side,tl.amount,tl.result_code,tl.natural_roll
+                       tl.actor_side,tl.amount,tl.result_code,tl.natural_roll,
+                       tl.damage_types,tl.damage_components_json
                 FROM external_events ee
                 JOIN external_sources es ON es.id=ee.source_id AND es.provider=?
                 LEFT JOIN turn_log tl ON tl.id=ee.turn_log_id
@@ -1027,12 +1101,13 @@ class FantasyGroundsSyncService:
                 """
                 INSERT INTO turn_log(
                     encounter_id,round,actor,action_type,details,actor_source_key,actor_side,
-                    amount,result_code,natural_roll,created_at
-                ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
+                    amount,result_code,natural_roll,damage_types,damage_components_json,created_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """,
                 (encounter_id, max(1, int(event["round"])), formatted.actor,
                  formatted.action_type, formatted.details, formatted.actor_source_key, actor_side,
-                 formatted.amount, formatted.result_code, formatted.natural_roll, event["timestamp"]),
+                 formatted.amount, formatted.result_code, formatted.natural_roll,
+                 formatted.damage_types, formatted.damage_components_json, event["timestamp"]),
             )
             turn_log_id = int(cursor.lastrowid)
             conn.execute(

@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <root version="4.0" release="1">
-  <announcement text="Lectern Sync 1.3.1 - durable encounter sessions with safe test reset" />
+  <announcement text="Lectern Sync 1.4.0 - authoritative component-aware damage types" />
   <properties>
     <name>Lectern Sync</name>
-    <version>1.3.1</version>
+    <version>1.4.0</version>
     <author>Lectern</author>
-    <description>One-way Fantasy Grounds Unity 5E catalog and durable explicit combat-session export for Lectern.</description>
+    <description>One-way Fantasy Grounds Unity 5E catalog and durable combat-session export with authoritative component-aware damage types for Lectern.</description>
     <ruleset>
       <name>5E</name>
     </ruleset>

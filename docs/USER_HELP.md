@@ -143,9 +143,11 @@ Campaign statistics use the saved encounter and combat-log records.
 
 ### Review the combat log
 
-The structured log groups events by round and separates actor, action type, roll calculation, target, defense or resulting HP, named action, and result. Result cells use both text and color to distinguish critical hits, hits, misses, damage, healing, and manual or unattributed changes.
+The structured log groups events by round and separates actor, action type, roll calculation, target, defense or resulting HP, named action, damage type, and result. Result cells use both text and color to distinguish critical hits, hits, misses, damage, healing, and manual or unattributed changes.
 
-- Enter text in **Search actor, target, action, or result** to narrow the visible rows.
+Fantasy Grounds damage rows can report one or several types, such as `slashing`, `fire`, or `slashing, fire`. Expand a row to inspect component-level rolled and applied totals after resistance, immunity, vulnerability, and other Fantasy Grounds adjustments. Manual HP changes and older events without reliable source evidence display `unknown`; Lectern does not guess a type.
+
+- Enter text in **Search actor, target, action, damage type, or result** to narrow the visible rows.
 - Use the action-type and result filters together when reviewing a busy encounter.
 - Keep **Hide turn markers** enabled to focus on resolved actions, or clear it to include turn-start and turn-end events.
 - Double-click an event row to expand its original stored details and timestamp.
@@ -359,7 +361,7 @@ Run `/lectern-export` once after each Fantasy Grounds campaign start and after c
 
 ### Start and end a combat encounter
 
-Lectern Sync 1.3.1 uses explicit encounter boundaries so a Fantasy Grounds reload cannot silently split one combat into several Lectern encounters.
+Lectern Sync 1.4.0 uses explicit encounter boundaries so a Fantasy Grounds reload cannot silently split one combat into several Lectern encounters. It also captures authoritative damage types and mixed damage components from the 5E ruleset.
 
 1. Populate the Combat Tracker and prepare initiative.
 2. In Fantasy Grounds chat, enter `/lectern-start Encounter Name` before the first combat roll.
@@ -413,6 +415,8 @@ The completion message reports updated, unchanged, incomplete, and failed events
 Reprocessing can restore only values present in the original imported event. It cannot reconstruct actor, target, roll, defense, damage, healing, or result information that the Fantasy Grounds extension did not capture at the time.
 
 For incomplete older dice events, Lectern preserves any reported die total and labels missing actor, target, defense, action, or result fields as not reported. These events may belong to an older `live-combat` encounter, while later fully attributed events appear under the session-specific Fantasy Grounds encounter.
+
+When preserved metadata or an original `[TYPE: ...]` description contains a recognized damage type, reprocessing also backfills the normalized damage-type field. Otherwise the type remains `unknown`.
 
 ### Sync troubleshooting
 
