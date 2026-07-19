@@ -17,7 +17,7 @@ Generated `dist`, `release`, and PyInstaller work folders remain excluded from G
 
 - Dashboard with current campaigns and encounter counts.
 - Campaign management with encounters, outcomes, history, and cumulative combat results.
-- Encounter Builder and initiative-based Combat Dashboard with persistent combat logs.
+- Encounter Builder and initiative-based Combat Dashboard with persistent structured combat logs, round grouping, result highlighting, combined search/filter controls, and expandable original event details.
 - Player Character Editor covering general details, abilities, equipment, inventory, combat, skills, saving throws, and notes.
 - SRD-driven species bonuses and feat ability choices.
 - Reviewed character PDF import for common D&D Beyond, Roll20, and fillable-sheet data.

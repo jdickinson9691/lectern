@@ -131,6 +131,18 @@ Damage cannot reduce HP below zero. Healing cannot exceed maximum HP. Both opera
 
 Campaign statistics use the saved encounter and combat-log records.
 
+### Review the combat log
+
+The structured log groups events by round and separates actor, action type, roll calculation, target, defense or resulting HP, named action, and result. Result cells use both text and color to distinguish critical hits, hits, misses, damage, healing, and manual or unattributed changes.
+
+- Enter text in **Search actor, target, action, or result** to narrow the visible rows.
+- Use the action-type and result filters together when reviewing a busy encounter.
+- Keep **Hide turn markers** enabled to focus on resolved actions, or clear it to include turn-start and turn-end events.
+- Double-click an event row to expand its original stored details and timestamp.
+- Click the arrow beside a round heading to collapse or expand that round.
+
+Older local free-text entries remain visible even when they do not contain all structured fields.
+
 ## Players
 
 Players contains the character list and the Player Character Editor.

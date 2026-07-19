@@ -5,10 +5,11 @@ from PySide6.QtWidgets import (
     QListWidget, QStackedWidget, QFileDialog, QTableWidget, QTableWidgetItem,
     QLineEdit, QFormLayout, QSpinBox, QMessageBox, QComboBox, QCompleter,
     QGroupBox, QTextEdit, QTextBrowser, QListWidgetItem, QGridLayout, QScrollArea, QSizePolicy, QTabWidget, QCheckBox, QInputDialog,
-    QDialog, QDialogButtonBox, QAbstractItemView, QAbstractSpinBox, QToolButton
+    QDialog, QDialogButtonBox, QAbstractItemView, QAbstractSpinBox, QToolButton,
+    QTreeWidget, QTreeWidgetItem, QHeaderView
 )
 from PySide6.QtCore import Qt, QRect, QSize, QTimer
-from PySide6.QtGui import QPainter, QPixmap, QIcon, QImage
+from PySide6.QtGui import QPainter, QPixmap, QIcon, QImage, QColor, QBrush, QFont
 from ..database.repositories import Repository
 from ..importers.spreadsheet_importer import SpreadsheetImporter
 from ..importers.csv_transfer import CsvTransferService, CSV_TABLES
@@ -765,6 +766,16 @@ class EncounterBuilderPage(QWidget):
         self.repo.roll_initiative(self.current_encounter_id); self.refresh_combatants(); self.refresh_callback(); QMessageBox.information(self,"Combat Started","Initiative rolled. Open Combat Dashboard to run turns.")
 
 class CombatDashboardPage(QWidget):
+    LOG_BADGES = {
+        "critical": ("#665318", "#ffe082"),
+        "hit": ("#234d31", "#b7f7c7"),
+        "miss": ("#533037", "#ffc4ca"),
+        "damage": ("#5a3028", "#ffcabd"),
+        "healing": ("#174c50", "#b8f4ef"),
+        "manual": ("#624815", "#ffe1a3"),
+        "default": ("#34373c", "#e8eaed"),
+    }
+
     def __init__(self, repo: Repository):
         super().__init__(); self.repo=repo; self.current_encounter_id=None
         root=adaptive_page_layout(self); root.addWidget(QLabel("<h2>Combat Dashboard</h2>"))
@@ -777,7 +788,18 @@ class CombatDashboardPage(QWidget):
         root.addLayout(buttons)
         logrow=QHBoxLayout(); self.action=QComboBox(); self.action.addItems(["Attack","Spell","Save","Condition","Reaction","Lair Action","Note"]); self.details=QLineEdit(); self.details.setPlaceholderText("Action details"); self.add_log_button=QPushButton("Log Action"); self.add_log_button.clicked.connect(self.log_action); logrow.addWidget(self.action); logrow.addWidget(self.details); logrow.addWidget(self.add_log_button); root.addLayout(logrow)
         self.external_notice=QLabel("Fantasy Grounds controls this encounter. Source-owned combat fields are read-only in Lectern."); self.external_notice.setWordWrap(True); self.external_notice.setVisible(False); root.addWidget(self.external_notice)
-        self.log=QTextEdit(); self.log.setReadOnly(True); root.addWidget(self.log); self.refresh()
+        log_filters=QHBoxLayout(); self.log_search=QLineEdit(); self.log_search.setPlaceholderText("Search actor, target, action, or result"); self.log_search.setClearButtonEnabled(True); self.log_search.textChanged.connect(self.refresh_log)
+        self.log_action_filter=QComboBox(); self.log_action_filter.addItem("All action types", ""); self.log_action_filter.currentIndexChanged.connect(self.refresh_log)
+        self.log_result_filter=QComboBox(); self.log_result_filter.addItem("All results", "")
+        for label,key in (("Critical hits","critical"),("Hits","hit"),("Misses","miss"),("Damage","damage"),("Healing","healing"),("Manual / unattributed","manual")): self.log_result_filter.addItem(label,key)
+        self.log_result_filter.currentIndexChanged.connect(self.refresh_log)
+        self.hide_system_events=QCheckBox("Hide turn markers"); self.hide_system_events.setChecked(True); self.hide_system_events.toggled.connect(self.refresh_log)
+        self.log_count=QLabel("0 events")
+        for w in (self.log_search,self.log_action_filter,self.log_result_filter,self.hide_system_events,self.log_count): log_filters.addWidget(w)
+        root.addLayout(log_filters)
+        self.log_tree=QTreeWidget(); self.log_tree.setColumnCount(7); self.log_tree.setHeaderLabels(["Actor","Type","Roll","Target","Defense / HP","Action","Result"]); self.log_tree.setAlternatingRowColors(True); self.log_tree.setRootIsDecorated(True); self.log_tree.setUniformRowHeights(False); self.log_tree.setSelectionBehavior(QAbstractItemView.SelectRows); self.log_tree.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        header=self.log_tree.header(); header.setSectionResizeMode(0,QHeaderView.ResizeToContents); header.setSectionResizeMode(1,QHeaderView.ResizeToContents); header.setSectionResizeMode(2,QHeaderView.ResizeToContents); header.setSectionResizeMode(3,QHeaderView.ResizeToContents); header.setSectionResizeMode(4,QHeaderView.ResizeToContents); header.setSectionResizeMode(5,QHeaderView.ResizeToContents); header.setSectionResizeMode(6,QHeaderView.Stretch)
+        self.log_tree.itemDoubleClicked.connect(self.toggle_log_details); root.addWidget(self.log_tree,1); self.refresh()
     def refresh(self):
         self.encounters.blockSignals(True); self.encounters.clear()
         for e in self.repo.list_encounters(): self.encounters.addItem(e['name'], e['id'])
@@ -816,10 +838,61 @@ class CombatDashboardPage(QWidget):
     def prev_turn(self):
         if self.current_encounter_id: self.repo.previous_turn(self.current_encounter_id); self.refresh_board()
     def refresh_log(self):
-        if not self.current_encounter_id: self.log.clear(); return
-        lines=[]
-        for row in self.repo.list_turn_log(self.current_encounter_id)[:100]: lines.append(f"R{row['round']} | {row['actor']} | {row['action_type']} | {row['details']}")
-        self.log.setPlainText("\n".join(lines))
+        self.log_tree.clear()
+        if not self.current_encounter_id:
+            self.log_count.setText("0 events")
+            return
+        rows=list(self.repo.list_turn_log(self.current_encounter_id)[:500])
+        current_action=self.log_action_filter.currentData()
+        action_types=sorted({str(row['action_type'] or '') for row in rows if row['action_type']},key=str.casefold)
+        self.log_action_filter.blockSignals(True); self.log_action_filter.clear(); self.log_action_filter.addItem("All action types","")
+        for action_type in action_types: self.log_action_filter.addItem(action_type,action_type)
+        restore=self.log_action_filter.findData(current_action); self.log_action_filter.setCurrentIndex(max(0,restore)); self.log_action_filter.blockSignals(False)
+        search=self.log_search.text().strip().casefold(); action_filter=str(self.log_action_filter.currentData() or ''); result_filter=str(self.log_result_filter.currentData() or '')
+        grouped={}
+        for row in rows:
+            fields=self.combat_log_fields(row)
+            if self.hide_system_events.isChecked() and fields['system']: continue
+            if action_filter and fields['type']!=action_filter: continue
+            if result_filter and fields['category']!=result_filter: continue
+            if search and search not in fields['search']: continue
+            grouped.setdefault(int(row['round'] or 0),[]).append((row,fields))
+        shown=0
+        for round_no in sorted(grouped,reverse=True):
+            events=grouped[round_no]
+            round_item=QTreeWidgetItem([f"Round {round_no} - {len(events)} event{'s' if len(events)!=1 else ''}"]); round_item.setFirstColumnSpanned(True); round_item.setFont(0,QFont('',10,QFont.Bold)); round_item.setBackground(0,QBrush(QColor('#2f3540'))); self.log_tree.addTopLevelItem(round_item)
+            for row,fields in events:
+                item=QTreeWidgetItem([fields['actor'],fields['type'],fields['roll'],fields['target'],fields['defense'],fields['action'],fields['result']]); item.setData(0,Qt.UserRole,row['id']); item.setToolTip(6,"Double-click to show the original event details")
+                background,foreground=self.LOG_BADGES.get(fields['category'],self.LOG_BADGES['default']); item.setBackground(6,QBrush(QColor(background))); item.setForeground(6,QBrush(QColor(foreground))); item.setFont(6,QFont('',9,QFont.Bold))
+                detail_text=f"Original: {row['details'] or '(none)'}"
+                if row['created_at']: detail_text+=f"  -  {row['created_at']}"
+                detail=QTreeWidgetItem([detail_text]); detail.setFirstColumnSpanned(True); detail.setForeground(0,QBrush(QColor('#bdc1c6'))); item.addChild(detail); round_item.addChild(item); shown+=1
+            round_item.setExpanded(True)
+        self.log_count.setText(f"{shown} event{'s' if shown!=1 else ''}")
+
+    @staticmethod
+    def combat_log_fields(row):
+        actor=str(row['actor'] or 'Unknown'); action_type=str(row['action_type'] or 'Action'); details=str(row['details'] or '').strip(); parts=[part.strip() for part in details.split(' | ')]
+        roll=target=defense=action=result=''
+        if len(parts)>=5:
+            roll,target,defense,action=parts[:4]; result=' | '.join(parts[4:])
+        else:
+            action=action_type; result=details or action_type
+        combined=f"{action_type} {details}".casefold()
+        if 'critical hit' in combined: category='critical'
+        elif 'automatic miss' in combined or action_type.casefold()=='miss' or ' | miss' in combined: category='miss'
+        elif action_type.casefold()=='attack' and (' hit' in f" {combined}" or result.casefold().startswith('hit')): category='hit'
+        elif 'manual / unattributed' in actor.casefold() or 'manual_or_unattributed' in combined: category='manual'
+        elif 'healing' in action_type.casefold() or 'healing applied' in combined: category='healing'
+        elif 'damage' in action_type.casefold() or 'damage applied' in combined: category='damage'
+        else: category='default'
+        system=action_type.casefold() in {'turn start','turn end'}
+        search=' '.join((actor,action_type,details,roll,target,defense,action,result)).casefold()
+        return {'actor':actor,'type':action_type,'roll':roll,'target':target,'defense':defense,'action':action,'result':result,'category':category,'system':system,'search':search}
+
+    @staticmethod
+    def toggle_log_details(item,_column):
+        if item.childCount(): item.setExpanded(not item.isExpanded())
 
 
 class CampaignDashboardPage(QWidget):
@@ -1397,7 +1470,11 @@ class MainWindow(QMainWindow):
             QListWidget { background-color: #17181b; border-right: 1px solid #3c4043; padding: 6px; }
             QListWidget::item { padding: 8px; border-radius: 4px; }
             QListWidget::item:selected { background-color: #2f3b58; }
-            QGroupBox, QTableWidget, QTextEdit, QTextBrowser, QLineEdit, QSpinBox, QComboBox { background-color: rgba(32,33,36,220); border: 1px solid #3c4043; border-radius: 4px; }
+            QGroupBox, QTableWidget, QTreeWidget, QTextEdit, QTextBrowser, QLineEdit, QSpinBox, QComboBox { background-color: rgba(32,33,36,220); border: 1px solid #3c4043; border-radius: 4px; }
+            QTreeWidget { alternate-background-color: #27292d; }
+            QTreeWidget::item { color: #e8eaed; min-height: 28px; padding: 2px 4px; }
+            QTreeWidget::item:selected { background-color: #2f3b58; }
+            QHeaderView::section { background-color: #2a2c30; color: #e8eaed; border: 0; border-right: 1px solid #3c4043; border-bottom: 1px solid #3c4043; padding: 6px; font-weight: 600; }
             QGroupBox { margin-top: 12px; padding-top: 8px; }
             QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 10px; padding: 0 4px; }
             QPushButton { background-color: #2f3b58; border: 1px solid #5f6f9f; border-radius: 4px; padding: 6px 10px; }
