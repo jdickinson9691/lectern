@@ -1,5 +1,18 @@
 # Changelog
 
+### Campaign party combat statistics
+
+- Added party DPR, party HPR, critical-hit leader, critical-miss leader, tie handling, and data-coverage reporting to the selected Campaign Dashboard.
+- Added normalized combat-log actor identity, party affiliation, applied amount, result, and natural-roll fields with schema-v8 migration support.
+- Updated local and Fantasy Grounds logging plus historical reprocessing to populate the normalized fields without guessing unattributed history.
+- Added focused repository and offscreen UI regression coverage for round-weighted averages, hostile/manual exclusions, ties, and coverage counts.
+
+### Fantasy Grounds historical combat-log reprocessing
+
+- Added a previewable **Reprocess Imported Combat Logs** workflow that creates a safety backup and rebuilds only linked Fantasy Grounds log rows from preserved raw events.
+- Reused the current Fantasy Grounds event formatter for new imports and historical rows, with idempotent updates, explicit unavailable values, transaction rollback, and updated/unchanged/incomplete/failed reporting.
+- Added focused regression coverage for restored rolls and defenses, damage adjustments, healing, authoritative natural-roll outcomes, manual wound changes, local-row preservation, repeat processing, and rollback safety.
+
 ### Encounter Builder and Fantasy Grounds bug fixes
 
 - Fixed monster selection so Encounter Builder refreshes preserve the selected database record instead of falling back to the first alphabetical monster (`A-mi-kuk`).

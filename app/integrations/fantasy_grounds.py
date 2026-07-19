@@ -10,6 +10,7 @@ from typing import Any, Iterable
 from ..database.repositories import ABILITY_FIELDS, PLAYER_COLUMNS
 from ..database.schema import connect
 from ..paths import user_data_dir
+from ..services.data_workflow import DataWorkflowService
 
 
 SCHEMA_VERSION = 1
@@ -17,6 +18,11 @@ PROVIDER = "fantasy_grounds"
 SUPPORTED_RULESET = "5E"
 CONFIG_FILE = "fantasy_grounds_sync.json"
 EVENT_TYPES = {"action", "attack", "damage", "effect", "healing", "outcome", "save", "spell", "turn_end", "turn_start"}
+ACTION_TYPES = {
+    "action": "Action", "attack": "Attack", "damage": "Damage", "effect": "Effect",
+    "healing": "Healing", "outcome": "Outcome", "save": "Save", "spell": "Spell",
+    "turn_end": "Turn End", "turn_start": "Turn Start",
+}
 
 
 class FantasyGroundsSyncError(ValueError):
@@ -30,6 +36,36 @@ class SyncResult:
     campaign_name: str
     counts: dict[str, int]
     message: str
+
+
+@dataclass(frozen=True)
+class FormattedLogEvent:
+    actor: str
+    action_type: str
+    details: str
+    incomplete: bool = False
+    actor_source_key: str = ""
+    actor_side: str = "unknown"
+    amount: int | None = None
+    result_code: str = ""
+    natural_roll: int | None = None
+
+
+@dataclass(frozen=True)
+class ReprocessPreview:
+    affected_encounters: int
+    total_events: int
+    improvable_events: int
+    missing_source_events: int
+
+
+@dataclass(frozen=True)
+class ReprocessResult:
+    updated: int
+    unchanged: int
+    incomplete: int
+    failed: int
+    backup_path: Path
 
 
 def _require(condition: bool, message: str) -> None:
@@ -206,6 +242,114 @@ def _field(fields: dict[str, Any], *names: str, default: Any = None) -> Any:
     return default
 
 
+def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
+    """Convert one Fantasy Grounds event into the canonical Lectern log fields."""
+    if not isinstance(event, dict):
+        raise FantasyGroundsSyncError("Stored event must be a JSON object")
+    event_type = event.get("type")
+    if event_type not in EVENT_TYPES:
+        raise FantasyGroundsSyncError("Stored event has no supported event type")
+
+    actor = event.get("actor") if isinstance(event.get("actor"), dict) else {}
+    target = event.get("target") if isinstance(event.get("target"), dict) else {}
+    metadata = event.get("metadata") if isinstance(event.get("metadata"), dict) else {}
+    actor_name = str(actor.get("name") or "Fantasy Grounds")
+    actor_source_key = str(actor.get("source_key") or "")
+    actor_side = "party" if ":character:" in actor_source_key.casefold() else "unknown"
+    target_name = str(target.get("name") or "Target not reported")
+    description = str(event.get("description") or "").strip()
+    action_name = str(metadata.get("action_name") or "").strip()
+    roll_total = metadata.get("roll_total")
+    raw_roll = metadata.get("raw_roll")
+    modifier = metadata.get("modifier")
+    target_ac = metadata.get("target_ac")
+    result = str(metadata.get("result") or "").strip()
+    natural_roll = metadata.get("natural_roll", raw_roll)
+    try:
+        natural_roll = int(natural_roll) if natural_roll is not None else None
+    except (TypeError, ValueError):
+        natural_roll = None
+    result_text = result.casefold()
+    if "critical hit" in result_text or (natural_roll == 20 and metadata.get("authoritative_result")):
+        result_code = "critical_hit"
+    elif "automatic miss" in result_text or (natural_roll == 1 and metadata.get("authoritative_result")):
+        result_code = "critical_miss"
+    elif result_text == "hit":
+        result_code = "hit"
+    elif result_text == "miss":
+        result_code = "miss"
+    else:
+        result_code = ""
+    is_damage_roll = event_type == "action" and "damage" in (
+        f"{metadata.get('roll_type', '')} {description}"
+    ).lower()
+    action_type = "Damage Roll" if is_damage_roll else ACTION_TYPES[event_type]
+    incomplete = not bool(actor.get("name"))
+
+    roll_text = str(roll_total) if roll_total is not None else "Roll not reported"
+    if roll_total is not None and raw_roll is not None and modifier is not None:
+        modifier_text = f"{modifier:+g}" if isinstance(modifier, (int, float)) else str(modifier)
+        roll_text += f" (dice {raw_roll}; modifiers {modifier_text})"
+
+    if event_type == "attack":
+        defense = f"Against AC {target_ac}" if target_ac is not None else "Target AC not reported"
+        outcome = result or (f"Net attack roll {roll_total}" if roll_total is not None else "Result not reported")
+        if result and roll_total is not None and target_ac is not None:
+            outcome += f" ({roll_total} vs AC {target_ac})"
+        details = " | ".join((roll_text, target_name, defense, action_name or "Attack not reported", outcome))
+        incomplete = incomplete or not bool(target.get("name")) or any(
+            value is None for value in (roll_total, raw_roll, modifier, target_ac)
+        ) or not bool(action_name or description) or not bool(result)
+    elif is_damage_roll:
+        defense = f"Against AC {target_ac}" if target_ac is not None else "Target AC not reported"
+        outcome = f"{roll_total} damage rolled" if roll_total is not None else "Damage result not reported"
+        details = " | ".join((roll_text, target_name, defense, action_name or "Damage not reported", outcome))
+        incomplete = incomplete or not bool(target.get("name")) or any(
+            value is None for value in (roll_total, raw_roll, modifier)
+        ) or not bool(action_name or description)
+    elif event_type in {"damage", "healing"}:
+        amount = event.get("amount")
+        try:
+            applied = max(0, int(amount)) if amount is not None else 0
+        except (TypeError, ValueError) as exc:
+            raise FantasyGroundsSyncError("Stored damage or healing amount is invalid") from exc
+        hp = "Target HP not reported"
+        if metadata.get("current_hp") is not None:
+            hp_value = str(metadata["current_hp"])
+            if metadata.get("maximum_hp") is not None:
+                hp_value += f"/{metadata['maximum_hp']}"
+            hp = f"Target HP {hp_value}"
+        verb = "damage applied" if event_type == "damage" else "healing applied"
+        outcome = f"{applied} {verb}"
+        rolled = metadata.get("roll_total")
+        adjustment = metadata.get("adjustment")
+        if event_type == "damage" and rolled is not None:
+            if applied == 0:
+                outcome = f"0 damage applied from {rolled} rolled (negated)"
+            elif isinstance(adjustment, (int, float)) and adjustment < 0:
+                outcome = f"{applied} damage applied from {rolled} rolled (reduced by {-adjustment:g})"
+            elif isinstance(adjustment, (int, float)) and adjustment > 0:
+                outcome = f"{applied} damage applied from {rolled} rolled (increased by {adjustment:g})"
+            else:
+                outcome = f"{applied} damage applied from {rolled} rolled"
+        if metadata.get("attribution") == "manual_or_unattributed":
+            actor_name = "Manual / Unattributed"
+            actor_source_key = ""
+            actor_side = "unknown"
+            incomplete = False
+        details = " | ".join((str(applied), target_name, hp, action_name or ACTION_TYPES[event_type], outcome))
+        incomplete = incomplete or amount is None or not bool(target.get("name")) or metadata.get("current_hp") is None
+    else:
+        details = description or action_name or f"{ACTION_TYPES[event_type]} details not reported"
+        incomplete = incomplete or not bool(description or action_name)
+
+    normalized_amount = applied if event_type in {"damage", "healing"} else None
+    return FormattedLogEvent(
+        actor_name, action_type, details, incomplete, actor_source_key, actor_side,
+        normalized_amount, result_code, natural_roll,
+    )
+
+
 class FantasyGroundsSyncService:
     def __init__(self, db_path: Path):
         self.db_path = Path(db_path)
@@ -264,6 +408,132 @@ class FantasyGroundsSyncService:
                 """,
                 (source_id,),
             ).fetchall()
+
+    def preview_log_reprocessing(self) -> ReprocessPreview:
+        improvable = 0
+        missing = 0
+        encounters: set[int] = set()
+        with connect(self.db_path) as conn:
+            rows = self._reprocess_rows(conn)
+            for row in rows:
+                encounters.add(int(row["encounter_id"]))
+                try:
+                    event = json.loads(row["raw_json"])
+                    formatted = format_event_log(event)
+                except (json.JSONDecodeError, FantasyGroundsSyncError, TypeError):
+                    missing += 1
+                    continue
+                actor_side = self._event_actor_side(conn, row["source_id"], event, formatted)
+                source_missing = formatted.incomplete
+                current = (
+                    row["actor"], row["action_type"], row["details"], row["actor_source_key"],
+                    row["actor_side"], row["amount"], row["result_code"], row["natural_roll"],
+                )
+                desired = (
+                    formatted.actor, formatted.action_type, formatted.details, formatted.actor_source_key,
+                    actor_side, formatted.amount, formatted.result_code, formatted.natural_roll,
+                )
+                if row["log_id"] is not None and current != desired:
+                    improvable += 1
+                if row["log_id"] is None:
+                    source_missing = True
+                if source_missing:
+                    missing += 1
+        return ReprocessPreview(len(encounters), len(rows), improvable, missing)
+
+    def reprocess_imported_logs(self) -> ReprocessResult:
+        workflow = DataWorkflowService(self.db_path)
+        backup_stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        backup = workflow.backup_database(
+            workflow.backup_dir / f"pre_fg_log_reprocess_{backup_stamp}.db"
+        )
+        updated = unchanged = incomplete = failed = 0
+        try:
+            with connect(self.db_path) as conn:
+                rows = self._reprocess_rows(conn)
+                for row in rows:
+                    try:
+                        event = json.loads(row["raw_json"])
+                        formatted = format_event_log(event)
+                    except (json.JSONDecodeError, FantasyGroundsSyncError, TypeError):
+                        failed += 1
+                        continue
+                    if row["log_id"] is None:
+                        failed += 1
+                        continue
+                    actor_side = self._event_actor_side(conn, row["source_id"], event, formatted)
+                    desired = (
+                        formatted.actor, formatted.action_type, formatted.details, formatted.actor_source_key,
+                        actor_side, formatted.amount, formatted.result_code, formatted.natural_roll,
+                    )
+                    current = (
+                        row["actor"], row["action_type"], row["details"], row["actor_source_key"],
+                        row["actor_side"], row["amount"], row["result_code"], row["natural_roll"],
+                    )
+                    if current != desired:
+                        conn.execute(
+                            """
+                            UPDATE turn_log SET actor=?,action_type=?,details=?,actor_source_key=?,
+                                actor_side=?,amount=?,result_code=?,natural_roll=? WHERE id=?
+                            """,
+                            (*desired, row["turn_log_id"]),
+                        )
+                    if formatted.incomplete:
+                        incomplete += 1
+                    elif current != desired:
+                        updated += 1
+                    else:
+                        unchanged += 1
+        except Exception as exc:
+            raise FantasyGroundsSyncError(f"Historical log reprocessing failed and was rolled back: {exc}") from exc
+        return ReprocessResult(updated, unchanged, incomplete, failed, backup)
+
+    def _reprocess_rows(self, conn=None):
+        owns_connection = conn is None
+        if owns_connection:
+            conn = connect(self.db_path)
+        try:
+            return conn.execute(
+                """
+                SELECT ee.source_id,ee.encounter_id,ee.turn_log_id,ee.raw_json,
+                       tl.id AS log_id,tl.actor,tl.action_type,tl.details,tl.actor_source_key,
+                       tl.actor_side,tl.amount,tl.result_code,tl.natural_roll
+                FROM external_events ee
+                JOIN external_sources es ON es.id=ee.source_id AND es.provider=?
+                LEFT JOIN turn_log tl ON tl.id=ee.turn_log_id
+                ORDER BY ee.id
+                """,
+                (PROVIDER,),
+            ).fetchall()
+        finally:
+            if owns_connection:
+                conn.close()
+
+    def _event_actor_side(self, conn, source_id: int, event: dict[str, Any], formatted: FormattedLogEvent) -> str:
+        if formatted.actor_side != "unknown" or not formatted.actor_source_key:
+            return formatted.actor_side
+        owns_connection = conn is None
+        if owns_connection:
+            conn = connect(self.db_path)
+        try:
+            row = conn.execute(
+                "SELECT record_type,raw_json FROM external_records WHERE source_id=? AND source_key=?",
+                (source_id, formatted.actor_source_key),
+            ).fetchone()
+            if not row:
+                return "unknown"
+            if row["record_type"] == "character":
+                return "party"
+            try:
+                raw_record = json.loads(row["raw_json"])
+            except (json.JSONDecodeError, TypeError):
+                return "unknown"
+            raw = raw_record.get("raw") if isinstance(raw_record, dict) else {}
+            friend_foe = str((raw or {}).get("friendfoe") or "").casefold()
+            return {"friend": "party", "foe": "hostile", "neutral": "neutral"}.get(friend_foe, "unknown")
+        finally:
+            if owns_connection:
+                conn.close()
 
     def import_configured_snapshot(self) -> SyncResult:
         path = self.snapshot_path()
@@ -573,77 +843,23 @@ class FantasyGroundsSyncService:
         return encounter_id
 
     def _import_events(self, conn, source_id: int, campaign_id: int, campaign_name: str, events: list[dict[str, Any]], sequence: int) -> None:
-        action_types = {
-            "action": "Action", "attack": "Attack", "damage": "Damage", "effect": "Effect",
-            "healing": "Healing", "outcome": "Outcome", "save": "Save", "spell": "Spell",
-            "turn_end": "Turn End", "turn_start": "Turn Start",
-        }
         for event in sorted(events, key=lambda item: item["sequence"]):
             if conn.execute("SELECT 1 FROM external_events WHERE source_id=? AND event_key=?", (source_id, event["event_id"])).fetchone():
                 continue
             encounter_id = self._event_encounter(conn, source_id, campaign_id, campaign_name, event)
-            actor = event.get("actor") or {}
-            target = event.get("target") or {}
-            actor_name = str(actor.get("name") or "Fantasy Grounds")
             event_type = event["type"]
-            amount = event.get("amount")
-            description = event.get("description", "").strip()
-            metadata = event.get("metadata") or {}
-            is_damage_roll = event_type == "action" and "damage" in (
-                f"{metadata.get('roll_type', '')} {description}"
-            ).lower()
-            action_name = str(metadata.get("action_name") or "").strip()
-            target_name = str(target.get("name") or "No target")
-            roll_total = metadata.get("roll_total")
-            raw_roll = metadata.get("raw_roll")
-            modifier = metadata.get("modifier")
-            target_ac = metadata.get("target_ac")
-            result = str(metadata.get("result") or "").strip()
-            log_action_type = "Damage Roll" if is_damage_roll else action_types[event_type]
-            roll_text = str(roll_total) if roll_total is not None else "Roll not reported"
-            if roll_total is not None and raw_roll is not None and modifier is not None:
-                modifier_text = f"{modifier:+g}" if isinstance(modifier, (int, float)) else str(modifier)
-                roll_text += f" (dice {raw_roll}; modifiers {modifier_text})"
-            if event_type == "attack":
-                defense = f"Against AC {target_ac}" if target_ac is not None else "Target AC not reported"
-                outcome = result or (f"Net attack roll {roll_total}" if roll_total is not None else "Result not reported")
-                if result and roll_total is not None and target_ac is not None:
-                    outcome += f" ({roll_total} vs AC {target_ac})"
-                details = " | ".join((roll_text, target_name, defense, action_name or "Attack", outcome))
-            elif is_damage_roll:
-                defense = f"Against AC {target_ac}" if target_ac is not None else "Target AC not reported"
-                outcome = f"{roll_total} damage rolled" if roll_total is not None else "Damage result not reported"
-                details = " | ".join((roll_text, target_name, defense, action_name or "Damage", outcome))
-            elif event_type in {"damage", "healing"}:
-                applied = max(0, int(amount or 0))
-                hp = "Target HP not reported"
-                if metadata.get("current_hp") is not None:
-                    hp_value = str(metadata["current_hp"])
-                    if metadata.get("maximum_hp") is not None:
-                        hp_value += f"/{metadata['maximum_hp']}"
-                    hp = f"Target HP {hp_value}"
-                verb = "damage applied" if event_type == "damage" else "healing applied"
-                outcome = f"{applied} {verb}"
-                rolled = metadata.get("roll_total")
-                adjustment = metadata.get("adjustment")
-                if event_type == "damage" and rolled is not None:
-                    if applied == 0:
-                        outcome = f"0 damage applied from {rolled} rolled (negated)"
-                    elif isinstance(adjustment, (int, float)) and adjustment < 0:
-                        outcome = f"{applied} damage applied from {rolled} rolled (reduced by {-adjustment:g})"
-                    elif isinstance(adjustment, (int, float)) and adjustment > 0:
-                        outcome = f"{applied} damage applied from {rolled} rolled (increased by {adjustment:g})"
-                    else:
-                        outcome = f"{applied} damage applied from {rolled} rolled"
-                if metadata.get("attribution") == "manual_or_unattributed":
-                    actor_name = "Manual / Unattributed"
-                details = " | ".join((str(applied), target_name, hp, action_name or action_types[event_type], outcome))
-            else:
-                details = description or action_name or event_type.replace("_", " ").title()
+            formatted = format_event_log(event)
+            actor_side = self._event_actor_side(conn, source_id, event, formatted)
             cursor = conn.execute(
-                "INSERT INTO turn_log(encounter_id,round,actor,action_type,details,created_at) VALUES(?,?,?,?,?,?)",
-                (encounter_id, max(1, int(event["round"])), actor_name,
-                 log_action_type, details, event["timestamp"]),
+                """
+                INSERT INTO turn_log(
+                    encounter_id,round,actor,action_type,details,actor_source_key,actor_side,
+                    amount,result_code,natural_roll,created_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                (encounter_id, max(1, int(event["round"])), formatted.actor,
+                 formatted.action_type, formatted.details, formatted.actor_source_key, actor_side,
+                 formatted.amount, formatted.result_code, formatted.natural_roll, event["timestamp"]),
             )
             turn_log_id = int(cursor.lastrowid)
             conn.execute(

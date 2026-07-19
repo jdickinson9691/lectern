@@ -63,6 +63,14 @@ The campaign summary includes:
 - Total combat rounds
 - Logged actions
 - Damage and healing recorded in combat logs
+- Party damage per round (DPR), using applied damage credited to party actors
+- Party healing per round (HPR), using applied healing credited to party actors
+- The character or tied characters with the most critical hits
+- The character or tied characters with the most critical misses (authoritative natural-1 attack results)
+
+DPR and HPR divide party totals by the sum of the highest logged round in each campaign encounter. Rolled-but-unapplied damage, hostile actions, and manual or unattributed events are excluded. The statistics coverage note shows how many attack, damage, and healing events have enough actor affiliation data to classify them safely.
+
+Historical Fantasy Grounds events gain normalized affiliation, amount, and critical-result fields when they are imported or reprocessed. Older local entries that cannot be attributed remain in the combat log and existing overall totals but are not guessed into party statistics.
 
 The encounter history shows status, outcome, rounds, combatants, actions, and completion time.
 
@@ -122,6 +130,8 @@ The table shows the active turn, combatant name, initiative, armor class, curren
 3. Click **Apply Damage** or **Apply Healing**.
 
 Damage cannot reduce HP below zero. Healing cannot exceed maximum HP. Both operations create combat-log entries.
+
+The active combatant is credited as the actor, while the selected combatant is recorded as the target. This attribution feeds Campaign Dashboard party statistics.
 
 ### Log an action
 
@@ -366,6 +376,14 @@ Synchronized Fantasy Grounds encounters are read-only in Lectern's Encounter Bui
 Records that disappear from a later snapshot are marked stale rather than deleted. Commercial module content remains local and must not be redistributed.
 
 To finish a synchronized encounter, enter `/lectern-outcome victory`, `/lectern-outcome defeat`, `/lectern-outcome retreat`, or `/lectern-outcome unresolved` in Fantasy Grounds chat. Lectern does not infer an outcome when the Combat Tracker is cleared.
+
+### Reprocess historical combat logs
+
+Use **Reprocess Imported Combat Logs** after upgrading Lectern when older Fantasy Grounds encounters do not show all of the structured combat details now supported by the app. Lectern previews the number of encounters and events involved, creates a database backup after you confirm, and then rebuilds only the linked Fantasy Grounds log rows from their preserved event data.
+
+The completion message reports updated, unchanged, incomplete, and failed events. Incomplete events remain readable and show which values Fantasy Grounds did not report. Reprocessing never changes local or unlinked Lectern log entries, never creates extra log rows, and can be run repeatedly without duplicating data.
+
+Reprocessing can restore only values present in the original imported event. It cannot reconstruct actor, target, roll, defense, damage, healing, or result information that the Fantasy Grounds extension did not capture at the time.
 
 ### Sync troubleshooting
 

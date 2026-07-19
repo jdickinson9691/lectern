@@ -87,7 +87,7 @@ try:
     assert len(combatants) == 1 and combatants[0]["current_hp"] == 9, "Live combatant HP mapping failed"
     with connect(db) as conn:
         assert conn.execute("SELECT COUNT(*) FROM active_conditions").fetchone()[0] == 1, "Combat effects were not imported"
-        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == "7", "Schema version was not migrated"
+        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == "8", "Schema version was not migrated"
         assert conn.execute("SELECT COUNT(*) FROM rules_reference WHERE category LIKE 'Fantasy Grounds %'").fetchone()[0] == 5, "Catalog references were not normalized"
         source = conn.execute("SELECT * FROM external_sources").fetchone()
         assert source["last_sequence"] == 1 and not source["last_error"], "Sync source state is incorrect"
