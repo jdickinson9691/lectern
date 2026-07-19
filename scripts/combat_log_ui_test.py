@@ -26,6 +26,8 @@ try:
     repo = Repository(db)
     encounter_id = repo.create_encounter("Combat Log UI")
     with connect(db) as conn:
+        conn.execute("UPDATE encounters SET status='active',round=4 WHERE id=?",(encounter_id,))
+        conn.execute("INSERT INTO combatants(encounter_id,source_type,name,armor_class,max_hp,current_hp,is_active) VALUES(?,'player','Fighter1',16,20,10,1)",(encounter_id,))
         rows = [
             (4,"Berserker 2","Attack","16 (dice 11; modifiers +5) | Fighter1 | Against AC 16 | Greataxe | Hit (16 vs AC 16)"),
             (4,"Berserker 2","Damage Roll","9 (dice 6; modifiers +3) | Fighter1 | Against AC 16 | Greataxe | 9 damage rolled"),
@@ -36,7 +38,13 @@ try:
             (2,"Fighter1","Note","Older local free-text entry"),
         ]
         conn.executemany("INSERT INTO turn_log(encounter_id,round,actor,action_type,details) VALUES(?,?,?,?,?)",[(encounter_id,*row) for row in rows])
-    page = CombatDashboardPage(repo); page.setStyleSheet("QWidget{background:#202124;color:#e8eaed} QTreeWidget,QLineEdit,QComboBox{background:#202124;border:1px solid #3c4043} QTreeWidget{alternate-background-color:#27292d} QTreeWidget::item{color:#e8eaed} QHeaderView::section{background:#2a2c30;color:#e8eaed;padding:6px}"); page.resize(1400,800); page.show(); app.processEvents(); page.current_encounter_id=encounter_id; page.refresh_log(); app.processEvents()
+    historical_id=repo.create_encounter("Newer Historical Log")
+    with connect(db) as conn:
+        conn.execute("UPDATE encounters SET status='completed',round=11 WHERE id=?",(historical_id,))
+        conn.execute("INSERT INTO turn_log(encounter_id,round,actor,action_type,details) VALUES(?,11,'Fantasy Grounds','Action','Action')",(historical_id,))
+    page = CombatDashboardPage(repo); page.setStyleSheet("QWidget{background:#202124;color:#e8eaed} QTreeWidget,QLineEdit,QComboBox{background:#202124;border:1px solid #3c4043} QTreeWidget{alternate-background-color:#27292d} QTreeWidget::item{color:#e8eaed} QHeaderView::section{background:#2a2c30;color:#e8eaed;padding:6px}"); page.resize(1400,800); page.show(); app.processEvents()
+    assert page.encounters.currentData()==encounter_id and page.current_encounter_id==encounter_id, "Dashboard did not prefer the active encounter over a newer historical log"
+    page.current_encounter_id=encounter_id; page.refresh_log(); app.processEvents()
     assert page.log_tree.columnCount()==7, "Combat log does not expose the structured columns"
     assert page.log_tree.topLevelItemCount()==3, "Filtered combat log did not group visible events by round"
     assert page.log_count.text()=="6 events", "Turn-marker toggle did not hide only system rows"

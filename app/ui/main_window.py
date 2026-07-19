@@ -801,16 +801,26 @@ class CombatDashboardPage(QWidget):
         header=self.log_tree.header(); header.setSectionResizeMode(0,QHeaderView.ResizeToContents); header.setSectionResizeMode(1,QHeaderView.ResizeToContents); header.setSectionResizeMode(2,QHeaderView.ResizeToContents); header.setSectionResizeMode(3,QHeaderView.ResizeToContents); header.setSectionResizeMode(4,QHeaderView.ResizeToContents); header.setSectionResizeMode(5,QHeaderView.ResizeToContents); header.setSectionResizeMode(6,QHeaderView.Stretch)
         self.log_tree.itemDoubleClicked.connect(self.toggle_log_details); root.addWidget(self.log_tree,1); self.refresh()
     def refresh(self):
+        previous_id=self.current_encounter_id; encounters=list(self.repo.list_encounters())
+        status_order={"active":0,"draft":1,"completed":2}
+        encounters.sort(key=lambda row:(status_order.get(str(row['status'] or '').casefold(),3),-int(row['id'])))
         self.encounters.blockSignals(True); self.encounters.clear()
-        for e in self.repo.list_encounters(): self.encounters.addItem(e['name'], e['id'])
+        for e in encounters: self.encounters.addItem(e['name'], e['id'])
+        preferred=self.encounters.findData(previous_id) if previous_id is not None else -1
+        if preferred < 0 and self.encounters.count(): preferred=0
+        if preferred >= 0: self.encounters.setCurrentIndex(preferred); self.current_encounter_id=self.encounters.itemData(preferred)
+        else: self.current_encounter_id=None
         self.encounters.blockSignals(False)
-        if self.current_encounter_id is None and self.encounters.count(): self.current_encounter_id=self.encounters.itemData(0)
         self.refresh_board()
     def select_encounter(self): self.current_encounter_id=self.encounters.currentData(); self.refresh_board()
     def rows(self): return self.repo.list_combatants(self.current_encounter_id) if self.current_encounter_id else []
     def refresh_board(self):
         rows=self.rows(); enc=self.repo.get_encounter(self.current_encounter_id) if self.current_encounter_id else None; active=(enc['active_index'] if enc else 0) or 0
         external=self.repo.is_external_encounter(self.current_encounter_id); self.external_notice.setVisible(external)
+        if external and not rows and enc and enc['status']=='completed':
+            self.external_notice.setText("Historical Fantasy Grounds log: no combatant snapshot was preserved for this encounter. Select an active or session-specific Fantasy Grounds Live Combat encounter to view turn order, AC, and HP.")
+        else:
+            self.external_notice.setText("Fantasy Grounds controls this encounter. Source-owned combat fields are read-only in Lectern.")
         for widget in [self.prev_button,self.next_button,self.hp_delta,self.damage_button,self.heal_button,self.action,self.details,self.add_log_button]: widget.setEnabled(not external)
         active_name=rows[active]['name'] if rows and active < len(rows) else '-'; self.round_label.setText(f"Round {enc['round'] if enc else '-'} | Active: {active_name}")
         self.order.setRowCount(len(rows))

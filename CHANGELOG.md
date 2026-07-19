@@ -3,6 +3,7 @@
 ### Combat Dashboard incomplete-event display fix
 
 - Preserved available raw die totals when older Fantasy Grounds events lack actor, target, action, or result data, and labeled each unavailable structured field explicitly after reprocessing.
+- Made the Combat Dashboard prefer active encounters on initial load instead of a newer completed historical log with no combatant snapshot, and added a clear notice for log-only Fantasy Grounds encounters.
 - Corrected the application database schema-version constant to match the schema-v8 combat-statistics migration.
 
 ### Campaign party combat statistics
