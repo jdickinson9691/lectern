@@ -385,6 +385,8 @@ The completion message reports updated, unchanged, incomplete, and failed events
 
 Reprocessing can restore only values present in the original imported event. It cannot reconstruct actor, target, roll, defense, damage, healing, or result information that the Fantasy Grounds extension did not capture at the time.
 
+For incomplete older dice events, Lectern preserves any reported die total and labels missing actor, target, defense, action, or result fields as not reported. These events may belong to an older `live-combat` encounter, while later fully attributed events appear under the session-specific Fantasy Grounds encounter.
+
 ### Sync troubleshooting
 
 - If Fantasy Grounds reports an export error, select the campaign folder in Lectern before running `/lectern-export`.

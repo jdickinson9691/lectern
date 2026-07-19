@@ -1,5 +1,10 @@
 # Changelog
 
+### Combat Dashboard incomplete-event display fix
+
+- Preserved available raw die totals when older Fantasy Grounds events lack actor, target, action, or result data, and labeled each unavailable structured field explicitly after reprocessing.
+- Corrected the application database schema-version constant to match the schema-v8 combat-statistics migration.
+
 ### Campaign party combat statistics
 
 - Added party DPR, party HPR, critical-hit leader, critical-miss leader, tie handling, and data-coverage reporting to the selected Campaign Dashboard.

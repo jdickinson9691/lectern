@@ -339,6 +339,19 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
             incomplete = False
         details = " | ".join((str(applied), target_name, hp, action_name or ACTION_TYPES[event_type], outcome))
         incomplete = incomplete or amount is None or not bool(target.get("name")) or metadata.get("current_hp") is None
+    elif roll_total is not None:
+        if event_type == "save":
+            defense = f"Against DC {target_ac}" if target_ac is not None else "Save DC not reported"
+        elif target_ac is not None:
+            defense = f"Against defense {target_ac}"
+        else:
+            defense = "Defense not reported"
+        outcome = result or "Result not reported"
+        details = " | ".join((
+            roll_text, target_name, defense,
+            action_name or f"{ACTION_TYPES[event_type]} not reported", outcome,
+        ))
+        incomplete = True
     else:
         details = description or action_name or f"{ACTION_TYPES[event_type]} details not reported"
         incomplete = incomplete or not bool(description or action_name)
