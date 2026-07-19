@@ -1277,10 +1277,13 @@ class FantasyGroundsSyncPage(QWidget):
         self.import_button.clicked.connect(self.import_now)
         self.reprocess_button = QPushButton("Reprocess Imported Combat Logs")
         self.reprocess_button.clicked.connect(self.reprocess_logs)
+        self.clear_import_button = QPushButton("Clear Selected FG Import")
+        self.clear_import_button.clicked.connect(self.clear_selected_import)
         self.auto_import = QCheckBox("Automatically import new snapshots")
         self.auto_import.setChecked(True)
         controls.addWidget(self.import_button)
         controls.addWidget(self.reprocess_button)
+        controls.addWidget(self.clear_import_button)
         controls.addWidget(self.auto_import)
         controls.addStretch()
         controls.addWidget(QLabel("Imported campaign:"))
@@ -1433,6 +1436,64 @@ class FantasyGroundsSyncPage(QWidget):
         finally:
             self.import_button.setEnabled(True)
             self.reprocess_button.setEnabled(True)
+            self._importing = False
+
+    def clear_selected_import(self):
+        if self._importing:
+            return
+        source_id = self.source_select.currentData()
+        if source_id is None:
+            QMessageBox.information(
+                self, "Clear Fantasy Grounds Import", "No imported Fantasy Grounds campaign is selected."
+            )
+            return
+        try:
+            preview = self.service.preview_clear_imported_data(int(source_id))
+        except FantasyGroundsSyncError as exc:
+            QMessageBox.warning(self, "Clear Fantasy Grounds Import", str(exc))
+            return
+        prompt = (
+            f"Clear the imported Fantasy Grounds data for {preview.campaign_name}?\n\n"
+            f"Campaigns: {preview.campaigns}\n"
+            f"Encounters: {preview.encounters}\n"
+            f"Combatants: {preview.combatants}\n"
+            f"Combat log rows: {preview.combat_log_rows}\n"
+            f"Imported players: {preview.players}\n"
+            f"Sync records: {preview.external_records}\n\n"
+            "A database backup will be created first. Local Lectern campaigns, encounters, and logs are preserved. "
+            "Any local encounter attached to the imported campaign is kept and detached from that campaign.\n\n"
+            "For a completely fresh test, first run /lectern-reset in Fantasy Grounds. Automatic import will be "
+            "turned off after clearing so an older snapshot cannot immediately restore the data. Continue?"
+        )
+        if QMessageBox.question(self, "Clear Fantasy Grounds Import", prompt) != QMessageBox.Yes:
+            return
+        self._importing = True
+        self.import_button.setEnabled(False)
+        self.reprocess_button.setEnabled(False)
+        self.clear_import_button.setEnabled(False)
+        self.auto_import.setChecked(False)
+        try:
+            result = self.service.clear_imported_data(int(source_id))
+            self._last_snapshot_stamp = None
+            self.refresh_callback()
+            self.refresh_sources()
+            self.status.setText(
+                f"Cleared imported Fantasy Grounds data for {result.preview.campaign_name}. Automatic import is off."
+            )
+            QMessageBox.information(
+                self,
+                "Fantasy Grounds Import Cleared",
+                f"The selected imported campaign, encounters, combatants, logs, players, and sync metadata were cleared.\n\n"
+                f"Backup: {result.backup_path}\n\n"
+                "When ready, start a new Fantasy Grounds encounter and re-enable automatic import or click Import Now.",
+            )
+        except FantasyGroundsSyncError as exc:
+            self.status.setText(f"Clear error: {exc}")
+            QMessageBox.critical(self, "Clear Failed", str(exc))
+        finally:
+            self.import_button.setEnabled(True)
+            self.reprocess_button.setEnabled(True)
+            self.clear_import_button.setEnabled(True)
             self._importing = False
 
     def refresh(self):

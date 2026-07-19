@@ -26,9 +26,11 @@ try:
     extension_manifest = (
         ROOT / "integrations" / "fantasy_grounds" / "extension" / "LecternSync" / "extension.xml"
     ).read_text(encoding="utf-8")
-    assert 'local EXTENSION_VERSION = "1.3.0"' in extension_source and "<version>1.3.0</version>" in extension_manifest, "Extension version metadata is inconsistent"
+    assert 'local EXTENSION_VERSION = "1.3.1"' in extension_source and "<version>1.3.1</version>" in extension_manifest, "Extension version metadata is inconsistent"
     assert 'Comm.registerSlashHandler("lectern-start", startEncounter' in extension_source, "Explicit encounter start command is missing"
     assert 'Comm.registerSlashHandler("lectern-end", endEncounter' in extension_source, "Explicit encounter end command is missing"
+    assert 'Comm.registerSlashHandler("lectern-reset", resetEncounterJournal' in extension_source, "Safe encounter reset command is missing"
+    assert 'sPersistedEventsJSON = ""' in extension_source and '"confirm"' in extension_source, "Encounter reset does not clear the journal safely"
     assert 'session-state.txt' in extension_source and 'loadSessionState()' in extension_source, "Durable session reload support is missing"
     assert 'extractArrayContents(sSnapshot or "", "events")' in extension_source and 'sMergedEvents = sPersistedEventsJSON' in extension_source, "Accumulated events are not retained across reloads"
     assert 'lifecycle = "encounter_start"' in extension_source and 'lifecycle = "encounter_end"' in extension_source, "Encounter lifecycle events are missing"

@@ -68,6 +68,26 @@ class ReprocessResult:
     backup_path: Path
 
 
+@dataclass(frozen=True)
+class ClearImportPreview:
+    source_id: int
+    campaign_name: str
+    campaigns: int
+    encounters: int
+    combatants: int
+    combat_log_rows: int
+    players: int
+    external_records: int
+    external_events: int
+    local_encounters_detached: int
+
+
+@dataclass(frozen=True)
+class ClearImportResult:
+    preview: ClearImportPreview
+    backup_path: Path
+
+
 def _require(condition: bool, message: str) -> None:
     if not condition:
         raise FantasyGroundsSyncError(message)
@@ -434,6 +454,113 @@ class FantasyGroundsSyncService:
                 """,
                 (source_id,),
             ).fetchall()
+
+    def _exclusive_linked_ids(self, conn, source_id: int, entity_type: str) -> list[int]:
+        return [
+            int(row[0])
+            for row in conn.execute(
+                """
+                SELECT DISTINCT own.entity_id
+                FROM external_entity_links own
+                WHERE own.source_id=? AND own.entity_type=?
+                  AND NOT EXISTS (
+                    SELECT 1 FROM external_entity_links other
+                    WHERE other.source_id<>own.source_id
+                      AND other.entity_type=own.entity_type
+                      AND other.entity_id=own.entity_id
+                  )
+                """,
+                (source_id, entity_type),
+            ).fetchall()
+        ]
+
+    def preview_clear_imported_data(self, source_id: int) -> ClearImportPreview:
+        with connect(self.db_path) as conn:
+            source = conn.execute(
+                "SELECT id,campaign_name FROM external_sources WHERE id=? AND provider=?",
+                (source_id, PROVIDER),
+            ).fetchone()
+            if not source:
+                raise FantasyGroundsSyncError("The selected Fantasy Grounds import no longer exists")
+            campaign_ids = self._exclusive_linked_ids(conn, source_id, "campaign")
+            encounter_ids = self._exclusive_linked_ids(conn, source_id, "encounter")
+            player_ids = self._exclusive_linked_ids(conn, source_id, "player")
+            event_log_ids = {
+                int(row[0]) for row in conn.execute(
+                    "SELECT turn_log_id FROM external_events WHERE source_id=?", (source_id,)
+                ).fetchall()
+            }
+            combatants = 0
+            combat_log_ids = set(event_log_ids)
+            if encounter_ids:
+                placeholders = ",".join("?" for _ in encounter_ids)
+                combatants = int(conn.execute(
+                    f"SELECT COUNT(*) FROM combatants WHERE encounter_id IN ({placeholders})", encounter_ids
+                ).fetchone()[0])
+                combat_log_ids.update(
+                    int(row[0]) for row in conn.execute(
+                        f"SELECT id FROM turn_log WHERE encounter_id IN ({placeholders})", encounter_ids
+                    ).fetchall()
+                )
+            detached = 0
+            if campaign_ids:
+                placeholders = ",".join("?" for _ in campaign_ids)
+                parameters = [*campaign_ids, *encounter_ids]
+                exclusion = ""
+                if encounter_ids:
+                    exclusion = f" AND id NOT IN ({','.join('?' for _ in encounter_ids)})"
+                detached = int(conn.execute(
+                    f"SELECT COUNT(*) FROM encounters WHERE campaign_id IN ({placeholders}){exclusion}", parameters
+                ).fetchone()[0])
+            return ClearImportPreview(
+                int(source["id"]), str(source["campaign_name"]), len(campaign_ids), len(encounter_ids),
+                combatants, len(combat_log_ids), len(player_ids),
+                int(conn.execute("SELECT COUNT(*) FROM external_records WHERE source_id=?", (source_id,)).fetchone()[0]),
+                int(conn.execute("SELECT COUNT(*) FROM external_events WHERE source_id=?", (source_id,)).fetchone()[0]),
+                detached,
+            )
+
+    def clear_imported_data(self, source_id: int) -> ClearImportResult:
+        preview = self.preview_clear_imported_data(source_id)
+        workflow = DataWorkflowService(self.db_path)
+        backup_stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        backup = workflow.backup_database(
+            workflow.backup_dir / f"pre_fg_clear_{backup_stamp}.db"
+        )
+        try:
+            with connect(self.db_path) as conn:
+                campaign_ids = self._exclusive_linked_ids(conn, source_id, "campaign")
+                encounter_ids = self._exclusive_linked_ids(conn, source_id, "encounter")
+                player_ids = self._exclusive_linked_ids(conn, source_id, "player")
+                event_log_ids = [
+                    int(row[0]) for row in conn.execute(
+                        "SELECT turn_log_id FROM external_events WHERE source_id=?", (source_id,)
+                    ).fetchall()
+                ]
+                if event_log_ids:
+                    placeholders = ",".join("?" for _ in event_log_ids)
+                    conn.execute(f"DELETE FROM turn_log WHERE id IN ({placeholders})", event_log_ids)
+                if encounter_ids:
+                    placeholders = ",".join("?" for _ in encounter_ids)
+                    conn.execute(f"DELETE FROM turn_log WHERE encounter_id IN ({placeholders})", encounter_ids)
+                    conn.execute(f"DELETE FROM encounters WHERE id IN ({placeholders})", encounter_ids)
+                if campaign_ids:
+                    placeholders = ",".join("?" for _ in campaign_ids)
+                    conn.execute(f"UPDATE encounters SET campaign_id=NULL WHERE campaign_id IN ({placeholders})", campaign_ids)
+                    conn.execute(f"DELETE FROM campaigns WHERE id IN ({placeholders})", campaign_ids)
+                if player_ids:
+                    placeholders = ",".join("?" for _ in player_ids)
+                    conn.execute(f"DELETE FROM players WHERE id IN ({placeholders})", player_ids)
+                deleted = conn.execute(
+                    "DELETE FROM external_sources WHERE id=? AND provider=?", (source_id, PROVIDER)
+                ).rowcount
+                if deleted != 1:
+                    raise FantasyGroundsSyncError("The selected Fantasy Grounds import no longer exists")
+        except FantasyGroundsSyncError:
+            raise
+        except Exception as exc:
+            raise FantasyGroundsSyncError(f"Clearing imported Fantasy Grounds data failed and was rolled back: {exc}") from exc
+        return ClearImportResult(preview, backup)
 
     def preview_log_reprocessing(self) -> ReprocessPreview:
         improvable = 0

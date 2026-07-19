@@ -1,7 +1,7 @@
--- Lectern Sync 1.3.0
+-- Lectern Sync 1.3.1
 -- One-way Fantasy Grounds Unity 5E export. This script never writes FG database nodes.
 
-local EXTENSION_VERSION = "1.3.0"
+local EXTENSION_VERSION = "1.3.1"
 local SCHEMA_VERSION = 1
 local bExporting = false
 local tCachedSnapshot = nil
@@ -922,6 +922,38 @@ local function setOutcome(_, sParameters)
   endEncounter(nil, sParameters)
 end
 
+local function resetEncounterJournal(_, sParameters)
+  if not Session.IsHost then return end
+  if tostring(sParameters or ""):lower():match("^%s*(.-)%s*$") ~= "confirm" then
+    chat("Usage: /lectern-reset confirm (clears the closed Lectern session and exported event journal)")
+    return
+  end
+  if sSessionState == "open" and sCombatSessionKey then
+    chat("The Lectern encounter is still open. Run /lectern-end outcome before resetting.")
+    return
+  end
+  sCombatSessionKey = nil
+  sCombatSessionName = nil
+  sSessionStartedAt = nil
+  sSessionState = "inactive"
+  sOutcome = nil
+  sCompletedAt = nil
+  nEventSequence = 0
+  aEventJournal = {}
+  sPersistedEventsJSON = ""
+  nPersistedJournalCount = 0
+  tLastCombatants = {}
+  sLastActiveKey = nil
+  bHaveCombatBaseline = false
+  bLastCombatActive = false
+  tLastRollContext = nil
+  bWarnedNoSession = false
+  tCachedSnapshot = nil
+  pcall(saveSessionState)
+  exportAll()
+  chat("Cleared the Lectern combat session and exported event journal. Start the next test with /lectern-start [name].")
+end
+
 local function onCombatTrackerChanged()
   exportCombatUpdate()
 end
@@ -938,6 +970,7 @@ function onInit()
   Comm.registerSlashHandler("lectern-export", exportAll, "Export 5E catalog, campaign, encounters, and combat to Lectern")
   Comm.registerSlashHandler("lectern-start", startEncounter, "Start and name a durable Lectern combat encounter")
   Comm.registerSlashHandler("lectern-end", endEncounter, "End the current Lectern encounter with an outcome")
+  Comm.registerSlashHandler("lectern-reset", resetEncounterJournal, "Clear a closed Lectern combat session and event journal")
   Comm.registerSlashHandler("lectern-outcome", setOutcome, "Compatibility alias for /lectern-end")
   Comm.addKeyedEventHandler("onDiceLanded", "", onDiceLanded)
   if GameManager and type(GameManager.addEventFunction) == "function" then
