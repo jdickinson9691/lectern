@@ -1,5 +1,11 @@
 # Changelog
 
+### Fantasy Grounds historical combat-log reprocessing
+
+- Added a previewable **Reprocess Imported Combat Logs** workflow that creates a safety backup and rebuilds only linked Fantasy Grounds log rows from preserved raw events.
+- Reused the current Fantasy Grounds event formatter for new imports and historical rows, with idempotent updates, explicit unavailable values, transaction rollback, and updated/unchanged/incomplete/failed reporting.
+- Added focused regression coverage for restored rolls and defenses, damage adjustments, healing, authoritative natural-roll outcomes, manual wound changes, local-row preservation, repeat processing, and rollback safety.
+
 ### Encounter Builder and Fantasy Grounds bug fixes
 
 - Fixed monster selection so Encounter Builder refreshes preserve the selected database record instead of falling back to the first alphabetical monster (`A-mi-kuk`).

@@ -1236,9 +1236,12 @@ class FantasyGroundsSyncPage(QWidget):
         controls = QHBoxLayout()
         self.import_button = QPushButton("Import Now")
         self.import_button.clicked.connect(self.import_now)
+        self.reprocess_button = QPushButton("Reprocess Imported Combat Logs")
+        self.reprocess_button.clicked.connect(self.reprocess_logs)
         self.auto_import = QCheckBox("Automatically import new snapshots")
         self.auto_import.setChecked(True)
         controls.addWidget(self.import_button)
+        controls.addWidget(self.reprocess_button)
         controls.addWidget(self.auto_import)
         controls.addStretch()
         controls.addWidget(QLabel("Imported campaign:"))
@@ -1339,6 +1342,55 @@ class FantasyGroundsSyncPage(QWidget):
             return
         self._last_snapshot_stamp = stamp
         self.import_now(quiet=True)
+
+    def reprocess_logs(self):
+        if self._importing:
+            return
+        preview = self.service.preview_log_reprocessing()
+        if preview.total_events == 0:
+            QMessageBox.information(
+                self,
+                "Reprocess Imported Combat Logs",
+                "No imported Fantasy Grounds combat events are available to reprocess.",
+            )
+            return
+        prompt = (
+            "Lectern will rebuild the linked combat log rows from their preserved Fantasy Grounds event data.\n\n"
+            f"Affected encounters: {preview.affected_encounters}\n"
+            f"Total events: {preview.total_events}\n"
+            f"Improvable events: {preview.improvable_events}\n"
+            f"Events with missing source data: {preview.missing_source_events}\n\n"
+            "A database backup will be created first. Local and unlinked log rows will not be changed. Continue?"
+        )
+        if QMessageBox.question(self, "Reprocess Imported Combat Logs", prompt) != QMessageBox.Yes:
+            return
+        self._importing = True
+        self.import_button.setEnabled(False)
+        self.reprocess_button.setEnabled(False)
+        try:
+            result = self.service.reprocess_imported_logs()
+            summary = (
+                f"Updated: {result.updated}\n"
+                f"Unchanged: {result.unchanged}\n"
+                f"Incomplete: {result.incomplete}\n"
+                f"Failed: {result.failed}\n\n"
+                f"Backup: {result.backup_path}"
+            )
+            self.refresh_callback()
+            self.refresh_sources()
+            self.status.setText(
+                "Historical Fantasy Grounds combat logs reprocessed: "
+                f"{result.updated} updated, {result.unchanged} unchanged, "
+                f"{result.incomplete} incomplete, {result.failed} failed."
+            )
+            QMessageBox.information(self, "Reprocessing Complete", summary)
+        except FantasyGroundsSyncError as exc:
+            self.status.setText(f"Reprocessing error: {exc}")
+            QMessageBox.critical(self, "Reprocessing Failed", str(exc))
+        finally:
+            self.import_button.setEnabled(True)
+            self.reprocess_button.setEnabled(True)
+            self._importing = False
 
     def refresh(self):
         configured = self.service.configured_folder()

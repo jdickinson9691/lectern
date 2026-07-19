@@ -367,6 +367,14 @@ Records that disappear from a later snapshot are marked stale rather than delete
 
 To finish a synchronized encounter, enter `/lectern-outcome victory`, `/lectern-outcome defeat`, `/lectern-outcome retreat`, or `/lectern-outcome unresolved` in Fantasy Grounds chat. Lectern does not infer an outcome when the Combat Tracker is cleared.
 
+### Reprocess historical combat logs
+
+Use **Reprocess Imported Combat Logs** after upgrading Lectern when older Fantasy Grounds encounters do not show all of the structured combat details now supported by the app. Lectern previews the number of encounters and events involved, creates a database backup after you confirm, and then rebuilds only the linked Fantasy Grounds log rows from their preserved event data.
+
+The completion message reports updated, unchanged, incomplete, and failed events. Incomplete events remain readable and show which values Fantasy Grounds did not report. Reprocessing never changes local or unlinked Lectern log entries, never creates extra log rows, and can be run repeatedly without duplicating data.
+
+Reprocessing can restore only values present in the original imported event. It cannot reconstruct actor, target, roll, defense, damage, healing, or result information that the Fantasy Grounds extension did not capture at the time.
+
 ### Sync troubleshooting
 
 - If Fantasy Grounds reports an export error, select the campaign folder in Lectern before running `/lectern-export`.
