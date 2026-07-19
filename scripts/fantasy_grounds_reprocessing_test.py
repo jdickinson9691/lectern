@@ -25,7 +25,7 @@ def event(event_id: str, event_type: str, **changes):
         "round": 3,
         "encounter_source_key": "history-001",
         "type": event_type,
-        "actor": {"source_key": "hero", "name": "Historical Hero"},
+        "actor": {"source_key": "5E:character:hero", "name": "Historical Hero"},
         "target": {"source_key": "goblin", "name": "Historical Goblin"},
         "amount": None,
         "description": "",
@@ -142,6 +142,9 @@ try:
         assert rows[2]["details"] == "2 | Historical Goblin | Target HP 5/7 | Cure Wounds | 2 healing applied"
         assert "Critical Hit (25 vs AC 30)" in rows[3]["details"]
         assert "Automatic Miss (15 vs AC 10)" in rows[4]["details"]
+        assert rows[0]["actor_side"] == "party" and rows[0]["actor_source_key"] == "5E:character:hero", "Party attribution was not restored"
+        assert rows[1]["amount"] == 4 and rows[2]["amount"] == 2, "Applied damage or healing was not normalized"
+        assert rows[3]["result_code"] == "critical_hit" and rows[4]["result_code"] == "critical_miss", "Critical results were not normalized"
         assert rows[5]["actor"] == "Manual / Unattributed"
         assert "not reported" in rows[6]["details"].lower()
         assert all(row["round"] == 3 and row["created_at"] == events[index]["timestamp"] for index, row in enumerate(rows))

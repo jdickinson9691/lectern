@@ -1,4 +1,5 @@
 from __future__ import annotations
+import re
 from pathlib import Path
 from .schema import connect
 
@@ -206,8 +207,59 @@ class Repository:
     def campaign_summary(self, campaign_id: int):
         with connect(self.db_path) as conn:
             encounters = conn.execute("SELECT COUNT(*) total, SUM(status='completed') completed, SUM(outcome='Victory') victories, SUM(outcome='Defeat') defeats, SUM(outcome='Retreat') retreats, COALESCE(SUM(round),0) rounds FROM encounters WHERE campaign_id=?", (campaign_id,)).fetchone()
-            logs = conn.execute("SELECT COUNT(*) actions, COALESCE(SUM(CASE WHEN action_type='Damage' THEN CAST(substr(details,instr(details,':')+1) AS INTEGER) ELSE 0 END),0) damage, COALESCE(SUM(CASE WHEN action_type='Healing' THEN CAST(substr(details,instr(details,':')+1) AS INTEGER) ELSE 0 END),0) healing FROM turn_log WHERE encounter_id IN (SELECT id FROM encounters WHERE campaign_id=?)", (campaign_id,)).fetchone()
-            return {**dict(encounters), **dict(logs)}
+            rows = conn.execute(
+                """
+                SELECT actor,actor_source_key,action_type,details,actor_side,amount,result_code,round
+                FROM turn_log WHERE encounter_id IN (SELECT id FROM encounters WHERE campaign_id=?)
+                """,
+                (campaign_id,),
+            ).fetchall()
+            round_rows = conn.execute(
+                """
+                SELECT MAX(COALESCE(t.round,1)) AS rounds
+                FROM encounters e JOIN turn_log t ON t.encounter_id=e.id
+                WHERE e.campaign_id=? GROUP BY e.id
+                """,
+                (campaign_id,),
+            ).fetchall()
+
+        def logged_amount(row) -> int:
+            if row["amount"] is not None:
+                return max(0, int(row["amount"]))
+            match = re.match(r"\s*(?:Damage|Healing)\s*:\s*(\d+)|\s*(\d+)\b", str(row["details"] or ""), re.IGNORECASE)
+            return int(next((value for value in match.groups() if value is not None), 0)) if match else 0
+
+        damage = sum(logged_amount(row) for row in rows if row["action_type"] == "Damage")
+        healing = sum(logged_amount(row) for row in rows if row["action_type"] == "Healing")
+        party_damage = sum(logged_amount(row) for row in rows if row["action_type"] == "Damage" and row["actor_side"] == "party")
+        party_healing = sum(logged_amount(row) for row in rows if row["action_type"] == "Healing" and row["actor_side"] == "party")
+        combat_rounds = sum(max(1, int(row["rounds"] or 1)) for row in round_rows)
+        stat_rows = [row for row in rows if row["action_type"] in {"Attack", "Damage", "Healing"}]
+        attributed = sum(row["actor_side"] in {"party", "hostile", "neutral"} for row in stat_rows)
+
+        def leaders(result_code: str) -> tuple[list[str], int]:
+            counts: dict[str, int] = {}
+            names: dict[str, str] = {}
+            for row in rows:
+                if row["actor_side"] == "party" and row["result_code"] == result_code:
+                    name = str(row["actor"] or "Unknown character")
+                    key = str(row["actor_source_key"] or name.casefold())
+                    names[key] = name
+                    counts[key] = counts.get(key, 0) + 1
+            high = max(counts.values(), default=0)
+            return sorted({names[key] for key, count in counts.items() if count == high}, key=str.casefold), high
+
+        critical_hit_leaders, critical_hit_count = leaders("critical_hit")
+        critical_miss_leaders, critical_miss_count = leaders("critical_miss")
+        return {
+            **dict(encounters), "actions": len(rows), "damage": damage, "healing": healing,
+            "combat_rounds": combat_rounds, "party_damage": party_damage, "party_healing": party_healing,
+            "party_dpr": party_damage / combat_rounds if combat_rounds else 0.0,
+            "party_hpr": party_healing / combat_rounds if combat_rounds else 0.0,
+            "critical_hit_leaders": critical_hit_leaders, "critical_hit_count": critical_hit_count,
+            "critical_miss_leaders": critical_miss_leaders, "critical_miss_count": critical_miss_count,
+            "stat_events": len(stat_rows), "attributed_stat_events": attributed,
+        }
 
     def get_encounter(self, encounter_id: int):
         with connect(self.db_path) as conn:
@@ -340,10 +392,46 @@ class Repository:
                 round_no = max(1, round_no - 1)
             conn.execute("UPDATE encounters SET active_index=?, round=? WHERE id=?", (idx, round_no, encounter_id))
 
-    def log_turn(self, encounter_id: int, actor: str, action_type: str, details: str):
+    def log_turn(
+        self, encounter_id: int, actor: str, action_type: str, details: str, *,
+        actor_source_key: str = "", actor_side: str | None = None, amount: int | None = None,
+        result_code: str = "", natural_roll: int | None = None,
+    ):
         with connect(self.db_path) as conn:
             enc = conn.execute("SELECT round FROM encounters WHERE id=?", (encounter_id,)).fetchone()
-            conn.execute("INSERT INTO turn_log(encounter_id,round,actor,action_type,details) VALUES(?,?,?,?,?)", (encounter_id, enc['round'] if enc else 1, actor, action_type, details))
+            if actor_side is None:
+                combatant = conn.execute(
+                    """
+                    SELECT source_type,source_id FROM combatants
+                    WHERE encounter_id=? AND name=? ORDER BY is_active DESC,id DESC LIMIT 1
+                    """,
+                    (encounter_id, actor),
+                ).fetchone()
+                actor_side = {"player": "party", "monster": "hostile"}.get(
+                    combatant["source_type"] if combatant else "", "unknown"
+                )
+                if combatant and not actor_source_key:
+                    actor_source_key = f"{combatant['source_type']}:{combatant['source_id'] or ''}"
+            if amount is None and action_type in {"Damage", "Healing"}:
+                match = re.match(r"\s*(?:Damage|Healing)\s*:\s*(\d+)|\s*(\d+)\b", details, re.IGNORECASE)
+                if match:
+                    amount = int(next(value for value in match.groups() if value is not None))
+            detail_result = details.casefold()
+            if not result_code and action_type == "Attack":
+                if "critical hit" in detail_result:
+                    result_code = "critical_hit"
+                elif "automatic miss" in detail_result or "critical miss" in detail_result:
+                    result_code = "critical_miss"
+            conn.execute(
+                """
+                INSERT INTO turn_log(
+                    encounter_id,round,actor,action_type,details,actor_source_key,
+                    actor_side,amount,result_code,natural_roll
+                ) VALUES(?,?,?,?,?,?,?,?,?,?)
+                """,
+                (encounter_id, enc['round'] if enc else 1, actor, action_type, details,
+                 actor_source_key, actor_side, amount, result_code, natural_roll),
+            )
 
     def list_turn_log(self, encounter_id: int):
         with connect(self.db_path) as conn:

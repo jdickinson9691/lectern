@@ -70,6 +70,11 @@ CREATE TABLE IF NOT EXISTS turn_log (
  actor TEXT,
  action_type TEXT,
  details TEXT,
+ actor_source_key TEXT DEFAULT '',
+ actor_side TEXT DEFAULT 'unknown',
+ amount INTEGER,
+ result_code TEXT DEFAULT '',
+ natural_roll INTEGER,
  created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS active_conditions (
@@ -190,4 +195,14 @@ def initialize_database(db_path: Path) -> None:
         for col, decl in {'campaign_id': 'INTEGER', 'outcome': "TEXT DEFAULT ''", 'completed_at': 'TEXT'}.items():
             if col not in encounter_columns:
                 conn.execute(f'ALTER TABLE encounters ADD COLUMN {col} {decl}')
-        conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('schema_version','7')")
+        turn_log_columns = {row[1] for row in conn.execute('PRAGMA table_info(turn_log)').fetchall()}
+        for col, decl in {
+            'actor_source_key': "TEXT DEFAULT ''",
+            'actor_side': "TEXT DEFAULT 'unknown'",
+            'amount': 'INTEGER',
+            'result_code': "TEXT DEFAULT ''",
+            'natural_roll': 'INTEGER',
+        }.items():
+            if col not in turn_log_columns:
+                conn.execute(f'ALTER TABLE turn_log ADD COLUMN {col} {decl}')
+        conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('schema_version','8')")

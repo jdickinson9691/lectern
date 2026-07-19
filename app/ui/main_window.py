@@ -830,9 +830,20 @@ class CombatDashboardPage(QWidget):
     def adjust_hp(self, delta:int, label:str):
         cid,name=self.selected_id_name(); rows=self.rows(); row=next((x for x in rows if x['id']==cid), None)
         if not row: return
-        new=max(0,min(row['max_hp'] or 1,(row['current_hp'] or 0)+delta)); self.repo.update_combatant_hp(cid,new); self.repo.log_turn(self.current_encounter_id,name,label,f"{label}: {abs(delta)}; HP now {new}/{row['max_hp']}"); self.refresh_board()
+        enc=self.repo.get_encounter(self.current_encounter_id); active_index=(enc['active_index'] if enc else 0) or 0
+        active=rows[active_index] if rows and active_index < len(rows) else None
+        actor_name=active['name'] if active else "Manual / Unattributed"
+        actor_side={"player":"party","monster":"hostile"}.get(active['source_type'] if active else "","unknown")
+        actor_key=f"{active['source_type']}:{active['source_id'] or ''}" if active else ""
+        applied=abs(delta); new=max(0,min(row['max_hp'] or 1,(row['current_hp'] or 0)+delta)); self.repo.update_combatant_hp(cid,new)
+        verb="damage applied" if label=="Damage" else "healing applied"
+        details=f"{applied} | {name} | Target HP {new}/{row['max_hp']} | {label} | {applied} {verb}"
+        self.repo.log_turn(self.current_encounter_id,actor_name,label,details,actor_source_key=actor_key,actor_side=actor_side,amount=applied); self.refresh_board()
     def log_action(self):
-        cid,name=self.selected_id_name(); actor=name or "Encounter"; self.repo.log_turn(self.current_encounter_id,actor,self.action.currentText(),self.details.text()); self.details.clear(); self.refresh_log()
+        cid,name=self.selected_id_name(); rows=self.rows(); row=next((x for x in rows if x['id']==cid),None); actor=name or "Encounter"
+        actor_side={"player":"party","monster":"hostile"}.get(row['source_type'] if row else "","unknown")
+        actor_key=f"{row['source_type']}:{row['source_id'] or ''}" if row else ""
+        self.repo.log_turn(self.current_encounter_id,actor,self.action.currentText(),self.details.text(),actor_source_key=actor_key,actor_side=actor_side); self.details.clear(); self.refresh_log()
     def next_turn(self):
         if self.current_encounter_id: self.repo.next_turn(self.current_encounter_id); self.refresh_board()
     def prev_turn(self):
@@ -905,6 +916,13 @@ class CampaignDashboardPage(QWidget):
         choose=QHBoxLayout(); self.campaigns=QComboBox(); self.campaigns.currentIndexChanged.connect(self.refresh_dashboard); self.encounter=QComboBox(); self.outcome=QComboBox(); self.outcome.addItems(["Victory","Defeat","Retreat","Unresolved"]); assign=QPushButton("Add Encounter"); assign.clicked.connect(self.assign); finish=QPushButton("Complete Encounter"); finish.clicked.connect(self.complete)
         for w in [QLabel("Campaign:"),self.campaigns,QLabel("Encounter:"),self.encounter,assign,self.outcome,finish]: choose.addWidget(w)
         root.addLayout(choose); self.summary=QLabel(); self.summary.setWordWrap(True); root.addWidget(self.summary)
+        stats=QGroupBox("Party Combat Statistics"); stats_layout=QGridLayout(stats)
+        self.party_dpr=QLabel(); self.party_hpr=QLabel(); self.critical_hits=QLabel(); self.critical_misses=QLabel()
+        for label in (self.party_dpr,self.party_hpr,self.critical_hits,self.critical_misses): label.setWordWrap(True)
+        stats_layout.addWidget(self.party_dpr,0,0); stats_layout.addWidget(self.party_hpr,0,1)
+        stats_layout.addWidget(self.critical_hits,1,0); stats_layout.addWidget(self.critical_misses,1,1)
+        self.stats_coverage=QLabel(); self.stats_coverage.setWordWrap(True); stats_layout.addWidget(self.stats_coverage,2,0,1,2)
+        root.addWidget(stats)
         self.history=QTableWidget(); self.history.setColumnCount(7); self.history.setHorizontalHeaderLabels(["Encounter","Status","Outcome","Rounds","Combatants","Actions","Completed"]); root.addWidget(self.history,1); self.refresh()
     def refresh(self):
         campaign_id=self.campaigns.currentData(); self.campaigns.blockSignals(True); self.campaigns.clear()
@@ -924,8 +942,19 @@ class CampaignDashboardPage(QWidget):
         if self.encounter.currentData(): self.repo.complete_encounter(self.encounter.currentData(),self.outcome.currentText()); self.refresh_dashboard(); self.refresh_callback()
     def refresh_dashboard(self):
         campaign_id=self.campaigns.currentData()
-        if not campaign_id: self.summary.setText("Create a campaign, then add encounters to see cumulative results."); self.history.setRowCount(0); return
+        if not campaign_id:
+            self.summary.setText("Create a campaign, then add encounters to see cumulative results.")
+            for label in (self.party_dpr,self.party_hpr,self.critical_hits,self.critical_misses,self.stats_coverage): label.clear()
+            self.history.setRowCount(0); return
         s=self.repo.campaign_summary(campaign_id); self.summary.setText(f"<b>{s['total']} encounters</b> · {s['completed'] or 0} completed · {s['victories'] or 0} victories · {s['defeats'] or 0} defeats · {s['retreats'] or 0} retreats · {s['rounds']} rounds · {s['actions']} actions · {s['damage']} damage · {s['healing']} healing")
+        hit_names=", ".join(s['critical_hit_leaders']) or "No recorded critical hits"
+        miss_names=", ".join(s['critical_miss_leaders']) or "No recorded critical misses"
+        self.party_dpr.setText(f"<b>Party DPR</b><br><span style='font-size:20px'>{s['party_dpr']:.1f}</span><br>{s['party_damage']} applied damage over {s['combat_rounds']} combat rounds")
+        self.party_hpr.setText(f"<b>Party HPR</b><br><span style='font-size:20px'>{s['party_hpr']:.1f}</span><br>{s['party_healing']} applied healing over {s['combat_rounds']} combat rounds")
+        self.critical_hits.setText(f"<b>Critical-hit leader</b><br>{hit_names}<br>{s['critical_hit_count']} critical hit{'s' if s['critical_hit_count'] != 1 else ''}")
+        self.critical_misses.setText(f"<b>Critical-miss leader</b><br>{miss_names}<br>{s['critical_miss_count']} critical miss{'es' if s['critical_miss_count'] != 1 else ''}")
+        coverage=(100*s['attributed_stat_events']/s['stat_events']) if s['stat_events'] else 0
+        self.stats_coverage.setText(f"Statistics coverage: {s['attributed_stat_events']} of {s['stat_events']} attack, damage, and healing events have party/hostile attribution ({coverage:.0f}%). Unattributed events are excluded from party metrics.")
         rows=self.repo.campaign_encounters(campaign_id); self.history.setRowCount(len(rows))
         for r,row in enumerate(rows):
             for c,value in enumerate([row['name'],row['status'],row['outcome'],row['round'],row['combatant_count'],row['action_count'],row['completed_at'] or '']): self.history.setItem(r,c,QTableWidgetItem(str(value or '')))

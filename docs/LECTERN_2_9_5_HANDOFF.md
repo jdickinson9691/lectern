@@ -45,6 +45,7 @@ The 2.9.5 milestone is named **Workflow and Import Refinement**. Version metadat
 
 ## Current bug-fix release candidate
 
+- The Campaign Dashboard reports party DPR/HPR and critical-hit/miss leaders from normalized schema-v8 combat-log data, including tied leaders and attribution coverage. Fantasy Grounds imports/reprocessing and local combat actions populate the normalized statistics fields.
 - Encounter Builder resolves the selected monster by its bound database ID and no longer substitutes the first alphabetical monster after a refresh.
 - Locally built encounters add monster batches atomically; Fantasy Grounds-owned encounters remain read-only in Lectern.
 - Fantasy Grounds Sync 1.2.0 carries prepared-participant combat statistics and live combat events into Lectern, reads 2024 character armor class, skips unnamed placeholder characters, and excludes loaded-module reference battles from campaign encounters. Attack events use the 5E ruleset's authoritative post-resolution result and effect-adjusted defense; applied damage reports reductions or increases and refuses stale/manual actor attribution.

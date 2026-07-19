@@ -44,6 +44,11 @@ class FormattedLogEvent:
     action_type: str
     details: str
     incomplete: bool = False
+    actor_source_key: str = ""
+    actor_side: str = "unknown"
+    amount: int | None = None
+    result_code: str = ""
+    natural_roll: int | None = None
 
 
 @dataclass(frozen=True)
@@ -249,6 +254,8 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
     target = event.get("target") if isinstance(event.get("target"), dict) else {}
     metadata = event.get("metadata") if isinstance(event.get("metadata"), dict) else {}
     actor_name = str(actor.get("name") or "Fantasy Grounds")
+    actor_source_key = str(actor.get("source_key") or "")
+    actor_side = "party" if ":character:" in actor_source_key.casefold() else "unknown"
     target_name = str(target.get("name") or "Target not reported")
     description = str(event.get("description") or "").strip()
     action_name = str(metadata.get("action_name") or "").strip()
@@ -257,6 +264,22 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
     modifier = metadata.get("modifier")
     target_ac = metadata.get("target_ac")
     result = str(metadata.get("result") or "").strip()
+    natural_roll = metadata.get("natural_roll", raw_roll)
+    try:
+        natural_roll = int(natural_roll) if natural_roll is not None else None
+    except (TypeError, ValueError):
+        natural_roll = None
+    result_text = result.casefold()
+    if "critical hit" in result_text or (natural_roll == 20 and metadata.get("authoritative_result")):
+        result_code = "critical_hit"
+    elif "automatic miss" in result_text or (natural_roll == 1 and metadata.get("authoritative_result")):
+        result_code = "critical_miss"
+    elif result_text == "hit":
+        result_code = "hit"
+    elif result_text == "miss":
+        result_code = "miss"
+    else:
+        result_code = ""
     is_damage_roll = event_type == "action" and "damage" in (
         f"{metadata.get('roll_type', '')} {description}"
     ).lower()
@@ -311,6 +334,8 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
                 outcome = f"{applied} damage applied from {rolled} rolled"
         if metadata.get("attribution") == "manual_or_unattributed":
             actor_name = "Manual / Unattributed"
+            actor_source_key = ""
+            actor_side = "unknown"
             incomplete = False
         details = " | ".join((str(applied), target_name, hp, action_name or ACTION_TYPES[event_type], outcome))
         incomplete = incomplete or amount is None or not bool(target.get("name")) or metadata.get("current_hp") is None
@@ -318,7 +343,11 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
         details = description or action_name or f"{ACTION_TYPES[event_type]} details not reported"
         incomplete = incomplete or not bool(description or action_name)
 
-    return FormattedLogEvent(actor_name, action_type, details, incomplete)
+    normalized_amount = applied if event_type in {"damage", "healing"} else None
+    return FormattedLogEvent(
+        actor_name, action_type, details, incomplete, actor_source_key, actor_side,
+        normalized_amount, result_code, natural_roll,
+    )
 
 
 class FantasyGroundsSyncService:
@@ -381,26 +410,35 @@ class FantasyGroundsSyncService:
             ).fetchall()
 
     def preview_log_reprocessing(self) -> ReprocessPreview:
-        rows = self._reprocess_rows()
         improvable = 0
         missing = 0
         encounters: set[int] = set()
-        for row in rows:
-            encounters.add(int(row["encounter_id"]))
-            try:
-                formatted = format_event_log(json.loads(row["raw_json"]))
-            except (json.JSONDecodeError, FantasyGroundsSyncError, TypeError):
-                missing += 1
-                continue
-            source_missing = formatted.incomplete
-            current = (row["actor"], row["action_type"], row["details"])
-            desired = (formatted.actor, formatted.action_type, formatted.details)
-            if row["log_id"] is not None and current != desired:
-                improvable += 1
-            if row["log_id"] is None:
-                source_missing = True
-            if source_missing:
-                missing += 1
+        with connect(self.db_path) as conn:
+            rows = self._reprocess_rows(conn)
+            for row in rows:
+                encounters.add(int(row["encounter_id"]))
+                try:
+                    event = json.loads(row["raw_json"])
+                    formatted = format_event_log(event)
+                except (json.JSONDecodeError, FantasyGroundsSyncError, TypeError):
+                    missing += 1
+                    continue
+                actor_side = self._event_actor_side(conn, row["source_id"], event, formatted)
+                source_missing = formatted.incomplete
+                current = (
+                    row["actor"], row["action_type"], row["details"], row["actor_source_key"],
+                    row["actor_side"], row["amount"], row["result_code"], row["natural_roll"],
+                )
+                desired = (
+                    formatted.actor, formatted.action_type, formatted.details, formatted.actor_source_key,
+                    actor_side, formatted.amount, formatted.result_code, formatted.natural_roll,
+                )
+                if row["log_id"] is not None and current != desired:
+                    improvable += 1
+                if row["log_id"] is None:
+                    source_missing = True
+                if source_missing:
+                    missing += 1
         return ReprocessPreview(len(encounters), len(rows), improvable, missing)
 
     def reprocess_imported_logs(self) -> ReprocessResult:
@@ -415,18 +453,29 @@ class FantasyGroundsSyncService:
                 rows = self._reprocess_rows(conn)
                 for row in rows:
                     try:
-                        formatted = format_event_log(json.loads(row["raw_json"]))
+                        event = json.loads(row["raw_json"])
+                        formatted = format_event_log(event)
                     except (json.JSONDecodeError, FantasyGroundsSyncError, TypeError):
                         failed += 1
                         continue
                     if row["log_id"] is None:
                         failed += 1
                         continue
-                    desired = (formatted.actor, formatted.action_type, formatted.details)
-                    current = (row["actor"], row["action_type"], row["details"])
+                    actor_side = self._event_actor_side(conn, row["source_id"], event, formatted)
+                    desired = (
+                        formatted.actor, formatted.action_type, formatted.details, formatted.actor_source_key,
+                        actor_side, formatted.amount, formatted.result_code, formatted.natural_roll,
+                    )
+                    current = (
+                        row["actor"], row["action_type"], row["details"], row["actor_source_key"],
+                        row["actor_side"], row["amount"], row["result_code"], row["natural_roll"],
+                    )
                     if current != desired:
                         conn.execute(
-                            "UPDATE turn_log SET actor=?,action_type=?,details=? WHERE id=?",
+                            """
+                            UPDATE turn_log SET actor=?,action_type=?,details=?,actor_source_key=?,
+                                actor_side=?,amount=?,result_code=?,natural_roll=? WHERE id=?
+                            """,
                             (*desired, row["turn_log_id"]),
                         )
                     if formatted.incomplete:
@@ -446,8 +495,9 @@ class FantasyGroundsSyncService:
         try:
             return conn.execute(
                 """
-                SELECT ee.encounter_id,ee.turn_log_id,ee.raw_json,
-                       tl.id AS log_id,tl.actor,tl.action_type,tl.details
+                SELECT ee.source_id,ee.encounter_id,ee.turn_log_id,ee.raw_json,
+                       tl.id AS log_id,tl.actor,tl.action_type,tl.details,tl.actor_source_key,
+                       tl.actor_side,tl.amount,tl.result_code,tl.natural_roll
                 FROM external_events ee
                 JOIN external_sources es ON es.id=ee.source_id AND es.provider=?
                 LEFT JOIN turn_log tl ON tl.id=ee.turn_log_id
@@ -455,6 +505,32 @@ class FantasyGroundsSyncService:
                 """,
                 (PROVIDER,),
             ).fetchall()
+        finally:
+            if owns_connection:
+                conn.close()
+
+    def _event_actor_side(self, conn, source_id: int, event: dict[str, Any], formatted: FormattedLogEvent) -> str:
+        if formatted.actor_side != "unknown" or not formatted.actor_source_key:
+            return formatted.actor_side
+        owns_connection = conn is None
+        if owns_connection:
+            conn = connect(self.db_path)
+        try:
+            row = conn.execute(
+                "SELECT record_type,raw_json FROM external_records WHERE source_id=? AND source_key=?",
+                (source_id, formatted.actor_source_key),
+            ).fetchone()
+            if not row:
+                return "unknown"
+            if row["record_type"] == "character":
+                return "party"
+            try:
+                raw_record = json.loads(row["raw_json"])
+            except (json.JSONDecodeError, TypeError):
+                return "unknown"
+            raw = raw_record.get("raw") if isinstance(raw_record, dict) else {}
+            friend_foe = str((raw or {}).get("friendfoe") or "").casefold()
+            return {"friend": "party", "foe": "hostile", "neutral": "neutral"}.get(friend_foe, "unknown")
         finally:
             if owns_connection:
                 conn.close()
@@ -773,10 +849,17 @@ class FantasyGroundsSyncService:
             encounter_id = self._event_encounter(conn, source_id, campaign_id, campaign_name, event)
             event_type = event["type"]
             formatted = format_event_log(event)
+            actor_side = self._event_actor_side(conn, source_id, event, formatted)
             cursor = conn.execute(
-                "INSERT INTO turn_log(encounter_id,round,actor,action_type,details,created_at) VALUES(?,?,?,?,?,?)",
+                """
+                INSERT INTO turn_log(
+                    encounter_id,round,actor,action_type,details,actor_source_key,actor_side,
+                    amount,result_code,natural_roll,created_at
+                ) VALUES(?,?,?,?,?,?,?,?,?,?,?)
+                """,
                 (encounter_id, max(1, int(event["round"])), formatted.actor,
-                 formatted.action_type, formatted.details, event["timestamp"]),
+                 formatted.action_type, formatted.details, formatted.actor_source_key, actor_side,
+                 formatted.amount, formatted.result_code, formatted.natural_roll, event["timestamp"]),
             )
             turn_log_id = int(cursor.lastrowid)
             conn.execute(
