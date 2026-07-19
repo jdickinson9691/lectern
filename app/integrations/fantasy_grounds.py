@@ -584,7 +584,7 @@ class FantasyGroundsSyncService:
             encounter_id = self._event_encounter(conn, source_id, campaign_id, campaign_name, event)
             actor = event.get("actor") or {}
             target = event.get("target") or {}
-            actor_name = str(actor.get("name") or target.get("name") or "Fantasy Grounds")
+            actor_name = str(actor.get("name") or "Fantasy Grounds")
             event_type = event["type"]
             amount = event.get("amount")
             description = event.get("description", "").strip()
@@ -623,7 +623,21 @@ class FantasyGroundsSyncService:
                         hp_value += f"/{metadata['maximum_hp']}"
                     hp = f"Target HP {hp_value}"
                 verb = "damage applied" if event_type == "damage" else "healing applied"
-                details = " | ".join((str(applied), target_name, hp, action_name or action_types[event_type], f"{applied} {verb}"))
+                outcome = f"{applied} {verb}"
+                rolled = metadata.get("roll_total")
+                adjustment = metadata.get("adjustment")
+                if event_type == "damage" and rolled is not None:
+                    if applied == 0:
+                        outcome = f"0 damage applied from {rolled} rolled (negated)"
+                    elif isinstance(adjustment, (int, float)) and adjustment < 0:
+                        outcome = f"{applied} damage applied from {rolled} rolled (reduced by {-adjustment:g})"
+                    elif isinstance(adjustment, (int, float)) and adjustment > 0:
+                        outcome = f"{applied} damage applied from {rolled} rolled (increased by {adjustment:g})"
+                    else:
+                        outcome = f"{applied} damage applied from {rolled} rolled"
+                if metadata.get("attribution") == "manual_or_unattributed":
+                    actor_name = "Manual / Unattributed"
+                details = " | ".join((str(applied), target_name, hp, action_name or action_types[event_type], outcome))
             else:
                 details = description or action_name or event_type.replace("_", " ").title()
             cursor = conn.execute(

@@ -47,7 +47,7 @@ The 2.9.5 milestone is named **Workflow and Import Refinement**. Version metadat
 
 - Encounter Builder resolves the selected monster by its bound database ID and no longer substitutes the first alphabetical monster after a refresh.
 - Locally built encounters add monster batches atomically; Fantasy Grounds-owned encounters remain read-only in Lectern.
-- Fantasy Grounds Sync 1.1.3 carries prepared-participant combat statistics and live combat events into Lectern, reads 2024 character armor class, skips unnamed placeholder characters, and excludes loaded-module reference battles from campaign encounters.
+- Fantasy Grounds Sync 1.2.0 carries prepared-participant combat statistics and live combat events into Lectern, reads 2024 character armor class, skips unnamed placeholder characters, and excludes loaded-module reference battles from campaign encounters. Attack events use the 5E ruleset's authoritative post-resolution result and effect-adjusted defense; applied damage reports reductions or increases and refuses stale/manual actor attribution.
 - Every navigation screen uses content-aware section spacing that tightens on crowded windows and expands within a bounded range when room is available.
 - On 2026-07-18, the adaptive-layout, Encounter Builder, Fantasy Grounds Sync, and full smoke regressions passed.
 - A live Test-campaign sequence imported one character and two Combat Tracker entries while correctly exporting zero loaded-module reference encounters.
