@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.0 — Workflow and Import Refinement (in progress)
+
+- Established the v3.0.0 development baseline from the completed v2.9.5 Fantasy Grounds synchronization and campaign-statistics work.
+- Synchronized application, package, help, release manifest, baseline, and installer version metadata.
+- Added `docs/LECTERN_3_0_0_KICKOFF.md` as the authoritative starting point for the next development session.
+
 ### Fantasy Grounds damage types
 
 - Added a Campaign Dashboard **Party Damage Type Leaders** table for all 13 standard 5E damage types, including cumulative applied damage, contributing event counts, and tied leaders.

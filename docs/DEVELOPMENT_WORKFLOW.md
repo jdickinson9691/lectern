@@ -33,7 +33,7 @@ This folder is now the canonical evolving source tree for the Lectern - D&D Camp
 
 ## Current baseline
 
-- Version: 2.9.5 Workflow and Import Refinement (in progress)
-- Baseline: tested v2.9.4 Windows executable and installer
-- Scope: campaign workflow, imports, one-way Fantasy Grounds Unity 5E synchronization, usability, documentation, and release refinement.
+- Version: 3.0.0 Workflow and Import Refinement (in progress)
+- Baseline: completed v2.9.5 Fantasy Grounds synchronization and campaign-statistics work
+- Scope: define and implement the next major Lectern workflow, analytics, usability, documentation, and release improvements.
 - Acceptance evidence: `docs/VERIFICATION_REPORT.md`.

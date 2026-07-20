@@ -1,8 +1,8 @@
 # Lectern — D&D Campaign Manager
 
-**Version:** 2.9.5 — Workflow and Import Refinement
-**Milestone:** 2.9.5 (in progress)
-**Database schema:** v6
+**Version:** 3.0.0 — Workflow and Import Refinement
+**Milestone:** 3.0.0 (in progress)
+**Database schema:** v9
 
 Lectern is a single evolving Python/PySide6 Windows desktop codebase. This package is a clean, Git-ready source baseline.
 
@@ -51,7 +51,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Diagnose-Launch.ps1
 ```powershell
 git init
 git add .
-git commit -m "Lectern v2.9.3 fresh baseline"
+git commit -m "Lectern v3.0.0 baseline"
 git branch -M main
 git remote add origin <YOUR-REPOSITORY-URL>
 git push -u origin main
@@ -61,7 +61,7 @@ The `.gitignore` excludes virtual environments, databases, logs, backups, caches
 
 ## Current Milestone
 
-Version 2.9.5 continues refinement of Lectern's campaign workflow, player import, reference data, documentation, and Windows delivery. The starting state is documented in `docs/LECTERN_2_9_5_HANDOFF.md`.
+Version 3.0.0 begins from the completed 2.9.5 Fantasy Grounds synchronization and campaign-statistics baseline. The kickoff state, verification commands, known behaviors, and first decisions are documented in `docs/LECTERN_3_0_0_KICKOFF.md`.
 
 ## Fantasy Grounds Integration
 

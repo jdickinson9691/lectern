@@ -199,7 +199,7 @@ Screenshot checkpoint: Error Logs screen with non-sensitive example content.
 
 ## Screenshot standards
 
-- Use the current 2.9.5 build.
+- Use the current 3.0.0 build.
 - Capture the entire relevant panel with enough navigation context to orient the reader.
 - Crop out unrelated desktop content.
 - Use consistent window dimensions and Windows display scaling.

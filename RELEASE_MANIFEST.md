@@ -1,6 +1,6 @@
-# Release Manifest — Lectern 2.9.3
+# Release Manifest — Lectern 3.0.0
 
-Milestone: **2.9.5 — Workflow and Import Refinement**
+Milestone: **3.0.0 — Workflow and Import Refinement**
 
 This archive contains source, documentation, seed data, application art, build scripts, installer configuration, and the Fantasy Grounds extension source and packaging scripts.
 
