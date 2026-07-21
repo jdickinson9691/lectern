@@ -18,7 +18,7 @@ from ..importers.csv_transfer import CsvTransferService, CSV_TABLES
 from ..importers.character_pdf import CharacterPdfImporter
 from ..services.data_workflow import DataWorkflowService
 from ..integrations.fantasy_grounds import FantasyGroundsSyncError, FantasyGroundsSyncService
-from ..version import APP_NAME, VERSION
+from ..version import APP_EXPANDED_NAME, APP_NAME, VERSION
 from ..paths import icon_path, watermark_path, help_path, user_data_dir
 
 
@@ -1770,7 +1770,21 @@ class MainWindow(QMainWindow):
         self.pages.append(widget)
     def dashboard(self):
         w=QWidget(); l=adaptive_page_layout(w)
-        l.addWidget(QLabel(f"<h1>{APP_NAME}</h1><p>Version {VERSION}</p><p>Use Campaigns to organize adventures, Encounter Builder to prepare battles, and Combat Dashboard to run them.</p>"))
+        self.dashboard_intro=QLabel(
+            f"<h1>{APP_NAME}</h1>"
+            f"<p><b>{APP_EXPANDED_NAME}</b><br>Version {VERSION}</p>"
+            "<p>Lectern is a local-first Windows workspace for preparing, running, and reviewing tabletop campaigns. "
+            "Manage player characters and reference libraries, assemble reusable encounters, track initiative and hit points, "
+            "record damage, healing, actions, and outcomes, and preserve a structured combat journal for later review.</p>"
+            "<p><b>Campaign intelligence:</b> Group encounters into campaigns to review rounds, outcomes, party damage and healing, "
+            "critical results, attribution coverage, and leaders across all standard damage types. "
+            "<b>Flexible data:</b> Import character PDFs and CSV files, export editable tables, and use built-in backup, restore, and reseed tools.</p>"
+            "<p><b>Fantasy Grounds integration:</b> Lectern Sync can import 5E characters, prepared encounters, live Combat Tracker state, "
+            "and authoritative combat events while Fantasy Grounds remains the source of truth. Local Lectern encounters remain independent and editable.</p>"
+            "<p>Begin with <b>Campaigns</b> and <b>Players</b>, prepare battles in <b>Encounter Builder</b>, run or review them in "
+            "<b>Combat Dashboard</b>, and open <b>Help</b> for linked screen-by-screen guidance.</p>"
+        )
+        self.dashboard_intro.setWordWrap(True); l.addWidget(self.dashboard_intro)
         self.counts=QLabel(); l.addWidget(self.counts)
         l.addWidget(QLabel("<h2>Current Campaigns</h2>"))
         self.dashboard_campaigns=QTableWidget(); self.dashboard_campaigns.setColumnCount(3); self.dashboard_campaigns.setHorizontalHeaderLabels(["Campaign", "Encounters", "Description"])

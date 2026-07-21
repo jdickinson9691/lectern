@@ -125,6 +125,7 @@ Build the app and installer, commit, and push main.
 These do not need to be repeated unless a task intentionally changes them:
 
 - Repository: `D:\Ludinn\Development\Lectern`
+- Official expanded name: Lüdinn Entertainment Campaign Tracker for Encounters, Rules & Navigation
 - Primary branch: `main`
 - Application: Windows Python/PySide6 desktop app using SQLite
 - Fantasy Grounds direction: one-way from Fantasy Grounds Unity `5E` into Lectern

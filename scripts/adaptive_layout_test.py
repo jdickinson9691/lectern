@@ -46,6 +46,13 @@ try:
     app.processEvents()
 
     assert window.pages, "Main window did not create navigation pages"
+    overview = window.dashboard_intro.text()
+    assert all(term in overview for term in (
+        "Lüdinn Entertainment Campaign Tracker for Encounters, Rules & Navigation",
+        "local-first", "Campaign intelligence", "Fantasy Grounds integration",
+    )), (
+        "Dashboard application description is incomplete"
+    )
     for page in window.pages:
         assert isinstance(page.layout(), AdaptivePageLayout), (
             f"{type(page).__name__} is missing the shared adaptive page layout"
@@ -60,7 +67,7 @@ try:
     if len(sys.argv) > 1:
         screenshot_dir = Path(sys.argv[1])
         screenshot_dir.mkdir(parents=True, exist_ok=True)
-        for page_name in ("Campaigns", "Encounter Builder"):
+        for page_name in ("Dashboard", "Campaigns", "Encounter Builder"):
             matches = window.nav.findItems(page_name, Qt.MatchExactly)
             assert matches, f"Navigation page not found: {page_name}"
             window.nav.setCurrentItem(matches[0])

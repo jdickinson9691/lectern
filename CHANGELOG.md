@@ -19,6 +19,8 @@
 - Synchronized player records now populate Lectern's existing **Equipped Weapon** and **Equipped Armor** fields without changing snapshot contract v1 or database schema v9.
 - The Windows installer now prompts for the Fantasy Grounds `extensions` folder and installs `LecternSync.ext` directly, using an account-agnostic default with support for custom data locations.
 - Reorganized the complete in-app help around clickable section titles, added Fantasy Grounds ownership and synchronization guidance for every screen, and documented the distinction between local Lectern, Fantasy Grounds Prepared, and Fantasy Grounds Live combat encounters.
+- Expanded the main Dashboard introduction into a comprehensive overview of Lectern's planning, combat, analytics, data-management, and Fantasy Grounds synchronization capabilities.
+- Established the official expanded product name: **Lüdinn Entertainment Campaign Tracker for Encounters, Rules & Navigation**.
 
 ### Live Fantasy Grounds acceptance
 

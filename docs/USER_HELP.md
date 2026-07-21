@@ -1,4 +1,6 @@
-# Lectern - D&D Campaign Manager Help
+# Lectern Help
+
+**Lüdinn Entertainment Campaign Tracker for Encounters, Rules & Navigation**
 
 Version: 3.0.0 - Workflow and Import Refinement
 

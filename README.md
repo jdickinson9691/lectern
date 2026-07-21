@@ -1,10 +1,12 @@
-# Lectern — D&D Campaign Manager
+# Lectern
+
+**Lüdinn Entertainment Campaign Tracker for Encounters, Rules & Navigation**
 
 **Version:** 3.0.0 — Workflow and Import Refinement
 **Milestone:** 3.0.0 (in progress)
 **Database schema:** v9
 
-Lectern is a single evolving Python/PySide6 Windows desktop codebase. This package is a clean, Git-ready source baseline.
+Lectern is a single evolving Python/PySide6 Windows desktop codebase for D&D 5E campaign planning, combat tracking, and campaign analysis. This package is a clean, Git-ready source baseline.
 
 ## Supported Development Environment
 

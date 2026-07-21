@@ -1,10 +1,16 @@
 #define MyAppName "Lectern - D&D Campaign Manager"
 #define MyAppVersion "3.0.0"
 #define MyAppExeName "Lectern.exe"
+#define MyAppPublisher "Lüdinn Entertainment"
+#define MyAppDescription "Lüdinn Entertainment Campaign Tracker for Encounters, Rules & Navigation"
 [Setup]
 AppId={{LecternDNDCampaignManager}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoDescription={#MyAppDescription}
+VersionInfoProductName=Lectern
 DefaultDirName={autopf}\LecternDNDCampaignManager
 DefaultGroupName={#MyAppName}
 OutputDir=..\release
