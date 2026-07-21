@@ -1,23 +1,23 @@
-# Verification Report — Lectern v2.9.4
+# Verification Report — Lectern v3.0.0
 
 Status: **In progress**
 
 Milestone: **Verification and Stabilization**
 
-Database schema: **v5**
+Database schema: **v9**
 
-This is the acceptance record for v2.9.4. Mark an item complete only after recording its date, environment, and evidence. Automated checks do not replace manual Windows checks.
+This is the acceptance record for v3.0.0. Mark an item complete only after recording its date, environment, and evidence. Automated checks do not replace manual Windows checks.
 
 ## Automated baseline
 
 | Check | Status | Evidence |
 |---|---|---|
-| Source compilation | Passed | Python 3.13.14; `compileall` exited 0 on 2026-07-10. |
-| Launch diagnostics | Passed | Dependencies, resources, and clean schema-v4 initialization passed on 2026-07-10. |
-| Database/seed/data smoke test | Passed | Seed, CRUD, CSV, backup, and restore smoke test passed on 2026-07-10. |
-| Qt offscreen startup | Passed | Main window constructed and exited cleanly using the test autoclose hook on 2026-07-10. |
-| No unresolved merge markers | Passed | Tracked source and documentation search returned no markers on 2026-07-10. |
-| Version metadata consistency | Passed | Application, package, diagnostic, and installer metadata identify v2.9.4. |
+| Source compilation | Passed | Python 3.13.14; all current application and regression modules compiled successfully on 2026-07-21. |
+| Launch diagnostics | Passed | Dependencies, resources, and clean schema-v9 initialization passed on 2026-07-21. |
+| Database/seed/data smoke test | Passed | The complete nine-script regression suite, including seed, campaign, combat, Fantasy Grounds, layout, Help, and installer checks, passed on 2026-07-21. |
+| Qt offscreen startup | Passed | The rebuilt packaged application constructed and exited cleanly using the test autoclose hook on 2026-07-21. |
+| No unresolved merge markers | Passed | Tracked source and documentation search returned no markers on 2026-07-21. |
+| Version metadata consistency | Passed | Application, package, diagnostic, and installer metadata identify v3.0.0. |
 
 ## Startup and presentation
 
@@ -42,7 +42,7 @@ If an operation is not implemented, record it as a blocking defect.
 
 - [ ] Backup creates a readable copy.
 - [ ] Restore creates a safety backup and restores the selected database.
-- [ ] Reset creates a safety backup and an empty schema-v4 database.
+- [ ] Reset creates a safety backup and an empty schema-v9 database.
 - [ ] Reseed restores bundled reference data.
 - [ ] CSV export works for one and all tables.
 - [ ] CSV preview correctly classifies New, Modified, Unchanged, Duplicate, and Error.
@@ -55,7 +55,7 @@ If an operation is not implemented, record it as a blocking defect.
 
 - [x] `build/Build.ps1` produces `dist/Lectern/Lectern.exe`.
 - [x] Packaged resources are present.
-- [x] Inno Setup produces `release/Lectern_v2_9_4_Setup.exe`.
+- [x] Inno Setup produces `release/Lectern_v3_0_0_Setup.exe`.
 - [x] Desktop and Start Menu shortcuts are created and resolve to the installed application.
 
 ## Evidence log
@@ -68,7 +68,8 @@ If an operation is not implemented, record it as a blocking defect.
 | 2026-07-10 | Windows 11, Python 3.13.14 | Automated baseline | Compilation, diagnostics, smoke test, and Qt offscreen startup all exited 0. |
 | 2026-07-10 | Windows 11, PyInstaller 6.21.0 | Packaged executable | Corrected project-root calculation and added the dynamic `app.main` import; rebuild succeeded, required resources were present, and packaged startup exited 0. |
 | 2026-07-10 | Windows 11, Inno Setup 6.7.3 | Installer | Compiled `Lectern_v2_9_4_Setup.exe`; isolated silent install exited 0, installed payload and both shortcuts were present, installed startup exited 0, and test uninstall exited 0. |
+| 2026-07-21 | Windows 11; Python launcher 3.14.6; project Python 3.13.14; PySide6 6.11.1; PyInstaller 6.21.0; VS Code 1.129.1; Git 2.55.0; PowerShell 5.1; Inno Setup 6.7.1 | Development-tool compatibility audit | `pip check` reported no broken requirements; all nine regression scripts passed; the application and Fantasy Grounds extension rebuilt; the v3.0.0 installer compiled; and packaged startup exited 0. The project remains intentionally isolated on its validated Python 3.13 environment. |
 
 ## Release decision
 
-Declare v2.9.4 complete only when all checks pass, no startup errors or syntax/merge issues remain, and every blocking defect is resolved or explicitly removed from scope. Do not begin v3.0 work before recording that decision here.
+Declare v3.0.0 complete only when all checks pass, no startup errors or syntax/merge issues remain, and every blocking defect is resolved or explicitly removed from scope.
