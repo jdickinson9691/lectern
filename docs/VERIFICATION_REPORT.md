@@ -69,6 +69,7 @@ If an operation is not implemented, record it as a blocking defect.
 | 2026-07-10 | Windows 11, PyInstaller 6.21.0 | Packaged executable | Corrected project-root calculation and added the dynamic `app.main` import; rebuild succeeded, required resources were present, and packaged startup exited 0. |
 | 2026-07-10 | Windows 11, Inno Setup 6.7.3 | Installer | Compiled `Lectern_v2_9_4_Setup.exe`; isolated silent install exited 0, installed payload and both shortcuts were present, installed startup exited 0, and test uninstall exited 0. |
 | 2026-07-21 | Windows 11; Python launcher 3.14.6; project Python 3.13.14; PySide6 6.11.1; PyInstaller 6.21.0; VS Code 1.129.1; Git 2.55.0; PowerShell 5.1; Inno Setup 6.7.1 | Development-tool compatibility audit | `pip check` reported no broken requirements; all nine regression scripts passed; the application and Fantasy Grounds extension rebuilt; the v3.0.0 installer compiled; and packaged startup exited 0. The project remains intentionally isolated on its validated Python 3.13 environment. |
+| 2026-07-21 | Windows 11, PyInstaller 6.21.0, Inno Setup 6.7.3 | Manual-campaign foundation package | Rebuilt the application and Fantasy Grounds extension from commit `ceb8859`; packaged startup exited 0; and `Lectern_v3_0_0_Setup.exe` compiled successfully with product version 3.0.0 and SHA-256 `FEBDFA7F65B07EFA38F6B715011DBC621B03CE88E642E8E8962F3E068D311E8D`. |
 
 ## Release decision
 
