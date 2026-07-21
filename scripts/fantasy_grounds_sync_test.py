@@ -32,7 +32,7 @@ try:
     extension_manifest = (
         ROOT / "integrations" / "fantasy_grounds" / "extension" / "LecternSync" / "extension.xml"
     ).read_text(encoding="utf-8")
-    assert 'local EXTENSION_VERSION = "1.4.2"' in extension_source and "<version>1.4.2</version>" in extension_manifest, "Extension version metadata is inconsistent"
+    assert 'local EXTENSION_VERSION = "1.4.3"' in extension_source and "<version>1.4.3</version>" in extension_manifest, "Extension version metadata is inconsistent"
     assert 'if vValue == JSON_EMPTY_OBJECT then return "{}" end' in extension_source, "Empty event metadata is not encoded as a JSON object"
     assert 'Comm.registerSlashHandler("lectern-start", startEncounter' in extension_source, "Explicit encounter start command is missing"
     assert 'Comm.registerSlashHandler("lectern-end", endEncounter' in extension_source, "Explicit encounter end command is missing"
@@ -44,6 +44,7 @@ try:
     assert 'lifecycle = "encounter_start"' in extension_source and 'lifecycle = "encounter_end"' in extension_source, "Encounter lifecycle events are missing"
     assert 'nodeNumber(node, "defenses.ac.total"' in extension_source, "2024 Fantasy Grounds character AC path is missing"
     assert 'if sCharacterName == "" then return nil end' in extension_source, "Unnamed Fantasy Grounds characters are not filtered"
+    assert 'DB.getChildList(node, "inventorylist")' in extension_source and 'nCarried == 2' in extension_source, "Equipped character items are not exported"
     assert 'not moduleName(node)' in extension_source, "Module reference battles are not filtered from campaign encounters"
     assert 'DB.addHandler("combattracker.list.*.wounds", "onUpdate"' in extension_source, "Combat Tracker wound changes are not observed"
     assert 'targetsForCombatant(tActorCombatant, tCombat)' in extension_source, "Selected Combat Tracker targets are not captured"
@@ -138,6 +139,7 @@ try:
     player = next(row for row in players if row["class_name"] == "Test Fighter")
     assert player["name"] == "Fantasy Grounds Test Hero [Fantasy Grounds]", "Character collision-safe naming failed"
     assert player["level"] == 5 and player["armor_class"] == 17 and player["current_hp"] == 37 and player["str_total"] == 16, "Character statistics mapping failed"
+    assert player["equipped_weapon"] == "Greatsword; Javelin" and player["equipped_armor"] == "Chain Mail", "Equipped weapon and armor mapping failed"
     assert "Test Fighter" in repo.list_rule_names_like("class") and "Test Champion" not in repo.list_rule_names_like("class"), "Class/subclass references were mixed"
     assert "Test Champion" in repo.list_rule_names_like("subclass"), "Subclass reference lookup failed"
 

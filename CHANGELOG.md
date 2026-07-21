@@ -13,6 +13,11 @@
 - A successful manual or automatic Fantasy Grounds import now selects the newly updated live-combat session in Encounter Builder and Combat Dashboard.
 - The relationship uses existing synchronization metadata, so database schema v9 and snapshot contract v1 remain unchanged.
 
+### Fantasy Grounds character equipment
+
+- Added Lectern Sync 1.4.3 export of equipped weapons and armor from 5E character inventory entries, including multiple weapons and shields.
+- Synchronized player records now populate Lectern's existing **Equipped Weapon** and **Equipped Armor** fields without changing snapshot contract v1 or database schema v9.
+
 ### Live Fantasy Grounds acceptance
 
 - Completed and recorded a live 5E acceptance session covering resistance, immunity, vulnerability, mixed damage, healing, natural-20 and natural-1 results, temporary HP, and multi-target damage.
@@ -26,6 +31,7 @@
 ### Fantasy Grounds damage types
 
 - Added a Campaign Dashboard **Party Damage Type Leaders** table for all 13 standard 5E damage types, including cumulative applied damage, contributing event counts, and tied leaders.
+- Split the Campaign Dashboard's lower section into side-by-side damage-type leader and campaign-encounter panels, removing the leader table's height cap so all 13 types can be displayed together.
 - Added Lectern Sync 1.4.1 authoritative post-resolution damage capture with mixed damage components and rolled, applied, resisted, and vulnerability amounts.
 - Fixed empty event metadata being exported as a JSON array; Lectern also recovers affected 1.4.0 snapshots without losing their combat events.
 - Added schema-v9 normalized damage types and component JSON to combat-log rows, plus a **Damage Type** column and damage-type-aware search on the Combat Dashboard.

@@ -88,6 +88,8 @@ try:
 
     app = QApplication.instance() or QApplication([])
     page = CampaignDashboardPage(repo, lambda: None)
+    page.resize(1200, 800)
+    page.show()
     page.campaigns.setCurrentIndex(page.campaigns.findData(campaign_id))
     page.refresh_dashboard()
     app.processEvents()
@@ -99,6 +101,9 @@ try:
     fire_row = ui_type_rows["Fire"]
     assert page.damage_type_leaders.item(fire_row, 1).text() == "Mira, Rook" and page.damage_type_leaders.item(fire_row, 2).text() == "6" and page.damage_type_leaders.item(fire_row, 3).text() == "1 each", "Damage-type tie was not rendered"
     assert page.damage_type_leaders.item(ui_type_rows["Acid"], 1).text() == "No recorded party damage", "Empty damage type state was not rendered"
+    assert page.damage_types_group.geometry().left() < page.encounters_group.geometry().left(), "Damage-type leaders are not positioned left of campaign encounters"
+    assert abs(page.damage_types_group.geometry().top() - page.encounters_group.geometry().top()) <= 1, "Dashboard lower panels are not aligned side by side"
+    assert page.damage_type_leaders.minimumHeight() >= 390 and page.damage_type_leaders.maximumHeight() > 10000, "Damage-type table is still vertically capped"
     page.close()
 
     print("Campaign Dashboard statistics test passed.")

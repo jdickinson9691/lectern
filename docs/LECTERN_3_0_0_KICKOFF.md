@@ -15,7 +15,7 @@ This document is the authoritative starting point for Lectern 3.0.0. The version
 - Application version: 3.0.0
 - Database schema: v9
 - Fantasy Grounds snapshot schema: v1
-- Lectern Sync extension: 1.4.2
+- Lectern Sync extension: 1.4.3
 - Supported runtime: Python 3.13 on Windows 10/11
 - Expected installer: `release/Lectern_v3_0_0_Setup.exe`
 

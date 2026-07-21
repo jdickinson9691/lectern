@@ -73,6 +73,8 @@ DPR and HPR divide party totals by the sum of the highest logged round in each c
 
 For each standard 5E damage type, the leaders table shows the party combatant or tied combatants with the highest cumulative applied damage, the leading total, and the number of contributing damage events. It uses Fantasy Grounds component-level applied values so mixed damage is allocated to the correct types after resistance, immunity, vulnerability, and similar adjustments. Older rows are counted only when they identify exactly one standard damage type. Unknown damage and qualifiers such as `magic`, `silver`, or `adamantine` are excluded rather than guessed.
 
+The dashboard's lower section places the complete Party Damage Type Leaders table on the left and the campaign's encounter table on the right.
+
 Historical Fantasy Grounds events gain normalized affiliation, amount, and critical-result fields when they are imported or reprocessed. Older local entries that cannot be attributed remain in the combat log and existing overall totals but are not guessed into party statistics.
 
 The encounter history shows status, outcome, rounds, combatants, actions, and completion time.
@@ -364,7 +366,7 @@ Run `/lectern-export` once after each Fantasy Grounds campaign start and after c
 
 ### Start and end a combat encounter
 
-Lectern Sync 1.4.2 uses explicit encounter boundaries so a Fantasy Grounds reload cannot silently split one combat into several Lectern encounters. It also captures authoritative damage types and mixed damage components from the 5E ruleset, including correct attribution for every target of a multi-target action.
+Lectern Sync 1.4.3 uses explicit encounter boundaries so a Fantasy Grounds reload cannot silently split one combat into several Lectern encounters. It captures equipped character weapons and armor plus authoritative damage types and mixed damage components from the 5E ruleset, including correct attribution for every target of a multi-target action.
 
 1. Populate the Combat Tracker and prepare initiative.
 2. In Fantasy Grounds chat, enter `/lectern-start Encounter Name` before the first combat roll.
@@ -402,7 +404,7 @@ Synchronized Fantasy Grounds encounters are read-only in Lectern's Encounter Bui
 ### Imported information
 
 - Classes, subclasses, species/races, feats, and backgrounds from loaded modules
-- Player characters
+- Player characters, including equipped weapons and armor
 - Prepared encounters and their participants
 - Prepared-encounter participant armor class, hit points, and initiative modifier when Fantasy Grounds provides them
 - Current Combat Tracker order, round, active combatant, initiative, armor class, hit points, wounds, temporary hit points, and effects

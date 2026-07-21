@@ -1,7 +1,7 @@
--- Lectern Sync 1.4.2
+-- Lectern Sync 1.4.3
 -- One-way Fantasy Grounds Unity 5E export. This script never writes FG database nodes.
 
-local EXTENSION_VERSION = "1.4.2"
+local EXTENSION_VERSION = "1.4.3"
 local SCHEMA_VERSION = 1
 local bExporting = false
 local tCachedSnapshot = nil
@@ -270,6 +270,21 @@ local function abilityScore(node, sAbility)
   return nodeNumber(node, "abilities." .. sAbility .. ".score", 10)
 end
 
+local function equippedCharacterItems(node)
+  local aWeapons = {}
+  local aArmor = {}
+  for _, nodeItem in ipairs(DB.getChildList(node, "inventorylist")) do
+    local sName = nodeText(nodeItem, "name", "")
+    local sType = string.lower(nodeText(nodeItem, "type", ""))
+    local nCarried = nodeNumber(nodeItem, "carried", 0)
+    if sName ~= "" and nCarried == 2 then
+      if sType == "weapon" then table.insert(aWeapons, sName)
+      elseif sType == "armor" then table.insert(aArmor, sName) end
+    end
+  end
+  return table.concat(aWeapons, "; "), table.concat(aArmor, "; ")
+end
+
 local function characterRecord(node)
   local sCharacterName = nodeText(node, "name", "")
   if sCharacterName == "" then return nil end
@@ -282,6 +297,7 @@ local function characterRecord(node)
     local sName = nodeText(nodeFeat, "name", "")
     if sName ~= "" then table.insert(aFeats, sName) end
   end
+  local sEquippedWeapon, sEquippedArmor = equippedCharacterItems(node)
   tRecord.fields = {
     player_name = DB.getOwner(node) or "",
     species = nodeText(node, "race", nodeText(node, "species", "")),
@@ -299,6 +315,8 @@ local function characterRecord(node)
       wis = abilityScore(node, "wisdom"), cha = abilityScore(node, "charisma"),
     },
     feats = table.concat(aFeats, "; "),
+    equipped_weapon = sEquippedWeapon,
+    equipped_armor = sEquippedArmor,
   }
   return tRecord
 end
