@@ -15,10 +15,11 @@ temp_dir = Path(mkdtemp(prefix="lectern_campaign_stats_"))
 os.environ["LECTERN_DATA_DIR"] = str(temp_dir / "user-data")
 
 from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Qt
 
 from app.database.repositories import Repository
 from app.database.schema import connect, initialize_database
-from app.ui.main_window import CampaignDashboardPage, MainWindow
+from app.ui.main_window import CampaignDashboardPage, MainWindow, ManualCampaignSetupWizard
 
 
 try:
@@ -98,6 +99,39 @@ try:
     assert not type_rows["acid"]["leaders"] and "magic" not in type_rows, "Unknown or non-damage qualifiers were included"
 
     app = QApplication.instance() or QApplication([])
+
+    guided_db = temp_dir / "guided.db"
+    initialize_database(guided_db)
+    players_csv = temp_dir / "guided_players.csv"
+    players_csv.write_text("name,class_name,level,armor_class,max_hp\nNova,Rogue,3,15,24\n", encoding="utf-8")
+    monsters_csv = temp_dir / "guided_monsters.csv"
+    monsters_csv.write_text("name,armor_class,hit_points\nBandit,12,11\n", encoding="utf-8")
+    wizard = ManualCampaignSetupWizard(guided_db)
+    wizard.campaign_name.setText("Guided Campaign")
+    wizard.campaign_description.setText("Created through the local setup workflow")
+    wizard.players_csv.setText(str(players_csv)); wizard.monsters_csv.setText(str(monsters_csv))
+    assert wizard.refresh_preview() and "Validation passed" in wizard.validation_summary.text(), "Guided campaign CSV validation did not pass"
+    assert wizard.party_list.count() == 1 and wizard.party_list.item(0).text() == "Nova" and wizard.party_list.item(0).checkState() == Qt.Checked, "Imported players were not preselected for the guided party"
+    wizard.party_list.item(0).setCheckState(Qt.Unchecked)
+    assert wizard.refresh_preview() and wizard.party_list.item(0).checkState() == Qt.Unchecked, "Guided setup did not preserve an explicit party choice across navigation"
+    wizard.party_list.item(0).setCheckState(Qt.Checked)
+    wizard.encounter_name.setText("Roadside Ambush")
+    guided_result = wizard.perform_setup()
+    guided_repo = Repository(guided_db)
+    assert guided_result.players_imported == 1 and guided_result.monsters_imported == 1 and guided_result.party_members == 1, "Guided import totals are incorrect"
+    assert guided_repo.get_campaign(guided_result.campaign_id)["source_type"] == "local", "Guided setup did not create a local campaign"
+    assert [row["name"] for row in guided_repo.list_campaign_party(guided_result.campaign_id)] == ["Nova"], "Guided setup did not save the campaign party"
+    guided_encounters = guided_repo.list_encounters_for_campaign(guided_result.campaign_id)
+    assert len(guided_encounters) == 1 and guided_encounters[0]["name"] == "Roadside Ambush", "Guided setup did not create a campaign-scoped opening encounter"
+    with connect(guided_db) as conn:
+        combatants = conn.execute("SELECT name,source_type FROM combatants WHERE encounter_id=?", (guided_result.encounter_id,)).fetchall()
+    assert [(row["name"], row["source_type"]) for row in combatants] == [("Nova", "player")], "Guided setup did not add the saved party to the opening encounter"
+    duplicate_csv = temp_dir / "duplicate_players.csv"
+    duplicate_csv.write_text("name\nEcho\nEcho\n", encoding="utf-8")
+    wizard.players_csv.setText(str(duplicate_csv)); wizard.monsters_csv.clear()
+    assert not wizard.refresh_preview() and "Import blocked" in wizard.validation_summary.text(), "Guided setup did not block duplicate CSV rows"
+    wizard.close()
+
     page = CampaignDashboardPage(repo, lambda: None)
     page.resize(1200, 800)
     page.show()
@@ -105,6 +139,7 @@ try:
     page.refresh_dashboard()
     app.processEvents()
     assert page.campaign_source.text()=="LOCAL" and page.manage_party_button.isEnabled(), "Local campaign ownership controls are incorrect"
+    assert page.setup_campaign_button.text() == "Guided Local Setup...", "Guided local campaign setup is not available from Campaigns"
     assert "Aria" in page.party_summary.text() and "Mira" in page.party_summary.text(), "Persistent party summary was not rendered"
     assert page.campaign_encounter.count()==2 and page.encounter.count()==0, "Campaign and unassigned encounter selectors are not scoped"
     assert "11.2" in page.party_dpr.text() and "3.0" in page.party_hpr.text(), "DPR/HPR cards were not populated"

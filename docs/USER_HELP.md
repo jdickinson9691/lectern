@@ -127,6 +127,18 @@ Campaigns groups encounters and provides cumulative combat results.
 
 Campaign selectors identify each record as **Local** or **Fantasy Grounds**. Local campaigns can be renamed, given a revised description, archived, or restored. Enable **Show archived** when you need to reopen an archived campaign. Fantasy Grounds campaign identity remains source-owned.
 
+### Guided local campaign setup
+
+Select **Guided Local Setup...** when starting a manually managed campaign. The four-step guide keeps the setup work together:
+
+1. Name the local campaign and enter an optional description.
+2. Optionally choose player and monster CSV files. Use templates exported from **CSV Import/Export** when starting from scratch.
+3. Review validation. Duplicate and error rows block setup; new, modified, and unchanged rows are safe to continue.
+4. Choose the regular party. Characters in the selected player CSV are checked automatically, and existing Lectern players remain available.
+5. Optionally create an opening encounter. The encounter is created inside the new campaign and the checked party is added immediately.
+
+CSV player and monster records remain reusable application data. The wizard associates the selected players with the campaign, while imported monsters become available in Monster Browser for any local encounter. Imports update matching names using the same preview and safety rules as **CSV Import/Export**. No data is imported until **Finish** is selected and validation passes again.
+
 ### Save a persistent party
 
 1. Select a local campaign.
@@ -152,6 +164,7 @@ The lower section places **Party Damage Type Leaders** on the left and **Campaig
 ### Fantasy Grounds impact
 
 - The imported Fantasy Grounds campaign is synchronized automatically.
+- **Guided Local Setup...** creates only local campaigns and never changes or extends an imported Fantasy Grounds campaign.
 - Prepared and live-combat records may both appear in the encounter table. They are intentionally separate.
 - Fantasy Grounds outcomes come from `/lectern-end`; Lectern does not infer an outcome when the Combat Tracker is cleared.
 - Imported authoritative actor affiliation, damage, healing, natural rolls, and damage types feed campaign statistics.
@@ -201,6 +214,8 @@ Use the campaign selector to show all encounters, only unassigned local encounte
 ## Combat Dashboard
 
 Combat Dashboard runs local encounters and reviews local or synchronized combat journals.
+
+The workspace opens in two columns. **Campaign Entities** occupies the left 25% with the current encounter roster and local turn, HP, and action controls. **Combat Session Log** occupies the remaining 75% with the synchronization notice, search and result filters, and structured journal. Drag the divider when a particular encounter needs more roster or journal space.
 
 ### Run local combat
 

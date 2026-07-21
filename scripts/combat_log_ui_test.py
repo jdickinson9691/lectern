@@ -45,6 +45,11 @@ try:
         conn.execute("UPDATE encounters SET status='completed',round=11 WHERE id=?",(historical_id,))
         conn.execute("INSERT INTO turn_log(encounter_id,round,actor,action_type,details) VALUES(?,11,'Fantasy Grounds','Action','Action')",(historical_id,))
     page = CombatDashboardPage(repo); page.setStyleSheet("QWidget{background:#202124;color:#e8eaed} QTreeWidget,QLineEdit,QComboBox{background:#202124;border:1px solid #3c4043} QTreeWidget{alternate-background-color:#27292d} QTreeWidget::item{color:#e8eaed} QHeaderView::section{background:#2a2c30;color:#e8eaed;padding:6px}"); page.resize(1400,800); page.show(); app.processEvents()
+    splitter_sizes=page.workspace_splitter.sizes(); roster_share=splitter_sizes[0]/sum(splitter_sizes)
+    assert page.workspace_splitter.count()==2 and 0.22 <= roster_share <= 0.28, f"Combat workspace is not using the requested 25/75 split: {splitter_sizes}"
+    assert page.roster_panel.geometry().left() < page.log_panel.geometry().left(), "Campaign entities are not positioned left of the combat session log"
+    assert page.roster_panel.isAncestorOf(page.order), "Campaign entity table is not contained in the left panel"
+    assert page.log_panel.isAncestorOf(page.log_tree), "Combat session log is not contained in the right panel"
     assert page.encounters.currentData()==encounter_id and page.current_encounter_id==encounter_id, "Dashboard did not prefer the active encounter over a newer historical log"
     page.select_encounter_id(historical_id); page.refresh(); app.processEvents()
     assert page.encounters.currentData()==historical_id and page.current_encounter_id==historical_id, "Dashboard could not select an imported encounter after refresh"

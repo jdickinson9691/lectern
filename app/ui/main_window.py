@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QFormLayout, QSpinBox, QMessageBox, QComboBox, QCompleter,
     QGroupBox, QTextEdit, QTextBrowser, QListWidgetItem, QGridLayout, QScrollArea, QSizePolicy, QTabWidget, QCheckBox, QInputDialog,
     QDialog, QDialogButtonBox, QAbstractItemView, QAbstractSpinBox, QToolButton,
-    QTreeWidget, QTreeWidgetItem, QHeaderView, QFrame
+    QTreeWidget, QTreeWidgetItem, QHeaderView, QFrame, QWizard, QWizardPage, QSplitter
 )
 from PySide6.QtCore import Qt, QRect, QSize, QTimer, QUrl
 from PySide6.QtGui import QPainter, QPixmap, QIcon, QImage, QColor, QBrush, QFont, QTextCursor, QDesktopServices
@@ -17,6 +17,7 @@ from ..importers.spreadsheet_importer import SpreadsheetImporter
 from ..importers.csv_transfer import CsvTransferService, CSV_TABLES
 from ..importers.character_pdf import CharacterPdfImporter
 from ..services.data_workflow import DataWorkflowService
+from ..services.manual_campaign_setup import ManualCampaignSetupService
 from ..integrations.fantasy_grounds import FantasyGroundsSyncError, FantasyGroundsSyncService
 from ..version import APP_EXPANDED_NAME, APP_NAME, VERSION
 from ..paths import icon_path, watermark_path, help_path, user_data_dir
@@ -820,25 +821,38 @@ class CombatDashboardPage(QWidget):
         root=adaptive_page_layout(self); root.addWidget(QLabel("<h2>Combat Dashboard</h2>"))
         top=QHBoxLayout(); self.campaign_filter=QComboBox(); self.campaign_filter.currentIndexChanged.connect(self.change_campaign_filter); self.encounters=QComboBox(); self.encounters.currentIndexChanged.connect(self.select_encounter); top.addWidget(QLabel("Campaign:")); top.addWidget(self.campaign_filter); top.addWidget(QLabel("Encounter:")); top.addWidget(self.encounters)
         self.round_label=QLabel("Round - | Active: -"); top.addWidget(self.round_label); root.addLayout(top)
-        self.order=QTableWidget(); self.order.setColumnCount(6); self.order.setHorizontalHeaderLabels(["Turn","Name","Init","AC","HP","Max"]); root.addWidget(self.order)
+
+        self.workspace_splitter=QSplitter(Qt.Horizontal); self.workspace_splitter.setObjectName("CombatDashboardWorkspace"); self.workspace_splitter.setChildrenCollapsible(False); self.workspace_splitter.setHandleWidth(6)
+        self.roster_panel=QWidget(); roster_layout=QVBoxLayout(self.roster_panel); roster_layout.setContentsMargins(0,0,6,0); roster_layout.setSpacing(8)
+        roster_group=QGroupBox("Campaign Entities"); roster_group_layout=QVBoxLayout(roster_group)
+        self.order=QTableWidget(); self.order.setColumnCount(6); self.order.setHorizontalHeaderLabels(["Turn","Name","Init","AC","HP","Max"]); roster_group_layout.addWidget(self.order,1)
         self.order.setIconSize(QSize(36,36))
-        buttons=QHBoxLayout(); self.prev_button=QPushButton("Previous Turn"); self.prev_button.clicked.connect(self.prev_turn); self.next_button=QPushButton("Next / End Turn"); self.next_button.clicked.connect(self.next_turn); self.damage_button=QPushButton("Apply Damage"); self.damage_button.clicked.connect(lambda:self.adjust_hp(-abs(self.hp_delta.value()), "Damage")); self.heal_button=QPushButton("Apply Healing"); self.heal_button.clicked.connect(lambda:self.adjust_hp(abs(self.hp_delta.value()), "Healing")); self.hp_delta=QSpinBox(); self.hp_delta.setRange(0,9999); self.hp_delta.setValue(1)
-        for w in [self.prev_button,self.next_button,QLabel("Amount"),self.hp_delta,self.damage_button,self.heal_button]: buttons.addWidget(w)
-        root.addLayout(buttons)
-        logrow=QHBoxLayout(); self.action=QComboBox(); self.action.addItems(["Attack","Spell","Save","Condition","Reaction","Lair Action","Note"]); self.details=QLineEdit(); self.details.setPlaceholderText("Action details"); self.add_log_button=QPushButton("Log Action"); self.add_log_button.clicked.connect(self.log_action); logrow.addWidget(self.action); logrow.addWidget(self.details); logrow.addWidget(self.add_log_button); root.addLayout(logrow)
-        self.external_notice=QLabel("Fantasy Grounds controls this encounter. Source-owned combat fields are read-only in Lectern."); self.external_notice.setWordWrap(True); self.external_notice.setVisible(False); root.addWidget(self.external_notice)
-        log_filters=QHBoxLayout(); self.log_search=QLineEdit(); self.log_search.setPlaceholderText("Search actor, target, action, damage type, or result"); self.log_search.setClearButtonEnabled(True); self.log_search.textChanged.connect(self.refresh_log)
+        order_header=self.order.horizontalHeader(); order_header.setSectionResizeMode(0,QHeaderView.ResizeToContents); order_header.setSectionResizeMode(1,QHeaderView.Stretch)
+        for column in range(2,6): order_header.setSectionResizeMode(column,QHeaderView.ResizeToContents)
+        roster_layout.addWidget(roster_group,1)
+
+        controls_group=QGroupBox("Local Combat Controls"); controls=QGridLayout(controls_group)
+        self.prev_button=QPushButton("Previous Turn"); self.prev_button.clicked.connect(self.prev_turn); self.next_button=QPushButton("Next / End Turn"); self.next_button.clicked.connect(self.next_turn); controls.addWidget(self.prev_button,0,0,1,2); controls.addWidget(self.next_button,1,0,1,2)
+        self.damage_button=QPushButton("Apply Damage"); self.damage_button.clicked.connect(lambda:self.adjust_hp(-abs(self.hp_delta.value()), "Damage")); self.heal_button=QPushButton("Apply Healing"); self.heal_button.clicked.connect(lambda:self.adjust_hp(abs(self.hp_delta.value()), "Healing")); self.hp_delta=QSpinBox(); self.hp_delta.setRange(0,9999); self.hp_delta.setValue(1)
+        controls.addWidget(QLabel("Amount:"),2,0); controls.addWidget(self.hp_delta,2,1); controls.addWidget(self.damage_button,3,0,1,2); controls.addWidget(self.heal_button,4,0,1,2)
+        self.action=QComboBox(); self.action.addItems(["Attack","Spell","Save","Condition","Reaction","Lair Action","Note"]); self.details=QLineEdit(); self.details.setPlaceholderText("Action details"); self.add_log_button=QPushButton("Log Action"); self.add_log_button.clicked.connect(self.log_action)
+        controls.addWidget(self.action,5,0,1,2); controls.addWidget(self.details,6,0,1,2); controls.addWidget(self.add_log_button,7,0,1,2); roster_layout.addWidget(controls_group)
+
+        self.log_panel=QWidget(); log_panel_layout=QVBoxLayout(self.log_panel); log_panel_layout.setContentsMargins(6,0,0,0); log_panel_layout.setSpacing(8)
+        log_group=QGroupBox("Combat Session Log"); log_layout=QVBoxLayout(log_group)
+        self.external_notice=QLabel("Fantasy Grounds controls this encounter. Source-owned combat fields are read-only in Lectern."); self.external_notice.setWordWrap(True); self.external_notice.setVisible(False); log_layout.addWidget(self.external_notice)
+        log_filters=QGridLayout(); self.log_search=QLineEdit(); self.log_search.setPlaceholderText("Search actor, target, action, damage type, or result"); self.log_search.setClearButtonEnabled(True); self.log_search.textChanged.connect(self.refresh_log)
         self.log_action_filter=QComboBox(); self.log_action_filter.addItem("All action types", ""); self.log_action_filter.currentIndexChanged.connect(self.refresh_log)
         self.log_result_filter=QComboBox(); self.log_result_filter.addItem("All results", "")
         for label,key in (("Critical hits","critical"),("Hits","hit"),("Misses","miss"),("Damage","damage"),("Healing","healing"),("Manual / unattributed","manual")): self.log_result_filter.addItem(label,key)
         self.log_result_filter.currentIndexChanged.connect(self.refresh_log)
         self.hide_system_events=QCheckBox("Hide turn markers"); self.hide_system_events.setChecked(True); self.hide_system_events.toggled.connect(self.refresh_log)
         self.log_count=QLabel("0 events")
-        for w in (self.log_search,self.log_action_filter,self.log_result_filter,self.hide_system_events,self.log_count): log_filters.addWidget(w)
-        root.addLayout(log_filters)
+        log_filters.addWidget(self.log_search,0,0,1,5); log_filters.addWidget(self.log_action_filter,1,0); log_filters.addWidget(self.log_result_filter,1,1); log_filters.addWidget(self.hide_system_events,1,2); log_filters.addWidget(self.log_count,1,3); log_filters.setColumnStretch(4,1); log_layout.addLayout(log_filters)
         self.log_tree=QTreeWidget(); self.log_tree.setColumnCount(8); self.log_tree.setHeaderLabels(["Actor","Type","Roll","Target","Defense / HP","Action","Damage Type","Result"]); self.log_tree.setAlternatingRowColors(True); self.log_tree.setRootIsDecorated(True); self.log_tree.setUniformRowHeights(False); self.log_tree.setSelectionBehavior(QAbstractItemView.SelectRows); self.log_tree.setEditTriggers(QAbstractItemView.NoEditTriggers)
         header=self.log_tree.header(); header.setSectionResizeMode(0,QHeaderView.ResizeToContents); header.setSectionResizeMode(1,QHeaderView.ResizeToContents); header.setSectionResizeMode(2,QHeaderView.ResizeToContents); header.setSectionResizeMode(3,QHeaderView.ResizeToContents); header.setSectionResizeMode(4,QHeaderView.ResizeToContents); header.setSectionResizeMode(5,QHeaderView.ResizeToContents); header.setSectionResizeMode(6,QHeaderView.ResizeToContents); header.setSectionResizeMode(7,QHeaderView.Stretch)
-        self.log_tree.itemDoubleClicked.connect(self.toggle_log_details); root.addWidget(self.log_tree,1); self.refresh()
+        self.log_tree.itemDoubleClicked.connect(self.toggle_log_details); log_layout.addWidget(self.log_tree,1); log_panel_layout.addWidget(log_group,1)
+        self.workspace_splitter.addWidget(self.roster_panel); self.workspace_splitter.addWidget(self.log_panel); self.workspace_splitter.setStretchFactor(0,1); self.workspace_splitter.setStretchFactor(1,3); self.workspace_splitter.setSizes([300,900]); root.addWidget(self.workspace_splitter,1); self.refresh()
     def refresh(self):
         previous_id=self.current_encounter_id; encounters=list(self.repo.list_encounters())
         filter_value=self.campaign_filter.currentData() if self.campaign_filter.count() else -1
@@ -997,6 +1011,142 @@ class CombatDashboardPage(QWidget):
         if item.childCount(): item.setExpanded(not item.isExpanded())
 
 
+class ManualCampaignSetupWizard(QWizard):
+    """Guide a local campaign from CSV data through its opening encounter."""
+
+    def __init__(self, db_path: Path, parent=None):
+        super().__init__(parent)
+        self.service = ManualCampaignSetupService(db_path)
+        self.previews: dict[str, list[dict]] = {}
+        self.setup_result = None
+        self.setWindowTitle("Guided Local Campaign Setup")
+        self.setMinimumSize(720, 560)
+        self.setOption(QWizard.NoBackButtonOnStartPage)
+
+        campaign_page = QWizardPage(); campaign_page.setTitle("Create the local campaign")
+        campaign_page.setSubTitle("Name the campaign and add an optional description.")
+        campaign_layout = QFormLayout(campaign_page)
+        self.campaign_name = QLineEdit(); self.campaign_description = QLineEdit()
+        campaign_layout.addRow("Campaign name:", self.campaign_name)
+        campaign_layout.addRow("Description:", self.campaign_description)
+        campaign_page.registerField("campaignName*", self.campaign_name)
+        self.campaign_page_id = self.addPage(campaign_page)
+
+        data_page = QWizardPage(); data_page.setTitle("Bring in campaign data")
+        data_page.setSubTitle("Player and monster CSV files are optional. Lectern validates them before importing anything.")
+        data_layout = QVBoxLayout(data_page); data_form = QFormLayout()
+        self.players_csv = QLineEdit(); self.monsters_csv = QLineEdit()
+        players_row = QHBoxLayout(); players_row.addWidget(self.players_csv, 1)
+        players_browse = QPushButton("Browse..."); players_browse.clicked.connect(lambda: self._choose_csv(self.players_csv, "Select Players CSV")); players_row.addWidget(players_browse)
+        monsters_row = QHBoxLayout(); monsters_row.addWidget(self.monsters_csv, 1)
+        monsters_browse = QPushButton("Browse..."); monsters_browse.clicked.connect(lambda: self._choose_csv(self.monsters_csv, "Select Monsters CSV")); monsters_row.addWidget(monsters_browse)
+        data_form.addRow("Players CSV:", players_row); data_form.addRow("Monsters CSV:", monsters_row); data_layout.addLayout(data_form)
+        validate_button = QPushButton("Validate Selected CSV Files"); validate_button.clicked.connect(self.refresh_preview); data_layout.addWidget(validate_button)
+        self.validation_summary = QLabel("You can continue without CSV files and select players already stored in Lectern.")
+        self.validation_summary.setWordWrap(True); data_layout.addWidget(self.validation_summary); data_layout.addStretch()
+        self.data_page_id = self.addPage(data_page)
+
+        party_page = QWizardPage(); party_page.setTitle("Choose the regular party")
+        party_page.setSubTitle("New players from the selected CSV are checked automatically. Adjust the party before continuing.")
+        party_layout = QVBoxLayout(party_page)
+        self.party_list = QListWidget(); party_layout.addWidget(self.party_list, 1)
+        self.party_note = QLabel(); self.party_note.setWordWrap(True); party_layout.addWidget(self.party_note)
+        self.party_page_id = self.addPage(party_page)
+
+        encounter_page = QWizardPage(); encounter_page.setTitle("Prepare the first encounter")
+        encounter_page.setSubTitle("Lectern can create a campaign-scoped encounter and add the saved party now.")
+        encounter_layout = QVBoxLayout(encounter_page)
+        self.create_opening_encounter = QCheckBox("Create an opening encounter"); self.create_opening_encounter.setChecked(True); encounter_layout.addWidget(self.create_opening_encounter)
+        encounter_form = QFormLayout(); self.encounter_name = QLineEdit("Opening Encounter"); encounter_form.addRow("Encounter name:", self.encounter_name); encounter_layout.addLayout(encounter_form)
+        self.setup_summary = QLabel(); self.setup_summary.setWordWrap(True); encounter_layout.addWidget(self.setup_summary); encounter_layout.addStretch()
+        self.encounter_page_id = self.addPage(encounter_page)
+
+        self.currentIdChanged.connect(self._page_changed)
+
+    def _choose_csv(self, target: QLineEdit, title: str) -> None:
+        selected, _ = QFileDialog.getOpenFileName(self, title, "", "CSV Files (*.csv)")
+        if selected:
+            target.setText(selected)
+            self.refresh_preview()
+
+    @staticmethod
+    def _optional_path(value: str) -> Path | None:
+        value = value.strip()
+        return Path(value) if value else None
+
+    def refresh_preview(self) -> bool:
+        try:
+            self.previews = self.service.preview(
+                self._optional_path(self.players_csv.text()),
+                self._optional_path(self.monsters_csv.text()),
+            )
+            blocking = self.service.blocking_rows(self.previews)
+            summaries = []
+            for table, rows in self.previews.items():
+                counts = {status: sum(1 for row in rows if row["status"] == status) for status in ("New", "Modified", "Unchanged", "Duplicate", "Error")}
+                summaries.append(f"{table.title()}: " + ", ".join(f"{count} {status.lower()}" for status, count in counts.items() if count))
+            if blocking:
+                self.validation_summary.setText("Import blocked — resolve duplicate or error rows. " + " | ".join(summaries))
+                self.validation_summary.setStyleSheet("color: #e57373; font-weight: 700;")
+            else:
+                self.validation_summary.setText("Validation passed. " + (" | ".join(summaries) if summaries else "No CSV files selected."))
+                self.validation_summary.setStyleSheet("color: #81c784; font-weight: 700;")
+            self._populate_party()
+            return not blocking
+        except Exception as exc:
+            self.previews = {}
+            self.validation_summary.setText(f"Validation failed: {exc}")
+            self.validation_summary.setStyleSheet("color: #e57373; font-weight: 700;")
+            self._populate_party()
+            return False
+
+    def _populate_party(self) -> None:
+        previous = {
+            self.party_list.item(i).text(): self.party_list.item(i).checkState() == Qt.Checked
+            for i in range(self.party_list.count())
+        }
+        self.party_list.clear()
+        choices = self.service.party_choices(self.previews)
+        for name, incoming in choices:
+            item = QListWidgetItem(name); item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked if previous.get(name, incoming) else Qt.Unchecked)
+            self.party_list.addItem(item)
+        self.party_note.setText(f"{len(choices)} player record{'s' if len(choices) != 1 else ''} available. Checked players become the campaign's persistent party.")
+
+    def selected_party_names(self) -> list[str]:
+        return [self.party_list.item(i).text() for i in range(self.party_list.count()) if self.party_list.item(i).checkState() == Qt.Checked]
+
+    def _page_changed(self, page_id: int) -> None:
+        if page_id == self.party_page_id:
+            self.refresh_preview()
+        elif page_id == self.encounter_page_id:
+            self.setup_summary.setText(
+                f"Campaign: <b>{self.campaign_name.text().strip()}</b><br>"
+                f"Party members: <b>{len(self.selected_party_names())}</b><br>"
+                "Finish to validate again and create the local campaign."
+            )
+
+    def perform_setup(self):
+        if not self.refresh_preview():
+            raise ValueError("Resolve the CSV validation errors before creating the campaign.")
+        return self.service.execute(
+            self.campaign_name.text(),
+            self.campaign_description.text(),
+            self._optional_path(self.players_csv.text()),
+            self._optional_path(self.monsters_csv.text()),
+            self.selected_party_names(),
+            self.encounter_name.text() if self.create_opening_encounter.isChecked() else "",
+        )
+
+    def accept(self) -> None:
+        try:
+            self.setup_result = self.perform_setup()
+        except Exception as exc:
+            QMessageBox.warning(self, "Campaign Setup Not Completed", str(exc))
+            return
+        super().accept()
+
+
 class CampaignDashboardPage(QWidget):
     DAMAGE_TYPE_COLORS = {
         "acid": ("#1f5a3b", "#effff5"),
@@ -1018,7 +1168,8 @@ class CampaignDashboardPage(QWidget):
         super().__init__(); self.repo=repo; self.refresh_callback=refresh_callback
         root=adaptive_page_layout(self); root.addWidget(QLabel("<h2>Campaign Dashboard</h2>"))
         create=QHBoxLayout(); self.name=QLineEdit(); self.name.setPlaceholderText("Campaign name"); self.description=QLineEdit(); self.description.setPlaceholderText("Description (optional)"); add=QPushButton("Create Campaign"); add.clicked.connect(self.create_campaign)
-        for w in [self.name,self.description,add]: create.addWidget(w)
+        self.setup_campaign_button=QPushButton("Guided Local Setup..."); self.setup_campaign_button.clicked.connect(self.guided_setup)
+        for w in [self.name,self.description,add,self.setup_campaign_button]: create.addWidget(w)
         root.addLayout(create)
         choose=QHBoxLayout(); self.campaigns=QComboBox(); self.campaigns.currentIndexChanged.connect(self.refresh_dashboard); self.campaign_source=QLabel(); self.campaign_source.setStyleSheet("font-weight: 700; color: #9aa0a6;")
         self.edit_campaign_button=QPushButton("Edit Campaign"); self.edit_campaign_button.clicked.connect(self.edit_campaign)
@@ -1078,6 +1229,12 @@ class CampaignDashboardPage(QWidget):
         name=self.name.text().strip()
         if not name: QMessageBox.warning(self,"Missing Name","Campaign name is required."); return
         campaign_id=self.repo.create_campaign(name,self.description.text().strip()); self.name.clear(); self.description.clear(); self.refresh(); self.campaigns.setCurrentIndex(self.campaigns.findData(campaign_id)); self.refresh_callback()
+    def guided_setup(self):
+        wizard=ManualCampaignSetupWizard(self.repo.db_path,self)
+        if wizard.exec()!=QDialog.Accepted or not wizard.setup_result: return
+        result=wizard.setup_result; self.refresh(); self.campaigns.setCurrentIndex(self.campaigns.findData(result.campaign_id)); self.refresh_dashboard(); self.refresh_callback()
+        encounter_message=f"\nOpening encounter created with the saved party." if result.encounter_id else ""
+        QMessageBox.information(self,"Local Campaign Ready",f"Imported {result.players_imported} player rows and {result.monsters_imported} monster rows.\nSaved {result.party_members} regular party members.{encounter_message}")
     def edit_campaign(self):
         campaign_id=self.campaigns.currentData(); campaign=self.repo.get_campaign(campaign_id) if campaign_id else None
         if not campaign or campaign['source_type']!='local': return

@@ -187,6 +187,10 @@ class Repository:
         with connect(self.db_path) as conn:
             return conn.execute("SELECT * FROM campaigns WHERE id=?", (campaign_id,)).fetchone()
 
+    def get_campaign_by_name(self, name: str):
+        with connect(self.db_path) as conn:
+            return conn.execute("SELECT * FROM campaigns WHERE name=? COLLATE NOCASE", (name.strip(),)).fetchone()
+
     def list_campaigns(self, include_archived: bool = False):
         with connect(self.db_path) as conn:
             where = "" if include_archived else "WHERE is_archived=0"

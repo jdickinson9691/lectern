@@ -1,5 +1,7 @@
 # Changelog
 
+- Reorganized Combat Dashboard into a draggable 25/75 workspace with campaign entities and local combat controls on the left and the searchable combat-session log on the right.
+- Added the second manual-campaign milestone: a guided local setup wizard that validates optional player and monster CSV files, imports safe rows, preselects imported characters for the persistent party, and creates a campaign-scoped opening encounter with that party already present.
 - Added the first manual-campaign milestone: explicit campaign ownership, schema-v10 archive state, persistent local party rosters, campaign-scoped encounter creation/filtering, one-click party insertion, and local campaign edit/archive controls.
 - Recovered equipped weapons and armor from current and older Fantasy Grounds character snapshots, with confident name matching to Lectern's SRD libraries.
 - Improved the Campaigns screen with individual Party Combat Statistic cards and distinct, readable colors for all standard damage-type leader rows.
