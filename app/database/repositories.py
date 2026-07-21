@@ -331,6 +331,72 @@ class Repository:
         with connect(self.db_path) as conn:
             return conn.execute("SELECT * FROM encounters WHERE id=?", (encounter_id,)).fetchone()
 
+    def encounter_sync_context(self, encounter_id: int | None) -> dict | None:
+        """Describe a Fantasy Grounds encounter and its prepared/live counterpart."""
+        if not encounter_id:
+            return None
+        with connect(self.db_path) as conn:
+            own = conn.execute(
+                """
+                SELECT source_id,source_key FROM external_entity_links
+                WHERE entity_type='encounter' AND entity_id=? ORDER BY id LIMIT 1
+                """,
+                (encounter_id,),
+            ).fetchone()
+            if not own:
+                return None
+            source_key = str(own["source_key"])
+            if source_key == "live-combat" or source_key.startswith("live-combat:"):
+                prepared = conn.execute(
+                    """
+                    SELECT e.id,e.name FROM external_entity_links relation
+                    JOIN encounters e ON e.id=relation.entity_id
+                    WHERE relation.source_id=? AND relation.source_key=?
+                      AND relation.entity_type='prepared_encounter'
+                    LIMIT 1
+                    """,
+                    (own["source_id"], source_key),
+                ).fetchone()
+                return {
+                    "kind": "live",
+                    "counterpart_id": int(prepared["id"]) if prepared else None,
+                    "counterpart_name": str(prepared["name"]) if prepared else "",
+                }
+            live = conn.execute(
+                """
+                SELECT e.id,e.name FROM external_entity_links relation
+                JOIN external_entity_links owned
+                  ON owned.source_id=relation.source_id
+                 AND owned.source_key=relation.source_key
+                 AND owned.entity_type='encounter'
+                JOIN encounters e ON e.id=owned.entity_id
+                WHERE relation.entity_type='prepared_encounter' AND relation.entity_id=?
+                ORDER BY CASE WHEN e.status='active' THEN 0 WHEN e.status='completed' THEN 1 ELSE 2 END,
+                         e.id DESC
+                LIMIT 1
+                """,
+                (encounter_id,),
+            ).fetchone()
+            return {
+                "kind": "prepared",
+                "counterpart_id": int(live["id"]) if live else None,
+                "counterpart_name": str(live["name"]) if live else "",
+            }
+
+    def encounter_display_name(self, encounter) -> str:
+        context = self.encounter_sync_context(int(encounter["id"]))
+        if not context:
+            return str(encounter["name"])
+        if context["kind"] == "prepared":
+            suffix = " · Prepared"
+            if context["counterpart_name"]:
+                suffix += f" → {context['counterpart_name']}"
+            return f"{encounter['name']}{suffix}"
+        suffix = " · Live combat"
+        if context["counterpart_name"]:
+            suffix += f" ← {context['counterpart_name']}"
+        return f"{encounter['name']}{suffix}"
+
     def is_external_encounter(self, encounter_id: int | None) -> bool:
         if not encounter_id:
             return False

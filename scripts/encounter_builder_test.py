@@ -94,6 +94,7 @@ try:
     assert [row["sort_order"] for row in rows] == [0, 1, 2, 3], "Combatant insertion order is inconsistent"
 
     external_id = repo.create_encounter("Fantasy Grounds Prepared Encounter")
+    live_id = repo.create_encounter("Fantasy Grounds Live Session")
     with connect(db) as conn:
         source_id = int(conn.execute(
             "INSERT INTO external_sources(provider,campaign_key,campaign_name,ruleset) VALUES('fantasy_grounds','test','Test','5E')"
@@ -102,11 +103,24 @@ try:
             "INSERT INTO external_entity_links(source_id,source_key,entity_type,entity_id) VALUES(?,?,'encounter',?)",
             (source_id, "5E:battle:test", external_id),
         )
-    page.current_encounter_id = external_id
+        conn.execute(
+            "INSERT INTO external_entity_links(source_id,source_key,entity_type,entity_id) VALUES(?,?,'encounter',?)",
+            (source_id, "live-combat:test-session", live_id),
+        )
+        conn.execute(
+            "INSERT INTO external_entity_links(source_id,source_key,entity_type,entity_id) VALUES(?,?,'prepared_encounter',?)",
+            (source_id, "live-combat:test-session", external_id),
+        )
+    page.select_encounter_id(external_id)
     page.refresh()
     assert not page.external_notice.isHidden(), "Fantasy Grounds ownership notice is missing"
+    assert "prepared encounter" in page.external_notice.text().casefold() and "Live Session" in page.external_notice.text(), "Prepared/live relationship is not explained"
+    assert "Prepared" in page.encounters.currentText() and "Live Session" in page.encounters.currentText(), "Prepared encounter selector label is ambiguous"
     assert not page.add_monster_button.isEnabled() and not page.remove_button.isEnabled(), "Fantasy Grounds encounter can be edited locally"
     assert not page.monster_qty_up.isEnabled() and not page.monster_qty_down.isEnabled(), "Fantasy Grounds quantity controls remain editable"
+    page.select_encounter_id(live_id)
+    page.refresh()
+    assert page.current_encounter_id == live_id and "Live combat" in page.encounters.currentText(), "Imported live encounter cannot be selected programmatically"
 
     page.close()
     print("Encounter Builder regression test passed.")

@@ -393,6 +393,10 @@ Clearing removes only the selected Fantasy Grounds-linked campaign, encounters, 
 
 Keep **Automatically import new snapshots** enabled. After the initial full export, Fantasy Grounds writes an updated snapshot whenever its Combat Tracker changes. Lectern checks for changes once per second.
 
+After a successful import, Encounter Builder and Combat Dashboard select the updated live-combat session automatically. Synchronized encounter selectors distinguish **Prepared** encounters from **Live combat** sessions. When Lectern can identify one unambiguous prepared encounter from the encounter name and roster, each selector also names its linked counterpart. If more than one prepared encounter is an equally good match, Lectern leaves the live session unlinked instead of guessing.
+
+A prepared encounter contains the roster exported from the Fantasy Grounds encounter record. Its linked live-combat session contains the synchronized Combat Tracker state and combat journal. Open the live-combat entry when reviewing turns, HP, damage, healing, or outcomes.
+
 Synchronized Fantasy Grounds encounters are read-only in Lectern's Encounter Builder and Combat Dashboard. Change HP, initiative, effects, turns, and participants in Fantasy Grounds.
 
 ### Imported information

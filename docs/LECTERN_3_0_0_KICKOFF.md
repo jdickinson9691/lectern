@@ -59,11 +59,20 @@ This document is the authoritative starting point for Lectern 3.0.0. The version
 
 ## Recommended first 3.0 decisions
 
-1. Decide how the UI should distinguish or connect prepared encounters and synchronized combat sessions.
-2. Decide whether a successful Fantasy Grounds import should automatically select the newly updated live-combat encounter.
+1. **Decided and implemented:** label prepared encounters and live-combat sessions explicitly, and associate them only when the snapshot name and roster produce one unambiguous match.
+2. **Decided and implemented:** a successful Fantasy Grounds import selects the newly updated live-combat encounter in Encounter Builder and Combat Dashboard.
 3. Define whether Campaign Dashboard analytics need encounter, date, combatant, or party/hostile filters.
 4. Complete a live Fantasy Grounds acceptance pass for mixed damage, resistance, immunity, vulnerability, healing, critical hits, and critical misses.
 5. Record explicit 3.0 acceptance criteria before changing the database or snapshot contract.
+
+### First workflow acceptance criteria
+
+- Prepared and live encounter roles are visible anywhere an encounter is selected for building, combat, or campaign review.
+- A linked prepared encounter and live session name each other; an ambiguous match is never guessed.
+- Manual and automatic imports focus the updated live-combat session without changing the current navigation page.
+- Local Lectern encounters remain unlabeled and editable.
+- Fantasy Grounds records remain read-only and source-owned.
+- Database schema v9 and snapshot contract v1 remain unchanged.
 
 ## Regression baseline
 

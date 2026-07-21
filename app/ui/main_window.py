@@ -697,7 +697,7 @@ class EncounterBuilderPage(QWidget):
         for name in sorted(self.players):
             item=QListWidgetItem(name); item.setFlags(item.flags() | Qt.ItemIsUserCheckable); item.setCheckState(Qt.Unchecked); self.player_list.addItem(item)
         self.encounters.blockSignals(True); self.encounters.clear()
-        for e in self.repo.list_encounters(): self.encounters.addItem(e['name'], e['id'])
+        for e in self.repo.list_encounters(): self.encounters.addItem(self.repo.encounter_display_name(e), e['id'])
         self.encounters.blockSignals(False)
         if self.current_encounter_id is None and self.encounters.count(): self.current_encounter_id=self.encounters.itemData(0)
         if self.current_encounter_id is not None:
@@ -722,11 +722,20 @@ class EncounterBuilderPage(QWidget):
         external=self.encounter_is_external()
         for widget in (self.monster_search,self.monster_qty,self.monster_qty_down,self.monster_qty_up,self.add_monster_button,self.player_list,self.add_player_button,self.roll_button,self.remove_button): widget.setEnabled(not external)
         self.external_notice.setVisible(external)
+        context=self.repo.encounter_sync_context(self.current_encounter_id)
+        if context and context['kind']=='prepared':
+            linked=f" Its synchronized combat session is {context['counterpart_name']}." if context['counterpart_name'] else " No live combat session is linked yet."
+            self.external_notice.setText("Fantasy Grounds prepared encounter. Update its roster in Fantasy Grounds."+linked)
+        elif context and context['kind']=='live':
+            linked=f" It was started from {context['counterpart_name']}." if context['counterpart_name'] else ""
+            self.external_notice.setText("Fantasy Grounds live combat session. Run combat in Fantasy Grounds."+linked)
     def create_encounter(self):
         name=self.new_name.text().strip() or "New Encounter"
         self.current_encounter_id=self.repo.create_encounter(name); self.new_name.clear(); self.refresh(); self.refresh_callback()
     def select_encounter(self):
         self.current_encounter_id=self.encounters.currentData(); self.refresh_combatants()
+    def select_encounter_id(self, encounter_id):
+        if encounter_id is not None: self.current_encounter_id=int(encounter_id)
     def add_monsters(self):
         if not self.current_encounter_id: self.create_encounter()
         if self.encounter_is_external(): QMessageBox.warning(self,"Fantasy Grounds Encounter","Update this encounter in Fantasy Grounds."); return
@@ -806,7 +815,7 @@ class CombatDashboardPage(QWidget):
         status_order={"active":0,"draft":1,"completed":2}
         encounters.sort(key=lambda row:(status_order.get(str(row['status'] or '').casefold(),3),-int(row['id'])))
         self.encounters.blockSignals(True); self.encounters.clear()
-        for e in encounters: self.encounters.addItem(e['name'], e['id'])
+        for e in encounters: self.encounters.addItem(self.repo.encounter_display_name(e), e['id'])
         preferred=self.encounters.findData(previous_id) if previous_id is not None else -1
         if preferred < 0 and self.encounters.count(): preferred=0
         if preferred >= 0: self.encounters.setCurrentIndex(preferred); self.current_encounter_id=self.encounters.itemData(preferred)
@@ -814,12 +823,21 @@ class CombatDashboardPage(QWidget):
         self.encounters.blockSignals(False)
         self.refresh_board()
     def select_encounter(self): self.current_encounter_id=self.encounters.currentData(); self.refresh_board()
+    def select_encounter_id(self, encounter_id):
+        if encounter_id is not None: self.current_encounter_id=int(encounter_id)
     def rows(self): return self.repo.list_combatants(self.current_encounter_id) if self.current_encounter_id else []
     def refresh_board(self):
         rows=self.rows(); enc=self.repo.get_encounter(self.current_encounter_id) if self.current_encounter_id else None; active=(enc['active_index'] if enc else 0) or 0
         external=self.repo.is_external_encounter(self.current_encounter_id); self.external_notice.setVisible(external)
+        context=self.repo.encounter_sync_context(self.current_encounter_id)
         if external and not rows and enc and enc['status']=='completed':
             self.external_notice.setText("Historical Fantasy Grounds log: no combatant snapshot was preserved for this encounter. Select an active or session-specific Fantasy Grounds Live Combat encounter to view turn order, AC, and HP.")
+        elif context and context['kind']=='prepared':
+            linked=f" Open {context['counterpart_name']} for synchronized combat and journal data." if context['counterpart_name'] else " Start and export combat from Fantasy Grounds to create its live session."
+            self.external_notice.setText("Fantasy Grounds prepared encounter: this view shows its roster, not a combat journal."+linked)
+        elif context and context['kind']=='live':
+            linked=f" Prepared from {context['counterpart_name']}." if context['counterpart_name'] else ""
+            self.external_notice.setText("Fantasy Grounds live combat session: synchronized turn order, HP, and journal."+linked)
         else:
             self.external_notice.setText("Fantasy Grounds controls this encounter. Source-owned combat fields are read-only in Lectern.")
         for widget in [self.prev_button,self.next_button,self.hp_delta,self.damage_button,self.heal_button,self.action,self.details,self.add_log_button]: widget.setEnabled(not external)
@@ -968,7 +986,7 @@ class CampaignDashboardPage(QWidget):
         self.campaigns.blockSignals(False)
         if campaign_id is not None: self.campaigns.setCurrentIndex(max(0,self.campaigns.findData(campaign_id)))
         self.encounter.clear()
-        for row in self.repo.list_encounters(): self.encounter.addItem(row['name'],row['id'])
+        for row in self.repo.list_encounters(): self.encounter.addItem(self.repo.encounter_display_name(row),row['id'])
         self.refresh_dashboard()
     def create_campaign(self):
         name=self.name.text().strip()
@@ -1004,7 +1022,7 @@ class CampaignDashboardPage(QWidget):
             for c,value in enumerate(values): self.damage_type_leaders.setItem(r,c,QTableWidgetItem(str(value)))
         rows=self.repo.campaign_encounters(campaign_id); self.history.setRowCount(len(rows))
         for r,row in enumerate(rows):
-            for c,value in enumerate([row['name'],row['status'],row['outcome'],row['round'],row['combatant_count'],row['action_count'],row['completed_at'] or '']): self.history.setItem(r,c,QTableWidgetItem(str(value or '')))
+            for c,value in enumerate([self.repo.encounter_display_name(row),row['status'],row['outcome'],row['round'],row['combatant_count'],row['action_count'],row['completed_at'] or '']): self.history.setItem(r,c,QTableWidgetItem(str(value or '')))
         self.history.resizeColumnsToContents()
 
 
@@ -1403,7 +1421,7 @@ class FantasyGroundsSyncPage(QWidget):
             self.counts.setText(count_text)
             self.refresh_sources()
             if result.applied:
-                self.refresh_callback()
+                self.refresh_callback(result.preferred_encounter_id)
         except FantasyGroundsSyncError as exc:
             self.status.setText(f"Sync error: {exc}")
             if not quiet:
@@ -1718,13 +1736,15 @@ class MainWindow(QMainWindow):
         l.addWidget(self.dashboard_campaigns,1)
         self.dashboard_campaign_empty=QLabel("No campaigns yet. Open Campaigns to create one."); self.dashboard_campaign_empty.setAlignment(Qt.AlignCenter); l.addWidget(self.dashboard_campaign_empty)
         return w
-    def refresh_pages(self):
+    def refresh_pages(self, preferred_encounter_id=None):
         self.counts.setText(f"Players: {self.repo.count('players')} | Monsters: {self.repo.count('monsters')} | Encounters: {self.repo.count('encounters')} | Combatants: {self.repo.count('combatants')} | Weapons: {self.repo.count('weapons')} | Armor: {self.repo.count('armor')} | Spells: {self.repo.count('spells')}")
         campaigns=self.repo.list_campaigns_with_counts(); self.dashboard_campaigns.setRowCount(len(campaigns)); self.dashboard_campaign_empty.setVisible(not campaigns); self.dashboard_campaigns.setVisible(bool(campaigns))
         for r,row in enumerate(campaigns):
             for c,value in enumerate([row['name'],row['encounter_count'],row['description'] or '']): self.dashboard_campaigns.setItem(r,c,QTableWidgetItem(str(value)))
         self.dashboard_campaigns.resizeColumnsToContents()
         for p in self.pages:
+            if preferred_encounter_id is not None and hasattr(p,'select_encounter_id'):
+                p.select_encounter_id(preferred_encounter_id)
             if hasattr(p,'refresh'): p.refresh()
     def showEvent(self, event):
         super().showEvent(event); self.refresh_pages()

@@ -6,6 +6,13 @@
 - Synchronized application, package, help, release manifest, baseline, and installer version metadata.
 - Added `docs/LECTERN_3_0_0_KICKOFF.md` as the authoritative starting point for the next development session.
 
+### Prepared and live encounter workflow
+
+- Fantasy Grounds prepared encounters and their live-combat sessions are now associated when their name and roster produce one unambiguous match; ambiguous sessions remain safely unlinked.
+- Encounter selectors label synchronized records as **Prepared** or **Live combat** and show the linked counterpart, while contextual notices explain which view contains the roster versus the combat journal.
+- A successful manual or automatic Fantasy Grounds import now selects the newly updated live-combat session in Encounter Builder and Combat Dashboard.
+- The relationship uses existing synchronization metadata, so database schema v9 and snapshot contract v1 remain unchanged.
+
 ### Fantasy Grounds damage types
 
 - Added a Campaign Dashboard **Party Damage Type Leaders** table for all 13 standard 5E damage types, including cumulative applied damage, contributing event counts, and tied leaders.

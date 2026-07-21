@@ -78,6 +78,11 @@ try:
     snapshot.write_text(json.dumps(payload), encoding="utf-8-sig")
 
     service = FantasyGroundsSyncService(db)
+    ambiguous_encounter = copy.deepcopy(payload["encounters"][0])
+    ambiguous_encounter.update({"source_key": "5E:battle:ambiguous", "name": "Another Encounter"})
+    assert service._match_prepared_encounter(
+        [payload["encounters"][0], ambiguous_encounter], payload["combat"]
+    ) is None, "Equally matching prepared encounters should not be guessed"
     configured = service.configure_folder(handoff)
     assert configured == handoff.resolve(), "Existing lectern-sync folder was not retained"
     result = service.import_configured_snapshot()
@@ -100,7 +105,17 @@ try:
     assert [row["name"] for row in prepared_combatants] == ["Test Creature #1", "Test Creature #2"], "Prepared encounter participants were mapped incorrectly"
     assert all(row["armor_class"] == 13 and row["max_hp"] == 12 and row["current_hp"] == 12 and row["initiative_mod"] == 2 for row in prepared_combatants), "Prepared participant statistics were discarded"
     live = next(row for row in encounters if "Live Combat" in row["name"])
+    assert result.preferred_encounter_id == live["id"], "Import did not identify the updated live encounter for UI selection"
     assert repo.is_external_encounter(live["id"]), "Live encounter was not marked as externally owned"
+    prepared_context = repo.encounter_sync_context(prepared["id"])
+    live_context = repo.encounter_sync_context(live["id"])
+    assert prepared_context == {
+        "kind": "prepared", "counterpart_id": live["id"], "counterpart_name": live["name"],
+    }, "Prepared encounter was not linked to its live session"
+    assert live_context == {
+        "kind": "live", "counterpart_id": prepared["id"], "counterpart_name": prepared["name"],
+    }, "Live session was not linked back to its prepared encounter"
+    assert "Prepared" in repo.encounter_display_name(prepared) and "Live combat" in repo.encounter_display_name(live), "Encounter roles are not visible in display names"
     combatants = repo.list_combatants(live["id"])
     assert len(combatants) == 1 and combatants[0]["current_hp"] == 9, "Live combatant HP mapping failed"
     with connect(db) as conn:
@@ -154,6 +169,7 @@ try:
     update_result = service.import_configured_snapshot()
     assert update_result.applied and update_result.sequence == 2, "New sequence was not applied"
     live = next(row for row in repo.list_encounters() if "Live Combat" in row["name"])
+    assert update_result.preferred_encounter_id == live["id"], "Updated live session was not selected after import"
     assert repo.list_combatants(live["id"])[0]["current_hp"] == 6, "Combat update was not applied"
     assert len(repo.list_players()) == 2 and len(repo.list_encounters()) == 2, "Update created duplicate entities"
     refreshed_prepared = repo.get_encounter(prepared["id"])
@@ -242,7 +258,7 @@ try:
         },
     ])
     snapshot.write_text(json.dumps(new_session), encoding="utf-8")
-    service.import_configured_snapshot()
+    new_session_result = service.import_configured_snapshot()
     with connect(db) as conn:
         encounter_ids = {row[0] for row in conn.execute("SELECT DISTINCT encounter_id FROM external_events").fetchall()}
         assert len(encounter_ids) == 2, "Separate Fantasy Grounds combat sessions were merged"
@@ -257,6 +273,8 @@ try:
         assert conn.execute("SELECT damage_types FROM turn_log WHERE actor='Manual / Unattributed'").fetchone()[0] == "unknown", "Manual damage type was guessed"
         explicit_encounter = conn.execute("SELECT id,status FROM encounters WHERE name='Explicit Test Combat'").fetchone()
         assert explicit_encounter and explicit_encounter["status"] == "active", "Explicit session name or open state was not imported"
+        assert new_session_result.preferred_encounter_id == explicit_encounter["id"], "New live session was not preferred after import"
+        assert repo.encounter_sync_context(explicit_encounter["id"])["counterpart_id"] == prepared["id"], "New live session was not associated with its prepared encounter"
 
     closed_session = copy.deepcopy(new_session)
     closed_session["sequence"] = 5
