@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import re
 from pathlib import Path
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -9,8 +10,8 @@ from PySide6.QtWidgets import (
     QDialog, QDialogButtonBox, QAbstractItemView, QAbstractSpinBox, QToolButton,
     QTreeWidget, QTreeWidgetItem, QHeaderView
 )
-from PySide6.QtCore import Qt, QRect, QSize, QTimer
-from PySide6.QtGui import QPainter, QPixmap, QIcon, QImage, QColor, QBrush, QFont
+from PySide6.QtCore import Qt, QRect, QSize, QTimer, QUrl
+from PySide6.QtGui import QPainter, QPixmap, QIcon, QImage, QColor, QBrush, QFont, QTextCursor, QDesktopServices
 from ..database.repositories import Repository
 from ..importers.spreadsheet_importer import SpreadsheetImporter
 from ..importers.csv_transfer import CsvTransferService, CSV_TABLES
@@ -1659,17 +1660,53 @@ class HelpPage(QWidget):
         layout.addLayout(header)
 
         self.viewer = QTextBrowser()
-        self.viewer.setOpenExternalLinks(True)
+        self.viewer.setOpenLinks(False)
+        self.viewer.anchorClicked.connect(self.open_help_link)
         layout.addWidget(self.viewer)
         self.load_help()
 
     def help_path(self) -> Path:
         return help_path()
 
+    @staticmethod
+    def anchor_name(title: str) -> str:
+        return re.sub(r"[^a-z0-9]+", "-", title.casefold()).strip("-")
+
+    def add_heading_anchors(self) -> None:
+        document = self.viewer.document()
+        self.help_anchor_positions: dict[str, int] = {}
+        used: dict[str, int] = {}
+        block = document.begin()
+        while block.isValid():
+            if block.blockFormat().headingLevel() > 0:
+                base = self.anchor_name(block.text())
+                if base:
+                    used[base] = used.get(base, 0) + 1
+                    anchor = base if used[base] == 1 else f"{base}-{used[base]}"
+                    cursor = QTextCursor(block)
+                    cursor.movePosition(QTextCursor.EndOfBlock, QTextCursor.KeepAnchor)
+                    heading_format = cursor.charFormat()
+                    heading_format.setAnchorNames([anchor])
+                    cursor.mergeCharFormat(heading_format)
+                    self.help_anchor_positions[anchor] = block.position()
+            block = block.next()
+
+    def open_help_link(self, url: QUrl) -> None:
+        anchor = url.fragment()
+        if anchor and anchor in getattr(self, "help_anchor_positions", {}):
+            block = self.viewer.document().findBlock(self.help_anchor_positions[anchor])
+            if block.isValid():
+                self.viewer.setTextCursor(QTextCursor(block))
+                self.viewer.ensureCursorVisible()
+            return
+        if url.scheme():
+            QDesktopServices.openUrl(url)
+
     def load_help(self):
         path = self.help_path()
         if path.exists():
             self.viewer.setMarkdown(path.read_text(encoding="utf-8"))
+            self.add_heading_anchors()
         else:
             self.viewer.setPlainText(
                 "Help file not found. Expected docs/USER_HELP.md. "

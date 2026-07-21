@@ -17,6 +17,8 @@
 
 - Added Lectern Sync 1.4.3 export of equipped weapons and armor from 5E character inventory entries, including multiple weapons and shields.
 - Synchronized player records now populate Lectern's existing **Equipped Weapon** and **Equipped Armor** fields without changing snapshot contract v1 or database schema v9.
+- The Windows installer now prompts for the Fantasy Grounds `extensions` folder and installs `LecternSync.ext` directly, using an account-agnostic default with support for custom data locations.
+- Reorganized the complete in-app help around clickable section titles, added Fantasy Grounds ownership and synchronization guidance for every screen, and documented the distinction between local Lectern, Fantasy Grounds Prepared, and Fantasy Grounds Live combat encounters.
 
 ### Live Fantasy Grounds acceptance
 

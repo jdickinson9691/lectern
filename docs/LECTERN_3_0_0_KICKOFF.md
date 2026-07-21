@@ -86,6 +86,8 @@ Run these checks before and after the first 3.0 change:
 .venv\Scripts\python.exe scripts\adaptive_layout_test.py
 .venv\Scripts\python.exe scripts\encounter_builder_test.py
 .venv\Scripts\python.exe scripts\smoke_test.py
+.venv\Scripts\python.exe scripts\help_content_test.py
+.venv\Scripts\python.exe scripts\installer_config_test.py
 ```
 
 All listed checks passed on July 19, 2026, immediately before and after the 3.0.0 version bump. The packaged application also reported version 3.0.0 during its offscreen startup check, and Inno Setup produced `release/Lectern_v3_0_0_Setup.exe`.

@@ -12,7 +12,9 @@ Do not use the Fantasy Grounds application installation folder. The extension be
 
 ### 2. Install the extension
 
-For an installed Lectern release, copy `FantasyGrounds\LecternSync.ext` from the Lectern installation folder into:
+The Lectern Windows installer asks for the Fantasy Grounds `extensions` folder and installs `LecternSync.ext` there. The proposed location uses the current Windows account without embedding a developer-specific path. If Fantasy Grounds uses a custom data location, open its launcher, select the folder button, and choose the `extensions` subfolder inside that data folder.
+
+For a portable or previously installed Lectern release, copy `FantasyGrounds\LecternSync.ext` from the Lectern installation folder into:
 
 ```text
 <Fantasy Grounds data folder>\extensions\LecternSync.ext
