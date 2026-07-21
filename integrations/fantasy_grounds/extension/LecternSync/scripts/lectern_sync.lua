@@ -1,7 +1,7 @@
--- Lectern Sync 1.4.1
+-- Lectern Sync 1.4.2
 -- One-way Fantasy Grounds Unity 5E export. This script never writes FG database nodes.
 
-local EXTENSION_VERSION = "1.4.1"
+local EXTENSION_VERSION = "1.4.2"
 local SCHEMA_VERSION = 1
 local bExporting = false
 local tCachedSnapshot = nil
@@ -21,6 +21,7 @@ local sLastActiveKey = nil
 local bHaveCombatBaseline = false
 local bLastCombatActive = false
 local tLastRollContext = nil
+local tRollContextsByTarget = {}
 local bHaveAuthoritativeAttackHook = false
 local bHaveAuthoritativeDamageHook = false
 local bWarnedNoSession = false
@@ -486,21 +487,31 @@ local function combatantForActor(rActor, tCombat)
   return combatantForNode(node, tCombat)
 end
 
-local function targetForCombatant(tEntry, tCombat)
+local function targetsForCombatant(tEntry, tCombat)
+  local tTargets = {}
   local sPath = tEntry and tEntry.raw and tEntry.raw.source_path or nil
   local nodeActor = sPath and DB.findNode(sPath) or nil
-  if not nodeActor then return JSON_NULL, nil end
+  if not nodeActor then return tTargets end
   for _, nodeTarget in ipairs(DB.getChildList(nodeActor, "targets")) do
     local sTargetPath = nodeText(nodeTarget, "noderef", "")
     local nodeTargetCombatant = sTargetPath ~= "" and DB.findNode(sTargetPath) or nil
     if nodeTargetCombatant then
       local sTargetKey = sourceKey(nodeTargetCombatant, "ct")
       local tTargetEntry = combatantByKey(tCombat, sTargetKey)
-      if tTargetEntry then return participantForCombatant(tTargetEntry), tTargetEntry end
-      return eventParticipant(sTargetKey, nodeText(nodeTargetCombatant, "name", "Target")), nil
+      table.insert(tTargets, {
+        participant = tTargetEntry and participantForCombatant(tTargetEntry) or
+          eventParticipant(sTargetKey, nodeText(nodeTargetCombatant, "name", "Target")),
+        combatant = tTargetEntry,
+      })
     end
   end
-  return JSON_NULL, nil
+  return tTargets
+end
+
+local function targetForCombatant(tEntry, tCombat)
+  local tTargets = targetsForCombatant(tEntry, tCombat)
+  if #tTargets == 0 then return JSON_NULL, nil end
+  return tTargets[1].participant, tTargets[1].combatant
 end
 
 local function cleanRollDescription(sDescription)
@@ -566,8 +577,19 @@ local function damageDataFromResults(rRoll)
   return tTypes, tComponents
 end
 
+local function componentTotal(tComponents, sField)
+  local nTotal = 0
+  local bFound = false
+  for _, tComponent in ipairs(tComponents or {}) do
+    local nValue = tonumber(tComponent[sField])
+    if nValue then nTotal = nTotal + nValue; bFound = true end
+  end
+  return bFound and nTotal or nil
+end
+
 local function contextForAppliedChange(tTarget, sKind)
-  local tContext = tLastRollContext
+  local sTargetKey = tTarget and tTarget ~= JSON_NULL and tTarget.source_key or nil
+  local tContext = sTargetKey and tRollContextsByTarget[sTargetKey] or tLastRollContext
   if not tContext or tContext.action_kind ~= sKind then return {} end
   if tContext.captured_at and tContext.captured_at > 0 and os and os.time and os.difftime then
     if os.difftime(os.time(), tContext.captured_at) > 10 then return {} end
@@ -579,6 +601,35 @@ local function contextForAppliedChange(tTarget, sKind)
     return {}
   end
   return tContext
+end
+
+local function rememberRollContext(tContext, tTargets)
+  tLastRollContext = tContext
+  tRollContextsByTarget = {}
+  for _, tTarget in ipairs(tTargets or {}) do
+    if tTarget and tTarget ~= JSON_NULL and tTarget.source_key and tTarget.source_key ~= JSON_NULL then
+      local tCopy = {}
+      for sKey, value in pairs(tContext) do tCopy[sKey] = value end
+      tCopy.target = tTarget
+      tRollContextsByTarget[tTarget.source_key] = tCopy
+    end
+  end
+end
+
+local function consumeRollContext(tTarget, sKind)
+  local sTargetKey = tTarget and tTarget ~= JSON_NULL and tTarget.source_key or nil
+  if sTargetKey and tRollContextsByTarget[sTargetKey] and
+    tRollContextsByTarget[sTargetKey].action_kind == sKind then
+    tRollContextsByTarget[sTargetKey] = nil
+  elseif tLastRollContext and tLastRollContext.action_kind == sKind then
+    tLastRollContext = nil
+  end
+  if next(tRollContextsByTarget) == nil then tLastRollContext = nil end
+end
+
+local function clearRollContexts()
+  tLastRollContext = nil
+  tRollContextsByTarget = {}
 end
 
 local function appendEvent(sType, tActor, tTarget, nAmount, sDescription, tMetadata, tCombat)
@@ -614,7 +665,7 @@ end
 local function updateCombatBaseline(tCombat, bRecordEvents)
   local tCurrent = {}
   if bRecordEvents and bHaveCombatBaseline and sLastActiveKey ~= tCombat.active_source_key then
-    tLastRollContext = nil
+    clearRollContexts()
     if sLastActiveKey and sLastActiveKey ~= JSON_NULL then
       local tPrevious = tLastCombatants[sLastActiveKey]
       if tPrevious then appendEvent("turn_end", eventParticipant(tPrevious.source_key, tPrevious.name), nil, nil, "Turn ended", {}, tCombat) end
@@ -649,7 +700,7 @@ local function updateCombatBaseline(tCombat, bRecordEvents)
             adjustment = nAdjustment or JSON_NULL, attribution = bAttributed and "matched_recent_roll" or "manual_or_unattributed",
             previous_wounds = tPrevious.wounds, current_wounds = nWounds,
             current_hp = tHP.current, maximum_hp = tHP.maximum }, tCombat)
-        tLastRollContext = nil
+        consumeRollContext(tTarget, "damage")
       elseif nDelta < 0 then
         local tTarget = eventParticipant(tEntry.source_key, tEntry.name)
         local tContext = contextForAppliedChange(tTarget, "healing")
@@ -659,7 +710,7 @@ local function updateCombatBaseline(tCombat, bRecordEvents)
             modifier = tContext.modifier or JSON_NULL, roll_total = tContext.roll_total or JSON_NULL,
             previous_wounds = tPrevious.wounds, current_wounds = nWounds,
             current_hp = tHP.current, maximum_hp = tHP.maximum }, tCombat)
-        tLastRollContext = nil
+        consumeRollContext(tTarget, "healing")
       end
       if nTemporary ~= tPrevious.temporary then
         appendEvent("effect", nil, eventParticipant(tEntry.source_key, tEntry.name), nil,
@@ -859,12 +910,13 @@ local function authoritativeAttackResolved(rSource, rTarget, rRoll)
   }
   local sResult = tResults[tostring(rRoll.sResult or "")] or "Result not reported"
   local sActionName = rollActionName(rRoll.sDesc or "Attack")
-  tLastRollContext = {
+  local tContext = {
     actor = tActor, target = tTarget, action_name = sActionName, action_kind = "attack",
     raw_roll = nRawRoll or JSON_NULL, modifier = nModifier,
     roll_total = nTotal or JSON_NULL, result = sResult,
     captured_at = os and os.time and os.time() or 0,
   }
+  rememberRollContext(tContext, { tTarget })
   appendEvent("attack", tActor, tTarget, nil, cleanRollDescription(rRoll.sDesc or "Attack"), {
     action_name = sActionName, roll_type = "attack", raw_roll = nRawRoll or JSON_NULL,
     modifier = nModifier, roll_total = nTotal or JSON_NULL, target_ac = nTargetAC or JSON_NULL,
@@ -890,8 +942,9 @@ local function authoritativeDamageResolved(rSource, rTarget, rRoll)
   local tActor = participantForCombatant(tActorEntry)
   local tTarget = participantForCombatant(tTargetEntry)
   local tDamageTypes, tComponents = damageDataFromResults(rRoll)
-  local nApplied = 0
-  for _, tComponent in ipairs(tComponents) do nApplied = nApplied + (tonumber(tComponent.applied) or 0) end
+  local nApplied = componentTotal(tComponents, "applied") or 0
+  local nRolled = componentTotal(tComponents, "rolled") or tonumber(rRoll.nTotal)
+  local sActionName = rollActionName(rRoll.sDesc or "Damage")
   local bAppliedEventFound = false
   local nUpdated = 0
   for nIndex = #aEventJournal, math.max(1, #aEventJournal - 5), -1 do
@@ -900,9 +953,18 @@ local function authoritativeDamageResolved(rSource, rTarget, rRoll)
     local bDamageRoll = tEvent.type == "action" and
       tostring(tMetadata.roll_type or ""):lower():find("damage", 1, true)
     if sameEventTarget(tEvent, tTarget) and (tEvent.type == "damage" or bDamageRoll) then
+      if tActor and tActor ~= JSON_NULL then tEvent.actor = tActor end
+      if tTarget and tTarget ~= JSON_NULL then tEvent.target = tTarget end
+      tMetadata.action_name = sActionName
+      if nRolled ~= nil then tMetadata.roll_total = nRolled end
       tMetadata.damage_types = tDamageTypes
       tMetadata.damage_components = tComponents
       tMetadata.damage_resolution = "authoritative"
+      if tEvent.type == "damage" then
+        local nActual = tonumber(tEvent.amount)
+        if nActual ~= nil and nRolled ~= nil then tMetadata.adjustment = nActual - nRolled end
+        tMetadata.attribution = tActor and tActor ~= JSON_NULL and "matched_recent_roll" or "manual_or_unattributed"
+      end
       tEvent.metadata = tMetadata
       if tEvent.type == "damage" then bAppliedEventFound = true end
       nUpdated = nUpdated + 1
@@ -913,13 +975,14 @@ local function authoritativeDamageResolved(rSource, rTarget, rRoll)
     local tHP = tTargetEntry and tTargetEntry.hit_points or {}
     appendEvent("damage", tActor, tTarget, nApplied,
       "Damage resolved by Fantasy Grounds", {
-        action_name = rollActionName(rRoll.sDesc or "Damage"),
-        roll_total = tonumber(rRoll.nTotal) or JSON_NULL,
+        action_name = sActionName,
+        roll_total = nRolled or JSON_NULL,
         damage_types = tDamageTypes, damage_components = tComponents,
         damage_resolution = "authoritative", attribution = "matched_recent_roll",
         current_hp = tHP.current or JSON_NULL, maximum_hp = tHP.maximum or JSON_NULL,
       }, tCombat)
   end
+  consumeRollContext(tTarget, "damage")
   exportCombatUpdate()
 end
 
@@ -935,7 +998,9 @@ local function onDiceLanded(draginfo)
   local node = diceValue(draginfo, "getDatabaseNode", nil)
   local tActorCombatant = combatantForNode(node, tCombat) or combatantByKey(tCombat, tCombat.active_source_key)
   local tActor = participantForCombatant(tActorCombatant)
-  local tTarget, tTargetCombatant = targetForCombatant(tActorCombatant, tCombat)
+  local tTargets = targetsForCombatant(tActorCombatant, tCombat)
+  local tTarget = #tTargets > 0 and tTargets[1].participant or JSON_NULL
+  local tTargetCombatant = #tTargets > 0 and tTargets[1].combatant or nil
   local sActionName = rollActionName(sDescription)
   local sResult = JSON_NULL
   local sLower = string.lower(sDescription)
@@ -951,7 +1016,7 @@ local function onDiceLanded(draginfo)
   if sLower:find("damage", 1, true) then
     tDamageTypes, tDamageComponents = damageDataFromDescription(sDescription)
   end
-  tLastRollContext = {
+  local tContext = {
     actor = tActor, target = tTarget, action_name = sActionName,
     action_kind = sLower:find("damage", 1, true) and "damage" or
       (sLower:find("heal", 1, true) and "healing" or sEventType),
@@ -960,6 +1025,9 @@ local function onDiceLanded(draginfo)
     damage_types = tDamageTypes, damage_components = tDamageComponents,
     captured_at = os and os.time and os.time() or 0,
   }
+  local tTargetParticipants = {}
+  for _, tTargetRecord in ipairs(tTargets) do table.insert(tTargetParticipants, tTargetRecord.participant) end
+  rememberRollContext(tContext, tTargetParticipants)
   appendEvent(sEventType, tActor, tTarget, nil, sDescription,
     { action_name = sActionName, roll_type = sRollType,
       raw_roll = nRawRoll or JSON_NULL, modifier = nModifier,
@@ -1000,7 +1068,7 @@ local function startEncounter(_, sParameters)
   sLastActiveKey = nil
   bHaveCombatBaseline = false
   bLastCombatActive = false
-  tLastRollContext = nil
+  clearRollContexts()
   bWarnedNoSession = false
   local tCombat = ensureCombatSession(combatState())
   updateCombatBaseline(tCombat, false)
@@ -1031,6 +1099,7 @@ local function endEncounter(_, sParameters)
   appendEvent("outcome", nil, nil, nil, "Encounter ended: " .. sValue,
     { lifecycle = "encounter_end", outcome = sValue, completed_at = sCompletedAt }, tCombat)
   sSessionState = "closed"
+  clearRollContexts()
   pcall(saveSessionState)
   if tCachedSnapshot then exportCombatUpdate() else exportAll() end
   chat("Ended Lectern encounter " .. tostring(sCombatSessionName or sCombatSessionKey) .. ": " .. sValue)
@@ -1063,7 +1132,7 @@ local function resetEncounterJournal(_, sParameters)
   sLastActiveKey = nil
   bHaveCombatBaseline = false
   bLastCombatActive = false
-  tLastRollContext = nil
+  clearRollContexts()
   bWarnedNoSession = false
   tCachedSnapshot = nil
   pcall(saveSessionState)

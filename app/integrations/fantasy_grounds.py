@@ -286,7 +286,48 @@ def _field(fields: dict[str, Any], *names: str, default: Any = None) -> Any:
     return default
 
 
-def _damage_metadata(metadata: dict[str, Any], description: str, is_damage: bool) -> tuple[str, str]:
+def _cap_component_applied(components: list[dict[str, Any]], applied_cap: int | None) -> None:
+    """Cap normalized component-applied totals to the target's actual HP loss."""
+    if applied_cap is None:
+        return
+    applied_values = [
+        max(0, float(component.get("applied", 0)))
+        if isinstance(component.get("applied"), (int, float)) and not isinstance(component.get("applied"), bool)
+        else 0.0
+        for component in components
+    ]
+    total = sum(applied_values)
+    cap = max(0, int(applied_cap))
+    if total <= cap or total <= 0:
+        return
+    exact = [value * cap / total for value in applied_values]
+    allocated = [int(value) for value in exact]
+    remainder = cap - sum(allocated)
+    order = sorted(range(len(exact)), key=lambda index: (exact[index] - allocated[index], -index), reverse=True)
+    for index in order[:remainder]:
+        allocated[index] += 1
+    for component, value in zip(components, allocated):
+        if "applied" in component:
+            component["applied"] = value
+
+
+def _component_total(metadata: dict[str, Any], field: str) -> float | None:
+    raw_components = metadata.get("damage_components")
+    if not isinstance(raw_components, list):
+        return None
+    values = [
+        component.get(field)
+        for component in raw_components
+        if isinstance(component, dict)
+        and isinstance(component.get(field), (int, float))
+        and not isinstance(component.get(field), bool)
+    ]
+    return sum(float(value) for value in values) if values else None
+
+
+def _damage_metadata(
+    metadata: dict[str, Any], description: str, is_damage: bool, applied_cap: int | None = None
+) -> tuple[str, str]:
     """Return canonical damage types and component JSON, with legacy description fallback."""
     types: list[str] = []
     components: list[dict[str, Any]] = []
@@ -326,6 +367,9 @@ def _damage_metadata(metadata: dict[str, Any], description: str, is_damage: bool
                     component[key] = value
             if normalized_types or len(component) > 1:
                 components.append(component)
+
+    if is_damage:
+        _cap_component_applied(components, applied_cap)
 
     if not types and is_damage:
         lower_description = description.casefold()
@@ -384,8 +428,11 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
     is_damage_roll = event_type == "action" and "damage" in (
         f"{metadata.get('roll_type', '')} {description}"
     ).lower()
+    component_cap = None
+    if event_type == "damage" and isinstance(event.get("amount"), (int, float)) and not isinstance(event.get("amount"), bool):
+        component_cap = max(0, int(event["amount"]))
     damage_types, damage_components_json = _damage_metadata(
-        metadata, description, is_damage_roll or event_type == "damage"
+        metadata, description, is_damage_roll or event_type == "damage", component_cap
     )
     action_type = "Damage Roll" if is_damage_roll else ACTION_TYPES[event_type]
     lifecycle = str(metadata.get("lifecycle") or "")
@@ -431,7 +478,14 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
         verb = "damage applied" if event_type == "damage" else "healing applied"
         outcome = f"{applied} {verb}"
         rolled = metadata.get("roll_total")
+        component_rolled = _component_total(metadata, "rolled")
+        if (rolled is None or rolled == 0) and component_rolled is not None and component_rolled > 0:
+            rolled = int(component_rolled) if component_rolled.is_integer() else component_rolled
         adjustment = metadata.get("adjustment")
+        if event_type == "damage" and rolled is not None and (
+            not isinstance(adjustment, (int, float)) or (metadata.get("roll_total") == 0 and component_rolled)
+        ):
+            adjustment = applied - rolled
         if event_type == "damage" and rolled is not None:
             if applied == 0:
                 outcome = f"0 damage applied from {rolled} rolled (negated)"
@@ -470,6 +524,18 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
         actor_name, action_type, details, incomplete, actor_source_key, actor_side,
         normalized_amount, result_code, natural_roll, damage_types, damage_components_json,
     )
+
+
+def _merge_enriched_event(existing: Any, incoming: Any) -> Any:
+    """Merge a later form of the same source event without losing earlier evidence."""
+    if isinstance(existing, dict) and isinstance(incoming, dict):
+        merged = dict(existing)
+        for key, value in incoming.items():
+            merged[key] = _merge_enriched_event(merged.get(key), value) if key in merged else value
+        return merged
+    if incoming in (None, "") or incoming == [] or incoming == {}:
+        return existing
+    return incoming
 
 
 class FantasyGroundsSyncService:
@@ -1161,7 +1227,40 @@ class FantasyGroundsSyncService:
 
     def _import_events(self, conn, source_id: int, campaign_id: int, campaign_name: str, events: list[dict[str, Any]], sequence: int) -> None:
         for event in sorted(events, key=lambda item: item["sequence"]):
-            if conn.execute("SELECT 1 FROM external_events WHERE source_id=? AND event_key=?", (source_id, event["event_id"])).fetchone():
+            existing = conn.execute(
+                "SELECT encounter_id,turn_log_id,raw_json FROM external_events WHERE source_id=? AND event_key=?",
+                (source_id, event["event_id"]),
+            ).fetchone()
+            if existing:
+                try:
+                    stored_event = json.loads(str(existing["raw_json"]))
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    stored_event = {}
+                merged_event = _merge_enriched_event(stored_event, event)
+                merged_json = _json(merged_event)
+                if merged_json == str(existing["raw_json"]):
+                    continue
+                formatted = format_event_log(merged_event)
+                actor_side = self._event_actor_side(conn, source_id, merged_event, formatted)
+                conn.execute(
+                    """
+                    UPDATE turn_log SET round=?,actor=?,action_type=?,details=?,actor_source_key=?,actor_side=?,
+                      amount=?,result_code=?,natural_roll=?,damage_types=?,damage_components_json=?,created_at=?
+                    WHERE id=?
+                    """,
+                    (max(1, int(merged_event["round"])), formatted.actor, formatted.action_type,
+                     formatted.details, formatted.actor_source_key, actor_side, formatted.amount,
+                     formatted.result_code, formatted.natural_roll, formatted.damage_types,
+                     formatted.damage_components_json, merged_event["timestamp"], existing["turn_log_id"]),
+                )
+                conn.execute(
+                    """
+                    UPDATE external_events SET event_type=?,occurred_at=?,raw_json=?,imported_sequence=?
+                    WHERE source_id=? AND event_key=?
+                    """,
+                    (merged_event["type"], merged_event["timestamp"], merged_json, sequence,
+                     source_id, merged_event["event_id"]),
+                )
                 continue
             encounter_id = self._event_encounter(conn, source_id, campaign_id, campaign_name, event)
             event_type = event["type"]

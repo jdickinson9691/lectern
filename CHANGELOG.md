@@ -13,6 +13,16 @@
 - A successful manual or automatic Fantasy Grounds import now selects the newly updated live-combat session in Encounter Builder and Combat Dashboard.
 - The relationship uses existing synchronization metadata, so database schema v9 and snapshot contract v1 remain unchanged.
 
+### Live Fantasy Grounds acceptance
+
+- Completed and recorded a live 5E acceptance session covering resistance, immunity, vulnerability, mixed damage, healing, natural-20 and natural-1 results, temporary HP, and multi-target damage.
+- Confirmed the full automated regression baseline still passes after the live session.
+- Recorded release-blocking multi-target attribution and follow-up event-enrichment, damage-detail, and overkill-total issues in `docs/FANTASY_GROUNDS_LIVE_ACCEPTANCE_3_0.md`.
+- Added Lectern Sync 1.4.2 with per-target roll contexts so every target of one action retains actor and action attribution.
+- Later snapshots now enrich existing imported event IDs and repair their linked combat-log rows without creating duplicates.
+- Negated and temporary-HP damage now falls back to authoritative component roll totals instead of displaying `0 rolled`.
+- Applied component totals are proportionally capped to the target's actual HP loss, while rolled, resisted, and vulnerability evidence remains intact.
+
 ### Fantasy Grounds damage types
 
 - Added a Campaign Dashboard **Party Damage Type Leaders** table for all 13 standard 5E damage types, including cumulative applied damage, contributing event counts, and tied leaders.

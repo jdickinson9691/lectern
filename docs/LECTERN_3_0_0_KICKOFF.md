@@ -15,7 +15,7 @@ This document is the authoritative starting point for Lectern 3.0.0. The version
 - Application version: 3.0.0
 - Database schema: v9
 - Fantasy Grounds snapshot schema: v1
-- Lectern Sync extension: 1.4.1
+- Lectern Sync extension: 1.4.2
 - Supported runtime: Python 3.13 on Windows 10/11
 - Expected installer: `release/Lectern_v3_0_0_Setup.exe`
 
@@ -62,7 +62,7 @@ This document is the authoritative starting point for Lectern 3.0.0. The version
 1. **Decided and implemented:** label prepared encounters and live-combat sessions explicitly, and associate them only when the snapshot name and roster produce one unambiguous match.
 2. **Decided and implemented:** a successful Fantasy Grounds import selects the newly updated live-combat encounter in Encounter Builder and Combat Dashboard.
 3. Define whether Campaign Dashboard analytics need encounter, date, combatant, or party/hostile filters.
-4. Complete a live Fantasy Grounds acceptance pass for mixed damage, resistance, immunity, vulnerability, healing, critical hits, and critical misses.
+4. **Executed with follow-up defects recorded:** the live Fantasy Grounds pass covered resistance, immunity, vulnerability, mixed damage, healing, critical hits/misses, temporary HP, and multi-target damage. See `docs/FANTASY_GROUNDS_LIVE_ACCEPTANCE_3_0.md`; multi-target attribution and several accuracy/display gaps prevent release clearance.
 5. Record explicit 3.0 acceptance criteria before changing the database or snapshot contract.
 
 ### First workflow acceptance criteria

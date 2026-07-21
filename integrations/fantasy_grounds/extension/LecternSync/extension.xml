@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <root version="4.0" release="1">
-  <announcement text="Lectern Sync 1.4.1 - authoritative component-aware damage types" />
+  <announcement text="Lectern Sync 1.4.2 - multi-target attribution and enriched event repair" />
   <properties>
     <name>Lectern Sync</name>
-    <version>1.4.1</version>
+    <version>1.4.2</version>
     <author>Lectern</author>
     <description>One-way Fantasy Grounds Unity 5E catalog and durable combat-session export with authoritative component-aware damage types for Lectern.</description>
     <ruleset>

@@ -16,7 +16,13 @@ os.environ["LECTERN_DATA_DIR"] = str(temp_dir / "user-data")
 
 from app.database.repositories import Repository
 from app.database.schema import connect, initialize_database
-from app.integrations.fantasy_grounds import FantasyGroundsSyncError, FantasyGroundsSyncService, load_snapshot, validate_snapshot
+from app.integrations.fantasy_grounds import (
+    FantasyGroundsSyncError,
+    FantasyGroundsSyncService,
+    format_event_log,
+    load_snapshot,
+    validate_snapshot,
+)
 
 
 try:
@@ -26,7 +32,7 @@ try:
     extension_manifest = (
         ROOT / "integrations" / "fantasy_grounds" / "extension" / "LecternSync" / "extension.xml"
     ).read_text(encoding="utf-8")
-    assert 'local EXTENSION_VERSION = "1.4.1"' in extension_source and "<version>1.4.1</version>" in extension_manifest, "Extension version metadata is inconsistent"
+    assert 'local EXTENSION_VERSION = "1.4.2"' in extension_source and "<version>1.4.2</version>" in extension_manifest, "Extension version metadata is inconsistent"
     assert 'if vValue == JSON_EMPTY_OBJECT then return "{}" end' in extension_source, "Empty event metadata is not encoded as a JSON object"
     assert 'Comm.registerSlashHandler("lectern-start", startEncounter' in extension_source, "Explicit encounter start command is missing"
     assert 'Comm.registerSlashHandler("lectern-end", endEncounter' in extension_source, "Explicit encounter end command is missing"
@@ -40,7 +46,8 @@ try:
     assert 'if sCharacterName == "" then return nil end' in extension_source, "Unnamed Fantasy Grounds characters are not filtered"
     assert 'not moduleName(node)' in extension_source, "Module reference battles are not filtered from campaign encounters"
     assert 'DB.addHandler("combattracker.list.*.wounds", "onUpdate"' in extension_source, "Combat Tracker wound changes are not observed"
-    assert 'targetForCombatant(tActorCombatant, tCombat)' in extension_source, "Selected Combat Tracker targets are not captured"
+    assert 'targetsForCombatant(tActorCombatant, tCombat)' in extension_source, "Selected Combat Tracker targets are not captured"
+    assert 'tRollContextsByTarget[tTarget.source_key] = tCopy' in extension_source, "Multi-target roll context is not retained per target"
     assert 'combatantForNode(node, tCombat) or combatantByKey' in extension_source, "Roll actors do not use source or active Combat Tracker context"
     assert 'actor = tActor, target = tTarget, action_name = sActionName' in extension_source, "Roll context is not retained for applied results"
     assert 's:gsub("[\\r\\n]+", " ")' in extension_source, "Roll cleanup must preserve the letter r"
@@ -51,6 +58,36 @@ try:
     assert 'rRoll.tResults' in extension_source and 'damage_components = tComponents' in extension_source, "Component-aware damage types are not exported"
     assert 'natural_roll = nRawRoll' in extension_source and 'authoritative_result = true' in extension_source, "Natural attack roll and authoritative result metadata are missing"
     assert 'contextForAppliedChange(tTarget, "damage")' in extension_source, "Applied damage attribution is not target matched and time bounded"
+    assert 'tEvent.actor = tActor' in extension_source and 'tMetadata.action_name = sActionName' in extension_source, "Authoritative enrichment does not repair attribution"
+
+    immune = format_event_log({
+        "type": "damage", "round": 1, "actor": None, "target": {"name": "Immune Target"},
+        "amount": 0, "description": "Damage resolved", "metadata": {
+            "roll_total": 0, "damage_types": ["fire"], "damage_components": [
+                {"types": ["fire"], "rolled": 2, "applied": 0, "resisted": 2, "vulnerable": 0}
+            ],
+        },
+    })
+    assert "0 damage applied from 2 rolled (negated)" in immune.details, "Negated damage displayed as zero rolled"
+    temporary_hp = format_event_log({
+        "type": "damage", "round": 1, "actor": None, "target": {"name": "Ward Target"},
+        "amount": 3, "description": "Damage resolved", "metadata": {
+            "roll_total": 0, "damage_types": ["force"], "damage_components": [
+                {"types": ["force"], "rolled": 3, "applied": 3, "resisted": 0, "vulnerable": 0}
+            ],
+        },
+    })
+    assert "3 damage applied from 3 rolled" in temporary_hp.details, "Temporary-HP damage displayed as zero rolled"
+    overkill = format_event_log({
+        "type": "damage", "round": 1, "actor": None, "target": {"name": "Low HP Target"},
+        "amount": 7, "description": "Damage resolved", "metadata": {
+            "roll_total": 6, "damage_types": ["fire", "slashing"], "damage_components": [
+                {"types": ["fire"], "rolled": 3, "applied": 6, "resisted": 0, "vulnerable": 3},
+                {"types": ["slashing"], "rolled": 3, "applied": 6, "resisted": 0, "vulnerable": 3},
+            ],
+        },
+    })
+    assert sum(component["applied"] for component in json.loads(overkill.damage_components_json)) == 7, "Overkill component totals exceed actual HP loss"
 
     db = temp_dir / "lectern.db"
     initialize_database(db)
@@ -58,6 +95,12 @@ try:
     repo.upsert_player({"name": "Fantasy Grounds Test Hero", "class_name": "Local Class", "level": 1, "max_hp": 5})
     fixture_path = ROOT / "docs" / "contracts" / "fantasy_grounds_snapshot_v1.example.json"
     payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    complete_damage_event = copy.deepcopy(payload["events"][1])
+    payload["events"][1]["actor"] = None
+    payload["events"][1]["metadata"].pop("action_name")
+    payload["events"][1]["metadata"].update({
+        "roll_total": 0, "attribution": "manual_or_unattributed", "damage_types": [], "damage_components": [],
+    })
     validate_snapshot(payload)
     legacy_payload = copy.deepcopy(payload)
     legacy_payload.pop("events")
@@ -132,7 +175,7 @@ try:
         assert [row["action_type"] for row in logs] == ["Attack", "Damage"], "Combat event types were not mapped"
         assert logs[0]["actor"] == "Fantasy Grounds Test Hero", "Combat actor was not imported"
         assert logs[0]["details"] == "18 (dice 13; modifiers +5) | Test Creature | Against AC 13 | Longsword | Hit (18 vs AC 13)", "Attack resolution format is incorrect"
-        assert logs[1]["details"] == "3 | Test Creature | Target HP 9/12 | Longsword | 3 damage applied from 3 rolled", "Damage resolution format is incorrect"
+        assert logs[1]["actor"] == "Manual / Unattributed" and logs[1]["details"].endswith("3 damage applied from 0 rolled"), "Early incomplete damage event was not represented safely"
 
     repeat = service.import_snapshot(snapshot)
     assert not repeat.applied and repeat.sequence == 1, "Repeated sequence should be ignored"
@@ -154,6 +197,7 @@ try:
 
     updated = copy.deepcopy(payload)
     updated["sequence"] = 2
+    updated["events"][1] = complete_damage_event
     updated["combat"]["combatants"][0]["hit_points"]["current"] = 6
     updated["encounters"][0]["participants"][0].update({"armor_class": 14, "hit_points": 20, "initiative_mod": 3})
     updated["events"].append({
@@ -179,6 +223,10 @@ try:
     with connect(db) as conn:
         assert conn.execute("SELECT COUNT(*) FROM turn_log").fetchone()[0] == 3, "Only the new event should be appended"
         assert conn.execute("SELECT details FROM turn_log WHERE action_type='Healing'").fetchone()[0].startswith("2 | Test Creature |"), "Healing was not mapped"
+        enriched = conn.execute("SELECT actor,details FROM turn_log WHERE action_type='Damage'").fetchone()
+        assert enriched["actor"] == "Fantasy Grounds Test Hero" and "Longsword | 3 damage applied from 3 rolled" in enriched["details"], "Later authoritative event enrichment did not repair the existing row"
+        raw_event = json.loads(conn.execute("SELECT raw_json FROM external_events WHERE event_key='test-session-001:2'").fetchone()[0])
+        assert raw_event["metadata"]["damage_resolution"] == "authoritative" and raw_event["actor"]["name"] == "Fantasy Grounds Test Hero", "Enriched source evidence was not retained"
 
     stale = copy.deepcopy(updated)
     stale["sequence"] = 3
