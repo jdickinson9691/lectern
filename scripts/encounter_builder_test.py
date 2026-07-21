@@ -41,6 +41,10 @@ try:
     repo.upsert_monster(monster("Bandit", 12, 11))
     repo.upsert_monster(monster("Wolf", 13, 11))
     encounter_id = repo.create_encounter("Bandit Regression")
+    campaign_id = repo.create_campaign("Local Builder Campaign")
+    repo.upsert_player({"name": "Campaign Hero", "class_name": "Fighter", "armor_class": 16, "max_hp": 20})
+    hero_id=next(row['id'] for row in repo.list_players() if row['name']=="Campaign Hero")
+    repo.set_campaign_party(campaign_id,[hero_id])
 
     app = QApplication.instance() or QApplication([])
     page = None
@@ -92,6 +96,14 @@ try:
     rows = repo.list_combatants(encounter_id)
     assert [row["name"] for row in rows] == ["Bandit #1", "Bandit #2", "Bandit #3", "Wolf #1"], "Case-insensitive monster selection or ordering failed"
     assert [row["sort_order"] for row in rows] == [0, 1, 2, 3], "Combatant insertion order is inconsistent"
+
+    page.campaign_filter.setCurrentIndex(page.campaign_filter.findData(campaign_id)); app.processEvents()
+    page.new_name.setText("Campaign-Scoped Battle"); page.create_encounter(); app.processEvents()
+    scoped_id=page.current_encounter_id; scoped=repo.get_encounter(scoped_id)
+    assert scoped['campaign_id']==campaign_id and page.encounters.count()==1, "Encounter was not created and filtered inside the selected campaign"
+    assert page.add_campaign_party_button.isEnabled(), "Campaign party action is unavailable for a local campaign encounter"
+    page.add_campaign_party(); app.processEvents()
+    assert [row['name'] for row in repo.list_combatants(scoped_id)]==["Campaign Hero"], "Persistent campaign party was not added to the encounter"
 
     external_id = repo.create_encounter("Fantasy Grounds Prepared Encounter")
     live_id = repo.create_encounter("Fantasy Grounds Live Session")

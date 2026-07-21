@@ -1,5 +1,6 @@
 # Changelog
 
+- Added the first manual-campaign milestone: explicit campaign ownership, schema-v10 archive state, persistent local party rosters, campaign-scoped encounter creation/filtering, one-click party insertion, and local campaign edit/archive controls.
 - Recovered equipped weapons and armor from current and older Fantasy Grounds character snapshots, with confident name matching to Lectern's SRD libraries.
 - Improved the Campaigns screen with individual Party Combat Statistic cards and distinct, readable colors for all standard damage-type leader rows.
 

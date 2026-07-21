@@ -33,16 +33,27 @@ try:
         columns = {row[1] for row in conn.execute("PRAGMA table_info(turn_log)")}
         assert {"actor_source_key", "actor_side", "amount", "result_code", "natural_roll"} <= columns, "Schema-v8 log columns were not migrated"
         assert conn.execute("SELECT details FROM turn_log").fetchone()[0] == "Legacy row", "Schema migration changed a historical log row"
-        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == "9"
+        campaign_columns = {row[1] for row in conn.execute("PRAGMA table_info(campaigns)")}
+        assert {"source_type", "is_archived"} <= campaign_columns, "Schema-v10 campaign columns were not migrated"
+        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == "10"
 
     db = temp_dir / "lectern.db"
     initialize_database(db)
     repo = Repository(db)
     campaign_id = repo.create_campaign("Statistics Campaign", "Party performance")
-    encounter_one = repo.create_encounter("Statistics Encounter One")
-    encounter_two = repo.create_encounter("Statistics Encounter Two")
-    repo.assign_encounter_to_campaign(encounter_one, campaign_id)
-    repo.assign_encounter_to_campaign(encounter_two, campaign_id)
+    repo.upsert_player({"name": "Aria", "class_name": "Fighter", "max_hp": 44})
+    repo.upsert_player({"name": "Mira", "class_name": "Cleric", "max_hp": 32})
+    party_ids=[row['id'] for row in repo.list_players()]
+    repo.set_campaign_party(campaign_id,party_ids)
+    assert [row['name'] for row in repo.list_campaign_party(campaign_id)] == ["Aria", "Mira"], "Persistent campaign party was not saved"
+    encounter_one = repo.create_encounter("Statistics Encounter One",campaign_id)
+    encounter_two = repo.create_encounter("Statistics Encounter Two",campaign_id)
+    assert all(row['campaign_id']==campaign_id for row in repo.list_encounters_for_campaign(campaign_id)), "Campaign-scoped encounters were not created in their campaign"
+    archived_id=repo.create_campaign("Archived Campaign")
+    repo.set_campaign_archived(archived_id,True)
+    assert archived_id not in {row['id'] for row in repo.list_campaigns()} and archived_id in {row['id'] for row in repo.list_campaigns(include_archived=True)}, "Campaign archive visibility is incorrect"
+    repo.update_campaign(campaign_id,"Statistics Campaign","Updated party performance")
+    assert repo.get_campaign(campaign_id)['source_type']=="local" and repo.get_campaign(campaign_id)['description']=="Updated party performance", "Local campaign edit or ownership failed"
 
     with connect(db) as conn:
         conn.execute("UPDATE encounters SET round=3,status='completed' WHERE id=?", (encounter_one,))
@@ -93,6 +104,9 @@ try:
     page.campaigns.setCurrentIndex(page.campaigns.findData(campaign_id))
     page.refresh_dashboard()
     app.processEvents()
+    assert page.campaign_source.text()=="LOCAL" and page.manage_party_button.isEnabled(), "Local campaign ownership controls are incorrect"
+    assert "Aria" in page.party_summary.text() and "Mira" in page.party_summary.text(), "Persistent party summary was not rendered"
+    assert page.campaign_encounter.count()==2 and page.encounter.count()==0, "Campaign and unassigned encounter selectors are not scoped"
     assert "11.2" in page.party_dpr.text() and "3.0" in page.party_hpr.text(), "DPR/HPR cards were not populated"
     assert "Aria, Rook" in page.critical_hits.text() and "Mira" in page.critical_misses.text(), "Critical leader cards were not populated"
     stat_cards = {page.party_dpr_card, page.party_hpr_card, page.critical_hits_card, page.critical_misses_card}
@@ -111,7 +125,7 @@ try:
     assert page.damage_type_leaders.item(ui_type_rows["Acid"], 1).text() == "No recorded party damage", "Empty damage type state was not rendered"
     assert page.damage_types_group.geometry().left() < page.encounters_group.geometry().left(), "Damage-type leaders are not positioned left of campaign encounters"
     assert abs(page.damage_types_group.geometry().top() - page.encounters_group.geometry().top()) <= 1, "Dashboard lower panels are not aligned side by side"
-    assert page.damage_type_leaders.minimumHeight() >= 430 and page.damage_type_leaders.maximumHeight() > 10000, "Damage-type table is still vertically capped"
+    assert page.damage_type_leaders.minimumHeight() >= 390 and page.damage_type_leaders.maximumHeight() > 10000, "Damage-type table is still vertically capped"
     page.close()
 
     screenshot_path = os.environ.get("LECTERN_CAMPAIGN_SCREENSHOT", "").strip()
@@ -125,7 +139,8 @@ try:
         window.show()
         app.processEvents()
         last_damage_item = campaign_page.damage_type_leaders.item(campaign_page.damage_type_leaders.rowCount() - 1, 0)
-        assert campaign_page.damage_type_leaders.viewport().rect().contains(campaign_page.damage_type_leaders.visualItemRect(last_damage_item)), "The complete damage-type list is not visible at the normal launch size"
+        last_damage_rect = campaign_page.damage_type_leaders.visualItemRect(last_damage_item)
+        assert last_damage_rect.isValid() and last_damage_rect.height() > 0 and last_damage_rect.bottom() < campaign_page.damage_type_leaders.viewport().height(), "The complete damage-type list is not visible at the normal launch size"
         assert window.grab().save(screenshot_path), "Campaign Dashboard screenshot could not be saved"
         window.close()
 

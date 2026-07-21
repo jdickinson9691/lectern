@@ -160,7 +160,7 @@ class Repository:
     def list_players(self):
         return self.list_rows('players')
 
-    def create_encounter(self, name: str) -> int:
+    def create_encounter(self, name: str, campaign_id: int | None = None) -> int:
         with connect(self.db_path) as conn:
             base = name.strip() or "New Encounter"
             unique_name = base
@@ -169,8 +169,8 @@ class Repository:
                 unique_name = f"{base} {suffix}"
                 suffix += 1
             cursor = conn.execute(
-                "INSERT INTO encounters(name,status,round,active_index) VALUES(?, 'draft', 1, 0)",
-                (unique_name,),
+                "INSERT INTO encounters(name,status,round,active_index,campaign_id) VALUES(?, 'draft', 1, 0, ?)",
+                (unique_name, campaign_id),
             )
             return int(cursor.lastrowid)
 
@@ -180,22 +180,108 @@ class Repository:
 
     def create_campaign(self, name: str, description: str = '') -> int:
         with connect(self.db_path) as conn:
-            conn.execute("INSERT OR IGNORE INTO campaigns(name,description) VALUES(?,?)", (name, description))
+            conn.execute("INSERT OR IGNORE INTO campaigns(name,description,source_type,is_archived) VALUES(?,?,'local',0)", (name, description))
             return int(conn.execute("SELECT id FROM campaigns WHERE name=?", (name,)).fetchone()[0])
 
-    def list_campaigns(self):
+    def get_campaign(self, campaign_id: int):
         with connect(self.db_path) as conn:
-            return conn.execute("SELECT * FROM campaigns ORDER BY name").fetchall()
+            return conn.execute("SELECT * FROM campaigns WHERE id=?", (campaign_id,)).fetchone()
 
-    def list_campaigns_with_counts(self):
+    def list_campaigns(self, include_archived: bool = False):
         with connect(self.db_path) as conn:
+            where = "" if include_archived else "WHERE is_archived=0"
+            return conn.execute(f"SELECT * FROM campaigns {where} ORDER BY name").fetchall()
+
+    def update_campaign(self, campaign_id: int, name: str, description: str = '') -> None:
+        with connect(self.db_path) as conn:
+            campaign = conn.execute("SELECT source_type FROM campaigns WHERE id=?", (campaign_id,)).fetchone()
+            if not campaign or campaign["source_type"] != "local":
+                raise ValueError("Only local campaigns can be edited in Lectern")
+            conn.execute("UPDATE campaigns SET name=?,description=? WHERE id=?", (name.strip(), description.strip(), campaign_id))
+
+    def set_campaign_archived(self, campaign_id: int, archived: bool) -> None:
+        with connect(self.db_path) as conn:
+            campaign = conn.execute("SELECT source_type FROM campaigns WHERE id=?", (campaign_id,)).fetchone()
+            if not campaign or campaign["source_type"] != "local":
+                raise ValueError("Only local campaigns can be archived in Lectern")
+            conn.execute("UPDATE campaigns SET is_archived=? WHERE id=?", (1 if archived else 0, campaign_id))
+
+    def list_campaign_party(self, campaign_id: int):
+        with connect(self.db_path) as conn:
+            return conn.execute(
+                """
+                SELECT p.*, cp.sort_order AS campaign_sort_order
+                FROM campaign_party cp JOIN players p ON p.id=cp.player_id
+                WHERE cp.campaign_id=? ORDER BY cp.sort_order,p.name
+                """,
+                (campaign_id,),
+            ).fetchall()
+
+    def set_campaign_party(self, campaign_id: int, player_ids: list[int]) -> None:
+        unique_ids = list(dict.fromkeys(int(player_id) for player_id in player_ids))
+        with connect(self.db_path) as conn:
+            campaign = conn.execute("SELECT source_type FROM campaigns WHERE id=?", (campaign_id,)).fetchone()
+            if not campaign or campaign["source_type"] != "local":
+                raise ValueError("Only local campaign parties can be edited in Lectern")
+            conn.execute("DELETE FROM campaign_party WHERE campaign_id=?", (campaign_id,))
+            for order, player_id in enumerate(unique_ids):
+                conn.execute(
+                    "INSERT INTO campaign_party(campaign_id,player_id,sort_order) VALUES(?,?,?)",
+                    (campaign_id, player_id, order),
+                )
+
+    def add_campaign_party_to_encounter(self, campaign_id: int, encounter_id: int) -> int:
+        with connect(self.db_path) as conn:
+            encounter = conn.execute("SELECT campaign_id FROM encounters WHERE id=?", (encounter_id,)).fetchone()
+            if not encounter or encounter["campaign_id"] != campaign_id:
+                raise ValueError("The encounter does not belong to the selected campaign")
+            players = conn.execute(
+                """
+                SELECT p.* FROM campaign_party cp JOIN players p ON p.id=cp.player_id
+                WHERE cp.campaign_id=? ORDER BY cp.sort_order,p.name
+                """,
+                (campaign_id,),
+            ).fetchall()
+            next_order = int(conn.execute(
+                "SELECT COALESCE(MAX(sort_order),-1)+1 FROM combatants WHERE encounter_id=?", (encounter_id,)
+            ).fetchone()[0])
+            added = 0
+            for player in players:
+                exists = conn.execute(
+                    "SELECT 1 FROM combatants WHERE encounter_id=? AND source_type='player' AND source_id=? AND is_active=1",
+                    (encounter_id, player["id"]),
+                ).fetchone()
+                if exists:
+                    continue
+                conn.execute(
+                    """
+                    INSERT INTO combatants(encounter_id,source_type,source_id,name,armor_class,max_hp,current_hp,initiative_mod,initiative,sort_order)
+                    VALUES(?,?,?,?,?,?,?,?,NULL,?)
+                    """,
+                    (encounter_id, 'player', player["id"], player["name"], player["armor_class"] or 10,
+                     player["max_hp"] or 1, player["current_hp"] or player["max_hp"] or 1,
+                     player["initiative_mod"] or 0, next_order + added),
+                )
+                added += 1
+            return added
+
+    def list_encounters_for_campaign(self, campaign_id: int | None):
+        with connect(self.db_path) as conn:
+            if campaign_id is None:
+                return conn.execute("SELECT * FROM encounters WHERE campaign_id IS NULL ORDER BY id DESC").fetchall()
+            return conn.execute("SELECT * FROM encounters WHERE campaign_id=? ORDER BY id DESC", (campaign_id,)).fetchall()
+
+    def list_campaigns_with_counts(self, include_archived: bool = False):
+        with connect(self.db_path) as conn:
+            where = "" if include_archived else "WHERE c.is_archived=0"
             return conn.execute("""
                 SELECT c.*, COUNT(e.id) AS encounter_count
                 FROM campaigns c
                 LEFT JOIN encounters e ON e.campaign_id = c.id
+                %s
                 GROUP BY c.id
                 ORDER BY c.name
-            """).fetchall()
+            """ % where).fetchall()
 
     def assign_encounter_to_campaign(self, encounter_id: int, campaign_id: int | None):
         with connect(self.db_path) as conn:

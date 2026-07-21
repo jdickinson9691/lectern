@@ -55,10 +55,10 @@ Lectern supports two distinct encounter workflows. Decide which application owns
 Use this workflow when Lectern is the source of truth:
 
 1. Review **Dashboard**.
-2. Create a campaign in **Campaigns**.
-3. Add or import characters in **Players**.
-4. Create an encounter in **Encounter Builder**.
-5. Add players and monsters, then select **Roll Initiative / Start**.
+2. Create a local campaign in **Campaigns**.
+3. Add or import characters in **Players**, then use **Manage Party** to save the campaign's regular party.
+4. Select that campaign in **Encounter Builder** and create an encounter inside it.
+5. Select **Add Campaign Party**, add monsters, then select **Roll Initiative / Start**.
 6. Run turns, HP changes, and actions in **Combat Dashboard**.
 7. Return to **Campaigns** to record the outcome and review cumulative results.
 8. Use **Data Workflow** to back up the database.
@@ -125,11 +125,21 @@ Campaigns groups encounters and provides cumulative combat results.
 1. Enter a campaign name and optional description.
 2. Select **Create Campaign**.
 
+Campaign selectors identify each record as **Local** or **Fantasy Grounds**. Local campaigns can be renamed, given a revised description, archived, or restored. Enable **Show archived** when you need to reopen an archived campaign. Fantasy Grounds campaign identity remains source-owned.
+
+### Save a persistent party
+
+1. Select a local campaign.
+2. Select **Manage Party...**.
+3. Check the regular player characters and save.
+
+The saved party is campaign-level membership, not an encounter roster. In Encounter Builder, **Add Campaign Party** copies any party members not already present into the selected campaign encounter. Individual encounter rosters remain editable.
+
 ### Add or complete an encounter
 
-1. Select the campaign and encounter.
-2. Select **Add Encounter**. An encounter can belong to one campaign at a time.
-3. To finish a local encounter, choose Victory, Defeat, Retreat, or Unresolved and select **Complete Encounter**.
+1. Select the campaign and an **Unassigned local encounter**.
+2. Select **Add to Campaign**. An encounter can belong to one campaign at a time.
+3. To finish an encounter, choose it from **Campaign encounter**, select Victory, Defeat, Retreat, or Unresolved, and select **Complete Encounter**.
 
 ### Campaign statistics
 
@@ -166,13 +176,16 @@ A prepared encounter and its live session can be linked when their name and rost
 
 ### Build a local encounter
 
-1. Enter a unique name and select **Create New Encounter**.
-2. Search **Monster Browser**, choose quantity, and select **Add Monster(s)**.
-3. Check saved characters and select **Add Selected Player(s)**.
-4. Review or remove combatants.
-5. Select **Roll Initiative / Start** and open **Combat Dashboard**.
+1. Select a local campaign, or choose **Unassigned Local** for an encounter that will be assigned later.
+2. Enter a unique name and select **Create New Encounter**. The encounter is created inside the selected local campaign.
+3. Select **Add Campaign Party** to add the saved regular party, or check individual characters and select **Add Selected Player(s)**.
+4. Search **Monster Browser**, choose quantity, and select **Add Monster(s)**.
+5. Review or remove combatants.
+6. Select **Roll Initiative / Start** and open **Combat Dashboard**.
 
 Local encounters always begin empty. If a requested name already exists, Lectern creates a unique name such as `Goblin Ambush 2`.
+
+Use the campaign selector to show all encounters, only unassigned local encounters, or one campaign's encounters. Creating a local encounter while a Fantasy Grounds campaign is selected is blocked so ownership remains clear.
 
 ### Fantasy Grounds impact
 
@@ -191,6 +204,7 @@ Combat Dashboard runs local encounters and reviews local or synchronized combat 
 
 ### Run local combat
 
+- Use the campaign selector to focus the encounter list on one campaign, all campaigns, or unassigned local encounters.
 - **Previous Turn** moves backward.
 - **Next / End Turn** advances and starts a new round after the final combatant.
 - Select a target, enter an amount, and use **Apply Damage** or **Apply Healing**.

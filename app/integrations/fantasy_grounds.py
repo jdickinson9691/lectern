@@ -1011,9 +1011,9 @@ class FantasyGroundsSyncService:
         name = self._unique_name(conn, "campaigns", source["campaign_name"], campaign_id)
         description = "Synchronized one-way from Fantasy Grounds Unity 5E."
         if campaign_id and conn.execute("SELECT 1 FROM campaigns WHERE id=?", (campaign_id,)).fetchone():
-            conn.execute("UPDATE campaigns SET name=?,description=? WHERE id=?", (name, description, campaign_id))
+            conn.execute("UPDATE campaigns SET name=?,description=?,source_type='fantasy_grounds',is_archived=0 WHERE id=?", (name, description, campaign_id))
         else:
-            cursor = conn.execute("INSERT INTO campaigns(name,description) VALUES(?,?)", (name, description))
+            cursor = conn.execute("INSERT INTO campaigns(name,description,source_type,is_archived) VALUES(?,?,'fantasy_grounds',0)", (name, description))
             campaign_id = int(cursor.lastrowid)
             self._link(conn, source_id, source_key, "campaign", campaign_id)
         return campaign_id

@@ -659,12 +659,13 @@ class MonsterAddPage(QWidget):
 
 class EncounterBuilderPage(QWidget):
     def __init__(self, repo: Repository, refresh_callback):
-        super().__init__(); self.repo=repo; self.refresh_callback=refresh_callback; self.current_encounter_id=None
+        super().__init__(); self.repo=repo; self.refresh_callback=refresh_callback; self.current_encounter_id=None; self._focus_encounter=False
         root=adaptive_page_layout(self); root.addWidget(QLabel("<h2>Encounter Builder</h2>"))
         top=QHBoxLayout(); self.new_name=QLineEdit(); self.new_name.setPlaceholderText("Encounter name, e.g. Goblin Ambush")
         new_btn=QPushButton("Create New Encounter"); new_btn.clicked.connect(self.create_encounter)
+        self.campaign_filter=QComboBox(); self.campaign_filter.currentIndexChanged.connect(self.change_campaign_filter)
         self.encounters=QComboBox(); self.encounters.currentIndexChanged.connect(self.select_encounter)
-        top.addWidget(self.new_name); top.addWidget(new_btn); top.addWidget(QLabel("Active:")); top.addWidget(self.encounters); root.addLayout(top)
+        top.addWidget(QLabel("Campaign:")); top.addWidget(self.campaign_filter); top.addWidget(self.new_name); top.addWidget(new_btn); top.addWidget(QLabel("Encounter:")); top.addWidget(self.encounters); root.addLayout(top)
         body=QHBoxLayout(); root.addLayout(body)
         monster_box=QGroupBox("Monster Browser"); mb=QVBoxLayout(monster_box); mb.setSpacing(8); self.monster_search=QComboBox(); self.monster_search.setEditable(True); self.monster_search.setInsertPolicy(QComboBox.NoInsert)
         self.monster_qty=QSpinBox(); self.monster_qty.setRange(1,50); self.monster_qty.setButtonSymbols(QAbstractSpinBox.NoButtons)
@@ -675,7 +676,7 @@ class EncounterBuilderPage(QWidget):
         self.add_monster_button=QPushButton("Add Monster(s)"); self.add_monster_button.clicked.connect(self.add_monsters)
         self.monster_search_label=QLabel("Search/type monster name"); self.monster_quantity_label=QLabel("Quantity")
         mb.addWidget(self.monster_search_label); mb.addWidget(self.monster_search); mb.addSpacing(6); mb.addWidget(self.monster_quantity_label); mb.addLayout(quantity_row); mb.addStretch(1); mb.addWidget(self.add_monster_button); body.addWidget(monster_box)
-        player_box=QGroupBox("Players"); pb=QVBoxLayout(player_box); self.player_list=QListWidget(); self.add_player_button=QPushButton("Add Selected Player(s)"); self.add_player_button.clicked.connect(self.add_players); pb.addWidget(self.player_list); pb.addWidget(self.add_player_button); body.addWidget(player_box)
+        player_box=QGroupBox("Players"); pb=QVBoxLayout(player_box); self.player_list=QListWidget(); self.add_player_button=QPushButton("Add Selected Player(s)"); self.add_player_button.clicked.connect(self.add_players); self.add_campaign_party_button=QPushButton("Add Campaign Party"); self.add_campaign_party_button.clicked.connect(self.add_campaign_party); pb.addWidget(self.player_list); pb.addWidget(self.add_player_button); pb.addWidget(self.add_campaign_party_button); body.addWidget(player_box)
         cart_box=QGroupBox("Encounter Combatants"); cb=QVBoxLayout(cart_box); self.combatants=QTableWidget(); self.combatants.setColumnCount(6); self.combatants.setHorizontalHeaderLabels(["Name","Init","AC","HP","Max HP","Type"]); cb.addWidget(self.combatants)
         self.combatants.setIconSize(QSize(36,36))
         row=QHBoxLayout(); self.roll_button=QPushButton("Roll Initiative / Start"); self.roll_button.clicked.connect(self.roll_init); self.remove_button=QPushButton("Remove Selected"); self.remove_button.clicked.connect(self.remove_selected); row.addWidget(self.roll_button); row.addWidget(self.remove_button); cb.addLayout(row); body.addWidget(cart_box,2)
@@ -697,14 +698,27 @@ class EncounterBuilderPage(QWidget):
         self.player_list.clear()
         for name in sorted(self.players):
             item=QListWidgetItem(name); item.setFlags(item.flags() | Qt.ItemIsUserCheckable); item.setCheckState(Qt.Unchecked); self.player_list.addItem(item)
+        filter_value=self.campaign_filter.currentData() if self.campaign_filter.count() else -1
+        if self._focus_encounter and self.current_encounter_id:
+            focused=self.repo.get_encounter(self.current_encounter_id); filter_value=focused['campaign_id'] if focused else -1
+        self.campaign_filter.blockSignals(True); self.campaign_filter.clear(); self.campaign_filter.addItem("All Campaigns",-1); self.campaign_filter.addItem("Unassigned Local",None)
+        for campaign in self.repo.list_campaigns():
+            source="Fantasy Grounds" if campaign['source_type']=='fantasy_grounds' else "Local"
+            self.campaign_filter.addItem(f"{campaign['name']} [{source}]",campaign['id'])
+        restore_filter=self.campaign_filter.findData(filter_value)
+        self.campaign_filter.setCurrentIndex(restore_filter if restore_filter>=0 else 0); self.campaign_filter.blockSignals(False); self._focus_encounter=False
         self.encounters.blockSignals(True); self.encounters.clear()
-        for e in self.repo.list_encounters(): self.encounters.addItem(self.repo.encounter_display_name(e), e['id'])
+        selected_filter=self.campaign_filter.currentData()
+        encounter_rows=self.repo.list_encounters() if selected_filter==-1 else self.repo.list_encounters_for_campaign(selected_filter)
+        for e in encounter_rows: self.encounters.addItem(self.repo.encounter_display_name(e), e['id'])
         self.encounters.blockSignals(False)
-        if self.current_encounter_id is None and self.encounters.count(): self.current_encounter_id=self.encounters.itemData(0)
+        if (self.current_encounter_id is None or self.encounters.findData(self.current_encounter_id)<0) and self.encounters.count(): self.current_encounter_id=self.encounters.itemData(0)
         if self.current_encounter_id is not None:
             current_index=self.encounters.findData(self.current_encounter_id)
             if current_index >= 0: self.encounters.setCurrentIndex(current_index)
         self.refresh_combatants()
+    def change_campaign_filter(self):
+        self.current_encounter_id=None; self.refresh()
     def _commit_monster_selection(self, text):
         row=self.monsters_by_name.get(str(text).strip().casefold())
         if row:
@@ -721,7 +735,10 @@ class EncounterBuilderPage(QWidget):
         return self.repo.is_external_encounter(self.current_encounter_id)
     def refresh_ownership(self):
         external=self.encounter_is_external()
-        for widget in (self.monster_search,self.monster_qty,self.monster_qty_down,self.monster_qty_up,self.add_monster_button,self.player_list,self.add_player_button,self.roll_button,self.remove_button): widget.setEnabled(not external)
+        for widget in (self.monster_search,self.monster_qty,self.monster_qty_down,self.monster_qty_up,self.add_monster_button,self.player_list,self.add_player_button,self.add_campaign_party_button,self.roll_button,self.remove_button): widget.setEnabled(not external)
+        encounter=self.repo.get_encounter(self.current_encounter_id) if self.current_encounter_id else None
+        campaign=self.repo.get_campaign(encounter['campaign_id']) if encounter and encounter['campaign_id'] else None
+        self.add_campaign_party_button.setEnabled(not external and bool(campaign and campaign['source_type']=='local'))
         self.external_notice.setVisible(external)
         context=self.repo.encounter_sync_context(self.current_encounter_id)
         if context and context['kind']=='prepared':
@@ -732,11 +749,15 @@ class EncounterBuilderPage(QWidget):
             self.external_notice.setText("Fantasy Grounds live combat session. Run combat in Fantasy Grounds."+linked)
     def create_encounter(self):
         name=self.new_name.text().strip() or "New Encounter"
-        self.current_encounter_id=self.repo.create_encounter(name); self.new_name.clear(); self.refresh(); self.refresh_callback()
+        campaign_id=self.campaign_filter.currentData()
+        if campaign_id == -1: campaign_id=None
+        campaign=self.repo.get_campaign(campaign_id) if campaign_id else None
+        if campaign and campaign['source_type']!='local': QMessageBox.warning(self,"Fantasy Grounds Campaign","Create local encounters inside a local campaign or under Unassigned Local."); return
+        self.current_encounter_id=self.repo.create_encounter(name,campaign_id); self.new_name.clear(); self.refresh(); self.refresh_callback()
     def select_encounter(self):
         self.current_encounter_id=self.encounters.currentData(); self.refresh_combatants()
     def select_encounter_id(self, encounter_id):
-        if encounter_id is not None: self.current_encounter_id=int(encounter_id)
+        if encounter_id is not None: self.current_encounter_id=int(encounter_id); self._focus_encounter=True
     def add_monsters(self):
         if not self.current_encounter_id: self.create_encounter()
         if self.encounter_is_external(): QMessageBox.warning(self,"Fantasy Grounds Encounter","Update this encounter in Fantasy Grounds."); return
@@ -752,6 +773,13 @@ class EncounterBuilderPage(QWidget):
             if item.checkState()==Qt.Checked:
                 self.repo.add_combatant_from_player(self.current_encounter_id, self.players[item.text()]['id']); item.setCheckState(Qt.Unchecked)
         self.refresh_combatants(); self.refresh_callback()
+    def add_campaign_party(self):
+        if not self.current_encounter_id: return
+        encounter=self.repo.get_encounter(self.current_encounter_id); campaign_id=encounter['campaign_id'] if encounter else None
+        campaign=self.repo.get_campaign(campaign_id) if campaign_id else None
+        if not campaign or campaign['source_type']!='local': QMessageBox.information(self,"No Local Campaign Party","Assign this encounter to a local campaign and save its persistent party first."); return
+        added=self.repo.add_campaign_party_to_encounter(campaign_id,self.current_encounter_id); self.refresh_combatants(); self.refresh_callback()
+        if not added: QMessageBox.information(self,"Campaign Party","Every saved campaign party member is already in this encounter, or the campaign party is empty.")
     def refresh_combatants(self):
         rows=self.repo.list_combatants(self.current_encounter_id) if self.current_encounter_id else []
         self.combatants.setRowCount(len(rows))
@@ -788,9 +816,9 @@ class CombatDashboardPage(QWidget):
     }
 
     def __init__(self, repo: Repository):
-        super().__init__(); self.repo=repo; self.current_encounter_id=None
+        super().__init__(); self.repo=repo; self.current_encounter_id=None; self._focus_encounter=False
         root=adaptive_page_layout(self); root.addWidget(QLabel("<h2>Combat Dashboard</h2>"))
-        top=QHBoxLayout(); self.encounters=QComboBox(); self.encounters.currentIndexChanged.connect(self.select_encounter); top.addWidget(QLabel("Encounter:")); top.addWidget(self.encounters)
+        top=QHBoxLayout(); self.campaign_filter=QComboBox(); self.campaign_filter.currentIndexChanged.connect(self.change_campaign_filter); self.encounters=QComboBox(); self.encounters.currentIndexChanged.connect(self.select_encounter); top.addWidget(QLabel("Campaign:")); top.addWidget(self.campaign_filter); top.addWidget(QLabel("Encounter:")); top.addWidget(self.encounters)
         self.round_label=QLabel("Round - | Active: -"); top.addWidget(self.round_label); root.addLayout(top)
         self.order=QTableWidget(); self.order.setColumnCount(6); self.order.setHorizontalHeaderLabels(["Turn","Name","Init","AC","HP","Max"]); root.addWidget(self.order)
         self.order.setIconSize(QSize(36,36))
@@ -813,6 +841,16 @@ class CombatDashboardPage(QWidget):
         self.log_tree.itemDoubleClicked.connect(self.toggle_log_details); root.addWidget(self.log_tree,1); self.refresh()
     def refresh(self):
         previous_id=self.current_encounter_id; encounters=list(self.repo.list_encounters())
+        filter_value=self.campaign_filter.currentData() if self.campaign_filter.count() else -1
+        if self._focus_encounter and self.current_encounter_id:
+            focused=self.repo.get_encounter(self.current_encounter_id); filter_value=focused['campaign_id'] if focused else -1
+        self.campaign_filter.blockSignals(True); self.campaign_filter.clear(); self.campaign_filter.addItem("All Campaigns",-1); self.campaign_filter.addItem("Unassigned Local",None)
+        for campaign in self.repo.list_campaigns():
+            source="Fantasy Grounds" if campaign['source_type']=='fantasy_grounds' else "Local"
+            self.campaign_filter.addItem(f"{campaign['name']} [{source}]",campaign['id'])
+        restore_filter=self.campaign_filter.findData(filter_value); self.campaign_filter.setCurrentIndex(restore_filter if restore_filter>=0 else 0); self.campaign_filter.blockSignals(False); self._focus_encounter=False
+        selected_filter=self.campaign_filter.currentData()
+        if selected_filter != -1: encounters=list(self.repo.list_encounters_for_campaign(selected_filter))
         status_order={"active":0,"draft":1,"completed":2}
         encounters.sort(key=lambda row:(status_order.get(str(row['status'] or '').casefold(),3),-int(row['id'])))
         self.encounters.blockSignals(True); self.encounters.clear()
@@ -823,9 +861,10 @@ class CombatDashboardPage(QWidget):
         else: self.current_encounter_id=None
         self.encounters.blockSignals(False)
         self.refresh_board()
+    def change_campaign_filter(self): self.current_encounter_id=None; self.refresh()
     def select_encounter(self): self.current_encounter_id=self.encounters.currentData(); self.refresh_board()
     def select_encounter_id(self, encounter_id):
-        if encounter_id is not None: self.current_encounter_id=int(encounter_id)
+        if encounter_id is not None: self.current_encounter_id=int(encounter_id); self._focus_encounter=True
     def rows(self): return self.repo.list_combatants(self.current_encounter_id) if self.current_encounter_id else []
     def refresh_board(self):
         rows=self.rows(); enc=self.repo.get_encounter(self.current_encounter_id) if self.current_encounter_id else None; active=(enc['active_index'] if enc else 0) or 0
@@ -981,9 +1020,20 @@ class CampaignDashboardPage(QWidget):
         create=QHBoxLayout(); self.name=QLineEdit(); self.name.setPlaceholderText("Campaign name"); self.description=QLineEdit(); self.description.setPlaceholderText("Description (optional)"); add=QPushButton("Create Campaign"); add.clicked.connect(self.create_campaign)
         for w in [self.name,self.description,add]: create.addWidget(w)
         root.addLayout(create)
-        choose=QHBoxLayout(); self.campaigns=QComboBox(); self.campaigns.currentIndexChanged.connect(self.refresh_dashboard); self.encounter=QComboBox(); self.outcome=QComboBox(); self.outcome.addItems(["Victory","Defeat","Retreat","Unresolved"]); assign=QPushButton("Add Encounter"); assign.clicked.connect(self.assign); finish=QPushButton("Complete Encounter"); finish.clicked.connect(self.complete)
-        for w in [QLabel("Campaign:"),self.campaigns,QLabel("Encounter:"),self.encounter,assign,self.outcome,finish]: choose.addWidget(w)
-        root.addLayout(choose); self.summary=QLabel(); self.summary.setWordWrap(True); root.addWidget(self.summary)
+        choose=QHBoxLayout(); self.campaigns=QComboBox(); self.campaigns.currentIndexChanged.connect(self.refresh_dashboard); self.campaign_source=QLabel(); self.campaign_source.setStyleSheet("font-weight: 700; color: #9aa0a6;")
+        self.edit_campaign_button=QPushButton("Edit Campaign"); self.edit_campaign_button.clicked.connect(self.edit_campaign)
+        self.archive_campaign_button=QPushButton("Archive Campaign"); self.archive_campaign_button.clicked.connect(self.toggle_archive_campaign)
+        self.show_archived=QCheckBox("Show archived"); self.show_archived.toggled.connect(self.refresh)
+        for w in [QLabel("Campaign:"),self.campaigns,self.campaign_source,self.edit_campaign_button,self.archive_campaign_button,self.show_archived]: choose.addWidget(w)
+        choose.addStretch(); root.addLayout(choose)
+        assignment=QHBoxLayout(); self.encounter=QComboBox(); self.assign_button=QPushButton("Add to Campaign"); self.assign_button.clicked.connect(self.assign)
+        self.campaign_encounter=QComboBox(); self.outcome=QComboBox(); self.outcome.addItems(["Victory","Defeat","Retreat","Unresolved"]); self.finish_button=QPushButton("Complete Encounter"); self.finish_button.clicked.connect(self.complete)
+        for w in [QLabel("Unassigned local encounter:"),self.encounter,self.assign_button,QLabel("Campaign encounter:"),self.campaign_encounter,self.outcome,self.finish_button]: assignment.addWidget(w)
+        root.addLayout(assignment); self.summary=QLabel(); self.summary.setWordWrap(True); root.addWidget(self.summary)
+        self.party_group=QGroupBox("Persistent Campaign Party"); party_layout=QHBoxLayout(self.party_group)
+        self.party_summary=QLabel("No party selected."); self.party_summary.setWordWrap(True); party_layout.addWidget(self.party_summary,1)
+        self.manage_party_button=QPushButton("Manage Party..."); self.manage_party_button.clicked.connect(self.manage_party); party_layout.addWidget(self.manage_party_button)
+        root.addWidget(self.party_group)
         stats=QGroupBox("Party Combat Statistics"); stats_layout=QGridLayout(stats); stats_layout.setSpacing(10)
         self.party_dpr_card,self.party_dpr=self._stat_card("Party DPR","#5f8dd3")
         self.party_hpr_card,self.party_hpr=self._stat_card("Party HPR","#58a878")
@@ -997,8 +1047,8 @@ class CampaignDashboardPage(QWidget):
         root.addWidget(stats)
         self.dashboard_lower=QWidget(); dashboard_lower_layout=QHBoxLayout(self.dashboard_lower); dashboard_lower_layout.setContentsMargins(0,0,0,0)
         self.damage_types_group=QGroupBox("Party Damage Type Leaders"); damage_types_layout=QVBoxLayout(self.damage_types_group)
-        damage_types_note=QLabel("Leaders are based on applied party damage across campaign encounters. Unknown damage and non-damage qualifiers are excluded."); damage_types_note.setWordWrap(True); damage_types_layout.addWidget(damage_types_note)
-        self.damage_type_leaders=QTableWidget(); self.damage_type_leaders.setColumnCount(4); self.damage_type_leaders.setHorizontalHeaderLabels(["Damage Type","Leading Combatant(s)","Applied Damage","Damaging Events"]); self.damage_type_leaders.setAlternatingRowColors(False); self.damage_type_leaders.setSelectionBehavior(QAbstractItemView.SelectRows); self.damage_type_leaders.setEditTriggers(QAbstractItemView.NoEditTriggers); self.damage_type_leaders.verticalHeader().setVisible(False); self.damage_type_leaders.verticalHeader().setDefaultSectionSize(27); self.damage_type_leaders.setMinimumHeight(430); self.damage_type_leaders.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Expanding)
+        damage_types_note=QLabel("Applied party damage only; unknown types and non-damage qualifiers are excluded."); damage_types_note.setWordWrap(True); damage_types_layout.addWidget(damage_types_note)
+        self.damage_type_leaders=QTableWidget(); self.damage_type_leaders.setColumnCount(4); self.damage_type_leaders.setHorizontalHeaderLabels(["Damage Type","Leading Combatant(s)","Applied Damage","Damaging Events"]); self.damage_type_leaders.setAlternatingRowColors(False); self.damage_type_leaders.setSelectionBehavior(QAbstractItemView.SelectRows); self.damage_type_leaders.setEditTriggers(QAbstractItemView.NoEditTriggers); self.damage_type_leaders.verticalHeader().setVisible(False); self.damage_type_leaders.verticalHeader().setDefaultSectionSize(24); self.damage_type_leaders.setMinimumHeight(390); self.damage_type_leaders.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Expanding)
         damage_header=self.damage_type_leaders.horizontalHeader(); damage_header.setSectionResizeMode(0,QHeaderView.ResizeToContents); damage_header.setSectionResizeMode(1,QHeaderView.Stretch); damage_header.setSectionResizeMode(2,QHeaderView.ResizeToContents); damage_header.setSectionResizeMode(3,QHeaderView.ResizeToContents)
         damage_types_layout.addWidget(self.damage_type_leaders,1)
         self.encounters_group=QGroupBox("Campaign Encounters"); encounters_layout=QVBoxLayout(self.encounters_group)
@@ -1017,26 +1067,67 @@ class CampaignDashboardPage(QWidget):
         return card,value
     def refresh(self):
         campaign_id=self.campaigns.currentData(); self.campaigns.blockSignals(True); self.campaigns.clear()
-        for row in self.repo.list_campaigns(): self.campaigns.addItem(row['name'],row['id'])
+        for row in self.repo.list_campaigns(include_archived=self.show_archived.isChecked()):
+            source="Fantasy Grounds" if row['source_type']=='fantasy_grounds' else "Local"
+            archived=" | Archived" if row['is_archived'] else ""
+            self.campaigns.addItem(f"{row['name']} [{source}{archived}]",row['id'])
         self.campaigns.blockSignals(False)
         if campaign_id is not None: self.campaigns.setCurrentIndex(max(0,self.campaigns.findData(campaign_id)))
-        self.encounter.clear()
-        for row in self.repo.list_encounters(): self.encounter.addItem(self.repo.encounter_display_name(row),row['id'])
         self.refresh_dashboard()
     def create_campaign(self):
         name=self.name.text().strip()
         if not name: QMessageBox.warning(self,"Missing Name","Campaign name is required."); return
         campaign_id=self.repo.create_campaign(name,self.description.text().strip()); self.name.clear(); self.description.clear(); self.refresh(); self.campaigns.setCurrentIndex(self.campaigns.findData(campaign_id)); self.refresh_callback()
+    def edit_campaign(self):
+        campaign_id=self.campaigns.currentData(); campaign=self.repo.get_campaign(campaign_id) if campaign_id else None
+        if not campaign or campaign['source_type']!='local': return
+        name,accepted=QInputDialog.getText(self,"Edit Campaign","Campaign name:",text=campaign['name'])
+        if not accepted or not name.strip(): return
+        description,accepted=QInputDialog.getText(self,"Edit Campaign","Description:",text=campaign['description'] or '')
+        if not accepted: return
+        try: self.repo.update_campaign(campaign_id,name,description); self.refresh(); self.campaigns.setCurrentIndex(self.campaigns.findData(campaign_id)); self.refresh_callback()
+        except Exception as exc: QMessageBox.warning(self,"Campaign Not Updated",str(exc))
+    def toggle_archive_campaign(self):
+        campaign_id=self.campaigns.currentData(); campaign=self.repo.get_campaign(campaign_id) if campaign_id else None
+        if not campaign or campaign['source_type']!='local': return
+        archived=not bool(campaign['is_archived'])
+        self.repo.set_campaign_archived(campaign_id,archived); self.refresh(); self.refresh_callback()
+    def manage_party(self):
+        campaign_id=self.campaigns.currentData(); campaign=self.repo.get_campaign(campaign_id) if campaign_id else None
+        if not campaign or campaign['source_type']!='local': return
+        selected_party={row['id'] for row in self.repo.list_campaign_party(campaign_id)}
+        dialog=QDialog(self); dialog.setWindowTitle(f"Manage Party — {campaign['name']}"); dialog.resize(460,520); layout=QVBoxLayout(dialog)
+        note=QLabel("Select the regular party members for this campaign. Encounter Builder can add the entire saved party in one step."); note.setWordWrap(True); layout.addWidget(note)
+        party_list=QListWidget(); layout.addWidget(party_list,1)
+        for player in self.repo.list_players():
+            item=QListWidgetItem(player['name']); item.setData(Qt.UserRole,player['id']); item.setFlags(item.flags() | Qt.ItemIsUserCheckable); item.setCheckState(Qt.Checked if player['id'] in selected_party else Qt.Unchecked); party_list.addItem(item)
+        buttons=QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel); buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); layout.addWidget(buttons)
+        if dialog.exec()!=QDialog.Accepted: return
+        player_ids=[int(party_list.item(i).data(Qt.UserRole)) for i in range(party_list.count()) if party_list.item(i).checkState()==Qt.Checked]
+        self.repo.set_campaign_party(campaign_id,player_ids); self.refresh_dashboard(); self.refresh_callback()
     def assign(self):
         if self.campaigns.currentData() and self.encounter.currentData(): self.repo.assign_encounter_to_campaign(self.encounter.currentData(),self.campaigns.currentData()); self.refresh_dashboard(); self.refresh_callback()
     def complete(self):
-        if self.encounter.currentData(): self.repo.complete_encounter(self.encounter.currentData(),self.outcome.currentText()); self.refresh_dashboard(); self.refresh_callback()
+        if self.campaign_encounter.currentData(): self.repo.complete_encounter(self.campaign_encounter.currentData(),self.outcome.currentText()); self.refresh_dashboard(); self.refresh_callback()
     def refresh_dashboard(self):
         campaign_id=self.campaigns.currentData()
         if not campaign_id:
             self.summary.setText("Create a campaign, then add encounters to see cumulative results.")
             for label in (self.party_dpr,self.party_hpr,self.critical_hits,self.critical_misses,self.stats_coverage): label.clear()
-            self.damage_type_leaders.setRowCount(0); self.history.setRowCount(0); return
+            self.campaign_source.clear(); self.party_summary.setText("No party selected."); self.encounter.clear(); self.campaign_encounter.clear(); self.damage_type_leaders.setRowCount(0); self.history.setRowCount(0); return
+        campaign=self.repo.get_campaign(campaign_id); local=bool(campaign and campaign['source_type']=='local')
+        self.campaign_source.setText("LOCAL" if local else "FANTASY GROUNDS")
+        self.edit_campaign_button.setEnabled(local); self.archive_campaign_button.setEnabled(local); self.manage_party_button.setEnabled(local)
+        self.archive_campaign_button.setText("Restore Campaign" if campaign and campaign['is_archived'] else "Archive Campaign")
+        party_names=[row['name'] for row in self.repo.list_campaign_party(campaign_id)]
+        self.party_summary.setText("Party: " + (", ".join(party_names) if party_names else "No regular party selected."))
+        self.encounter.clear()
+        for row in self.repo.list_encounters_for_campaign(None):
+            if not self.repo.is_external_encounter(row['id']): self.encounter.addItem(self.repo.encounter_display_name(row),row['id'])
+        self.assign_button.setEnabled(self.encounter.count()>0)
+        campaign_rows=self.repo.campaign_encounters(campaign_id); self.campaign_encounter.clear()
+        for row in campaign_rows: self.campaign_encounter.addItem(self.repo.encounter_display_name(row),row['id'])
+        self.finish_button.setEnabled(self.campaign_encounter.count()>0)
         s=self.repo.campaign_summary(campaign_id); self.summary.setText(f"<b>{s['total']} encounters</b> · {s['completed'] or 0} completed · {s['victories'] or 0} victories · {s['defeats'] or 0} defeats · {s['retreats'] or 0} retreats · {s['rounds']} rounds · {s['actions']} actions · {s['damage']} damage · {s['healing']} healing")
         hit_names=", ".join(s['critical_hit_leaders']) or "No recorded critical hits"
         miss_names=", ".join(s['critical_miss_leaders']) or "No recorded critical misses"
@@ -1060,7 +1151,7 @@ class CampaignDashboardPage(QWidget):
                 item=QTableWidgetItem(str(value)); item.setBackground(QBrush(QColor(background))); item.setForeground(QBrush(QColor(foreground)))
                 if c==0: item.setFont(QFont('',9,QFont.Bold))
                 self.damage_type_leaders.setItem(r,c,item)
-        rows=self.repo.campaign_encounters(campaign_id); self.history.setRowCount(len(rows))
+        rows=campaign_rows; self.history.setRowCount(len(rows))
         for r,row in enumerate(rows):
             for c,value in enumerate([self.repo.encounter_display_name(row),row['status'],row['outcome'],row['round'],row['combatant_count'],row['action_count'],row['completed_at'] or '']): self.history.setItem(r,c,QTableWidgetItem(str(value or '')))
         self.history.resizeColumnsToContents()

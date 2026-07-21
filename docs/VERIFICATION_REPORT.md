@@ -4,7 +4,7 @@ Status: **In progress**
 
 Milestone: **Verification and Stabilization**
 
-Database schema: **v9**
+Database schema: **v10**
 
 This is the acceptance record for v3.0.0. Mark an item complete only after recording its date, environment, and evidence. Automated checks do not replace manual Windows checks.
 
@@ -13,7 +13,7 @@ This is the acceptance record for v3.0.0. Mark an item complete only after recor
 | Check | Status | Evidence |
 |---|---|---|
 | Source compilation | Passed | Python 3.13.14; all current application and regression modules compiled successfully on 2026-07-21. |
-| Launch diagnostics | Passed | Dependencies, resources, and clean schema-v9 initialization passed on 2026-07-21. |
+| Launch diagnostics | Passed | Dependencies, resources, and clean schema-v10 initialization passed on 2026-07-21. |
 | Database/seed/data smoke test | Passed | The complete nine-script regression suite, including seed, campaign, combat, Fantasy Grounds, layout, Help, and installer checks, passed on 2026-07-21. |
 | Qt offscreen startup | Passed | The rebuilt packaged application constructed and exited cleanly using the test autoclose hook on 2026-07-21. |
 | No unresolved merge markers | Passed | Tracked source and documentation search returned no markers on 2026-07-21. |
@@ -42,7 +42,7 @@ If an operation is not implemented, record it as a blocking defect.
 
 - [ ] Backup creates a readable copy.
 - [ ] Restore creates a safety backup and restores the selected database.
-- [ ] Reset creates a safety backup and an empty schema-v9 database.
+- [ ] Reset creates a safety backup and an empty schema-v10 database.
 - [ ] Reseed restores bundled reference data.
 - [ ] CSV export works for one and all tables.
 - [ ] CSV preview correctly classifies New, Modified, Unchanged, Duplicate, and Error.

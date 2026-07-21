@@ -47,7 +47,22 @@ CREATE TABLE IF NOT EXISTS encounters (
  outcome TEXT DEFAULT '',
  completed_at TEXT
 );
-CREATE TABLE IF NOT EXISTS campaigns (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE, description TEXT DEFAULT '', created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS campaigns (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ name TEXT NOT NULL UNIQUE,
+ description TEXT DEFAULT '',
+ source_type TEXT NOT NULL DEFAULT 'local',
+ is_archived INTEGER NOT NULL DEFAULT 0,
+ created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS campaign_party (
+ campaign_id INTEGER NOT NULL,
+ player_id INTEGER NOT NULL,
+ sort_order INTEGER NOT NULL DEFAULT 0,
+ PRIMARY KEY(campaign_id, player_id),
+ FOREIGN KEY(campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+ FOREIGN KEY(player_id) REFERENCES players(id) ON DELETE CASCADE
+);
 CREATE TABLE IF NOT EXISTS combatants (
  id INTEGER PRIMARY KEY AUTOINCREMENT,
  encounter_id INTEGER NOT NULL,
@@ -197,6 +212,21 @@ def initialize_database(db_path: Path) -> None:
         for col, decl in {'campaign_id': 'INTEGER', 'outcome': "TEXT DEFAULT ''", 'completed_at': 'TEXT'}.items():
             if col not in encounter_columns:
                 conn.execute(f'ALTER TABLE encounters ADD COLUMN {col} {decl}')
+        campaign_columns = {row[1] for row in conn.execute('PRAGMA table_info(campaigns)').fetchall()}
+        for col, decl in {
+            'source_type': "TEXT NOT NULL DEFAULT 'local'",
+            'is_archived': 'INTEGER NOT NULL DEFAULT 0',
+        }.items():
+            if col not in campaign_columns:
+                conn.execute(f'ALTER TABLE campaigns ADD COLUMN {col} {decl}')
+        conn.execute(
+            """
+            UPDATE campaigns SET source_type='fantasy_grounds'
+            WHERE id IN (
+                SELECT entity_id FROM external_entity_links WHERE entity_type='campaign'
+            )
+            """
+        )
         turn_log_columns = {row[1] for row in conn.execute('PRAGMA table_info(turn_log)').fetchall()}
         for col, decl in {
             'actor_source_key': "TEXT DEFAULT ''",
@@ -209,4 +239,4 @@ def initialize_database(db_path: Path) -> None:
         }.items():
             if col not in turn_log_columns:
                 conn.execute(f'ALTER TABLE turn_log ADD COLUMN {col} {decl}')
-        conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('schema_version','9')")
+        conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('schema_version','10')")

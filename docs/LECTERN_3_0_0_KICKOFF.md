@@ -72,7 +72,7 @@ This document is the authoritative starting point for Lectern 3.0.0. The version
 - Manual and automatic imports focus the updated live-combat session without changing the current navigation page.
 - Local Lectern encounters remain unlabeled and editable.
 - Fantasy Grounds records remain read-only and source-owned.
-- Database schema v9 and snapshot contract v1 remain unchanged.
+- The kickoff baseline used database schema v9. Manual Campaign Foundation milestone work advances the database to schema v10 for ownership, archive state, and persistent campaign parties; snapshot contract v1 remains unchanged.
 
 ## Regression baseline
 
