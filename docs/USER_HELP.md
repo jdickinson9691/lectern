@@ -231,6 +231,7 @@ The editor includes General, Abilities, Equipment, Inventory, Combat, Skills, Sa
 - Fantasy Grounds character copies are imported with identity, class, level, abilities, AC, HP, initiative, feats, and equipped weapon and armor names.
 - Multiple equipped weapons or armor pieces such as shields are stored as semicolon-separated names.
 - If a local character has the same name, Lectern preserves it and gives the imported copy a collision-safe Fantasy Grounds suffix.
+- Equipped weapons and armor are recovered from the Fantasy Grounds character inventory and matched to Lectern's SRD library names when a confident match exists. Custom or unmatched item names are preserved.
 - Changes made to an imported character in Lectern can be replaced by the next Fantasy Grounds import. Edit source-owned values in Fantasy Grounds.
 - Duplicating an imported character creates a local copy that can be edited independently.
 - Clearing the selected Fantasy Grounds import removes only its linked player copies; same-name local players remain.

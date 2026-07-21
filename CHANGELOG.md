@@ -1,5 +1,6 @@
 # Changelog
 
+- Recovered equipped weapons and armor from current and older Fantasy Grounds character snapshots, with confident name matching to Lectern's SRD libraries.
 - Improved the Campaigns screen with individual Party Combat Statistic cards and distinct, readable colors for all standard damage-type leader rows.
 
 ## 3.0.0 — Workflow and Import Refinement (in progress)

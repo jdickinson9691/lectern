@@ -879,6 +879,12 @@ class FantasyGroundsSyncService:
             with connect(self.db_path) as conn:
                 source_id, previous_sequence = self._upsert_source(conn, source, handoff_path)
                 if sequence <= previous_sequence:
+                    repaired = self._repair_character_equipment(conn, source_id, payload["characters"])
+                    if repaired:
+                        return SyncResult(
+                            True, sequence, source["campaign_name"], counts,
+                            f"Snapshot already applied; restored SRD-matched equipment for {repaired} character{'s' if repaired != 1 else ''}",
+                        )
                     return SyncResult(False, sequence, source["campaign_name"], counts, "Snapshot already applied")
                 conn.execute("UPDATE external_records SET is_stale=1 WHERE source_id=?", (source_id,))
                 campaign_id = self._linked_campaign(conn, source_id, source)
@@ -1012,7 +1018,95 @@ class FantasyGroundsSyncService:
             self._link(conn, source_id, source_key, "campaign", campaign_id)
         return campaign_id
 
-    def _player_payload(self, record: dict[str, Any]) -> dict[str, Any]:
+    @staticmethod
+    def _equipment_names_from_record(record: dict[str, Any], item_kind: str) -> list[str]:
+        fields = record.get("fields") if isinstance(record.get("fields"), dict) else {}
+        direct = str(fields.get(f"equipped_{item_kind}") or "").strip()
+        if direct:
+            return [name.strip() for name in direct.split(";") if name.strip()]
+
+        raw = record.get("raw") if isinstance(record.get("raw"), dict) else {}
+        inventory = raw.get("inventorylist")
+        items = inventory.values() if isinstance(inventory, dict) else inventory if isinstance(inventory, list) else []
+        names: list[str] = []
+        for item in items:
+            if not isinstance(item, dict) or _as_int(item.get("carried"), 0) != 2:
+                continue
+            item_type = str(item.get("type") or "").strip().casefold()
+            subtype = str(item.get("subtype") or "").strip().casefold()
+            is_kind = item_type == item_kind
+            if item_kind == "weapon":
+                is_kind = is_kind or "weapon" in subtype
+            elif item_kind == "armor":
+                is_kind = is_kind or "armor" in subtype or subtype == "shield"
+            name = str(item.get("name") or "").strip()
+            if is_kind and name and name.casefold() not in {value.casefold() for value in names}:
+                names.append(name)
+        return names
+
+    @staticmethod
+    def _reference_key(value: str) -> str:
+        return " ".join(re.sub(r"[^a-z0-9]+", " ", str(value or "").casefold()).split())
+
+    def _canonical_equipment_name(self, conn, table: str, source_name: str) -> str:
+        source_name = str(source_name or "").strip()
+        if not source_name:
+            return ""
+        canonical = {
+            self._reference_key(row["name"]): str(row["name"])
+            for row in conn.execute(f"SELECT name FROM {table}").fetchall()
+        }
+        candidates = [source_name]
+        without_note = re.sub(r"\s*\([^()]*(?:focus|equipped|wielded|active)[^()]*\)\s*$", "", source_name, flags=re.IGNORECASE).strip()
+        if without_note and without_note != source_name:
+            candidates.append(without_note)
+        if table == "armor":
+            candidates.extend(
+                candidate[:-6].strip() if candidate.casefold().endswith(" armor") else f"{candidate} Armor"
+                for candidate in list(candidates)
+            )
+        for candidate in candidates:
+            match = canonical.get(self._reference_key(candidate))
+            if match:
+                return match
+        return source_name
+
+    def _character_equipment(self, conn, record: dict[str, Any]) -> tuple[str, str]:
+        results = []
+        for item_kind, table in (("weapon", "weapons"), ("armor", "armor")):
+            names = self._equipment_names_from_record(record, item_kind)
+            canonical_names: list[str] = []
+            for name in names:
+                canonical = self._canonical_equipment_name(conn, table, name)
+                if canonical and canonical.casefold() not in {value.casefold() for value in canonical_names}:
+                    canonical_names.append(canonical)
+            results.append("; ".join(canonical_names))
+        return results[0], results[1]
+
+    def _repair_character_equipment(self, conn, source_id: int, records: list[dict[str, Any]]) -> int:
+        repaired = 0
+        for record in records:
+            player_id = self._find_link(conn, source_id, record["source_key"], "player")
+            if not player_id:
+                continue
+            weapon, armor = self._character_equipment(conn, record)
+            current = conn.execute(
+                "SELECT equipped_weapon,equipped_armor FROM players WHERE id=?", (player_id,)
+            ).fetchone()
+            if not current:
+                continue
+            updated_weapon = weapon or str(current["equipped_weapon"] or "")
+            updated_armor = armor or str(current["equipped_armor"] or "")
+            if updated_weapon == str(current["equipped_weapon"] or "") and updated_armor == str(current["equipped_armor"] or ""):
+                continue
+            conn.execute(
+                "UPDATE players SET equipped_weapon=?,equipped_armor=? WHERE id=?",
+                (updated_weapon, updated_armor, player_id),
+            )
+            repaired += 1
+        return repaired
+
+    def _player_payload(self, conn, record: dict[str, Any]) -> dict[str, Any]:
         fields = record["fields"]
         abilities = fields.get("abilities") if isinstance(fields.get("abilities"), dict) else {}
         payload: dict[str, Any] = {column: None for column in PLAYER_COLUMNS}
@@ -1043,6 +1137,7 @@ class FantasyGroundsSyncService:
             "saving_throw_proficiencies", "inventory", "portrait_path", "spellcasting_ability",
         ):
             payload[text_column] = str(_field(fields, text_column, default="") or "")
+        payload["equipped_weapon"], payload["equipped_armor"] = self._character_equipment(conn, record)
         for currency in ("currency_cp", "currency_sp", "currency_ep", "currency_gp", "currency_pp"):
             payload[currency] = _as_int(_field(fields, currency, default=0), 0)
         return payload
@@ -1051,7 +1146,7 @@ class FantasyGroundsSyncService:
         player_id = self._find_link(conn, source_id, record["source_key"], "player")
         if player_id and not conn.execute("SELECT 1 FROM players WHERE id=?", (player_id,)).fetchone():
             player_id = None
-        payload = self._player_payload(record)
+        payload = self._player_payload(conn, record)
         payload["name"] = self._unique_name(conn, "players", payload["name"], player_id)
         fields = PLAYER_COLUMNS
         if player_id:

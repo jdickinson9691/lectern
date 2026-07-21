@@ -93,6 +93,10 @@ try:
     db = temp_dir / "lectern.db"
     initialize_database(db)
     repo = Repository(db)
+    for weapon_name in ("Greatsword", "Javelin", "Quarterstaff"):
+        repo.upsert_reference("weapons", {"name": weapon_name})
+    for armor_name in ("Chain Mail", "Half Plate Armor"):
+        repo.upsert_reference("armor", {"name": armor_name})
     repo.upsert_player({"name": "Fantasy Grounds Test Hero", "class_name": "Local Class", "level": 1, "max_hp": 5})
     fixture_path = ROOT / "docs" / "contracts" / "fantasy_grounds_snapshot_v1.example.json"
     payload = json.loads(fixture_path.read_text(encoding="utf-8"))
@@ -140,6 +144,23 @@ try:
     assert player["name"] == "Fantasy Grounds Test Hero [Fantasy Grounds]", "Character collision-safe naming failed"
     assert player["level"] == 5 and player["armor_class"] == 17 and player["current_hp"] == 37 and player["str_total"] == 16, "Character statistics mapping failed"
     assert player["equipped_weapon"] == "Greatsword; Javelin" and player["equipped_armor"] == "Chain Mail", "Equipped weapon and armor mapping failed"
+    with connect(db) as conn:
+        conn.execute("UPDATE players SET equipped_weapon='',equipped_armor='' WHERE id=?", (player["id"],))
+    legacy_equipment_payload = copy.deepcopy(payload)
+    legacy_fields = legacy_equipment_payload["characters"][0]["fields"]
+    legacy_fields.pop("equipped_weapon")
+    legacy_fields.pop("equipped_armor")
+    legacy_equipment_payload["characters"][0]["raw"]["inventorylist"] = {
+        "id-00001": {"name": "Quarterstaff (Arcane Focus)", "type": "Weapon", "subtype": "Simple Melee Weapons", "carried": 2},
+        "id-00002": {"name": "Half Plate", "type": "Armor", "subtype": "Medium Armor", "carried": 2},
+        "id-00003": {"name": "Backpack", "type": "Adventuring Gear", "subtype": "Standard", "carried": 1},
+    }
+    legacy_equipment_path = temp_dir / "snapshot-legacy-equipment.json"
+    legacy_equipment_path.write_text(json.dumps(legacy_equipment_payload), encoding="utf-8-sig")
+    repair_result = service.import_snapshot(legacy_equipment_path)
+    repaired_player = next(row for row in repo.list_players() if row["class_name"] == "Test Fighter")
+    assert repair_result.applied and "restored SRD-matched equipment" in repair_result.message, "Already-imported character equipment was not repaired"
+    assert repaired_player["equipped_weapon"] == "Quarterstaff" and repaired_player["equipped_armor"] == "Half Plate Armor", "Raw Fantasy Grounds equipment was not matched to canonical SRD names"
     assert "Test Fighter" in repo.list_rule_names_like("class") and "Test Champion" not in repo.list_rule_names_like("class"), "Class/subclass references were mixed"
     assert "Test Champion" in repo.list_rule_names_like("subclass"), "Subclass reference lookup failed"
 
@@ -179,7 +200,7 @@ try:
         assert logs[0]["details"] == "18 (dice 13; modifiers +5) | Test Creature | Against AC 13 | Longsword | Hit (18 vs AC 13)", "Attack resolution format is incorrect"
         assert logs[1]["actor"] == "Manual / Unattributed" and logs[1]["details"].endswith("3 damage applied from 0 rolled"), "Early incomplete damage event was not represented safely"
 
-    repeat = service.import_snapshot(snapshot)
+    repeat = service.import_snapshot(legacy_equipment_path)
     assert not repeat.applied and repeat.sequence == 1, "Repeated sequence should be ignored"
     with connect(db) as conn:
         assert conn.execute("SELECT COUNT(*) FROM turn_log").fetchone()[0] == 2, "Repeated snapshot duplicated turn log events"
