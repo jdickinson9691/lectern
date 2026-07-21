@@ -1,5 +1,7 @@
 # Development Workflow
 
+For a condensed history of completed Codex work and reusable prompt templates, see [CODEX_PROMPT_ARCHIVE.md](CODEX_PROMPT_ARCHIVE.md).
+
 This folder is now the canonical evolving source tree for the Lectern - D&D Campaign Manager.
 
 ## Daily workflow
