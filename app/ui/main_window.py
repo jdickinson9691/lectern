@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QFormLayout, QSpinBox, QMessageBox, QComboBox, QCompleter,
     QGroupBox, QTextEdit, QTextBrowser, QListWidgetItem, QGridLayout, QScrollArea, QSizePolicy, QTabWidget, QCheckBox, QInputDialog,
     QDialog, QDialogButtonBox, QAbstractItemView, QAbstractSpinBox, QToolButton,
-    QTreeWidget, QTreeWidgetItem, QHeaderView
+    QTreeWidget, QTreeWidgetItem, QHeaderView, QFrame
 )
 from PySide6.QtCore import Qt, QRect, QSize, QTimer, QUrl
 from PySide6.QtGui import QPainter, QPixmap, QIcon, QImage, QColor, QBrush, QFont, QTextCursor, QDesktopServices
@@ -959,6 +959,22 @@ class CombatDashboardPage(QWidget):
 
 
 class CampaignDashboardPage(QWidget):
+    DAMAGE_TYPE_COLORS = {
+        "acid": ("#1f5a3b", "#effff5"),
+        "bludgeoning": ("#5a4634", "#fff7ed"),
+        "cold": ("#245b8a", "#f0f9ff"),
+        "fire": ("#8f2f2a", "#fff4f2"),
+        "force": ("#62458a", "#faf5ff"),
+        "lightning": ("#7a6518", "#fffce8"),
+        "necrotic": ("#4b365c", "#f8f0ff"),
+        "piercing": ("#4b5966", "#f4f8fb"),
+        "poison": ("#83b96b", "#14230f"),
+        "psychic": ("#7f376f", "#fff0fb"),
+        "radiant": ("#8a6a20", "#fff9df"),
+        "slashing": ("#3e5f73", "#f0f8ff"),
+        "thunder": ("#404b8a", "#f2f4ff"),
+    }
+
     def __init__(self, repo: Repository, refresh_callback):
         super().__init__(); self.repo=repo; self.refresh_callback=refresh_callback
         root=adaptive_page_layout(self); root.addWidget(QLabel("<h2>Campaign Dashboard</h2>"))
@@ -968,23 +984,37 @@ class CampaignDashboardPage(QWidget):
         choose=QHBoxLayout(); self.campaigns=QComboBox(); self.campaigns.currentIndexChanged.connect(self.refresh_dashboard); self.encounter=QComboBox(); self.outcome=QComboBox(); self.outcome.addItems(["Victory","Defeat","Retreat","Unresolved"]); assign=QPushButton("Add Encounter"); assign.clicked.connect(self.assign); finish=QPushButton("Complete Encounter"); finish.clicked.connect(self.complete)
         for w in [QLabel("Campaign:"),self.campaigns,QLabel("Encounter:"),self.encounter,assign,self.outcome,finish]: choose.addWidget(w)
         root.addLayout(choose); self.summary=QLabel(); self.summary.setWordWrap(True); root.addWidget(self.summary)
-        stats=QGroupBox("Party Combat Statistics"); stats_layout=QGridLayout(stats)
-        self.party_dpr=QLabel(); self.party_hpr=QLabel(); self.critical_hits=QLabel(); self.critical_misses=QLabel()
-        for label in (self.party_dpr,self.party_hpr,self.critical_hits,self.critical_misses): label.setWordWrap(True)
-        stats_layout.addWidget(self.party_dpr,0,0); stats_layout.addWidget(self.party_hpr,0,1)
-        stats_layout.addWidget(self.critical_hits,1,0); stats_layout.addWidget(self.critical_misses,1,1)
-        self.stats_coverage=QLabel(); self.stats_coverage.setWordWrap(True); stats_layout.addWidget(self.stats_coverage,2,0,1,2)
+        stats=QGroupBox("Party Combat Statistics"); stats_layout=QGridLayout(stats); stats_layout.setSpacing(10)
+        self.party_dpr_card,self.party_dpr=self._stat_card("Party DPR","#5f8dd3")
+        self.party_hpr_card,self.party_hpr=self._stat_card("Party HPR","#58a878")
+        self.critical_hits_card,self.critical_hits=self._stat_card("Critical-hit Leader","#d39a45")
+        self.critical_misses_card,self.critical_misses=self._stat_card("Critical-miss Leader","#b05c67")
+        stats_layout.addWidget(self.party_dpr_card,0,0); stats_layout.addWidget(self.party_hpr_card,0,1)
+        stats_layout.addWidget(self.critical_hits_card,0,2); stats_layout.addWidget(self.critical_misses_card,0,3)
+        for column in range(4): stats_layout.setColumnStretch(column,1)
+        self.stats_coverage=QLabel(); self.stats_coverage.setWordWrap(True)
+        stats_layout.addWidget(self.stats_coverage,1,0,1,4)
         root.addWidget(stats)
         self.dashboard_lower=QWidget(); dashboard_lower_layout=QHBoxLayout(self.dashboard_lower); dashboard_lower_layout.setContentsMargins(0,0,0,0)
         self.damage_types_group=QGroupBox("Party Damage Type Leaders"); damage_types_layout=QVBoxLayout(self.damage_types_group)
         damage_types_note=QLabel("Leaders are based on applied party damage across campaign encounters. Unknown damage and non-damage qualifiers are excluded."); damage_types_note.setWordWrap(True); damage_types_layout.addWidget(damage_types_note)
-        self.damage_type_leaders=QTableWidget(); self.damage_type_leaders.setColumnCount(4); self.damage_type_leaders.setHorizontalHeaderLabels(["Damage Type","Leading Combatant(s)","Applied Damage","Damaging Events"]); self.damage_type_leaders.setAlternatingRowColors(True); self.damage_type_leaders.setSelectionBehavior(QAbstractItemView.SelectRows); self.damage_type_leaders.setEditTriggers(QAbstractItemView.NoEditTriggers); self.damage_type_leaders.verticalHeader().setVisible(False); self.damage_type_leaders.verticalHeader().setDefaultSectionSize(24); self.damage_type_leaders.setMinimumHeight(390); self.damage_type_leaders.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Expanding)
+        self.damage_type_leaders=QTableWidget(); self.damage_type_leaders.setColumnCount(4); self.damage_type_leaders.setHorizontalHeaderLabels(["Damage Type","Leading Combatant(s)","Applied Damage","Damaging Events"]); self.damage_type_leaders.setAlternatingRowColors(False); self.damage_type_leaders.setSelectionBehavior(QAbstractItemView.SelectRows); self.damage_type_leaders.setEditTriggers(QAbstractItemView.NoEditTriggers); self.damage_type_leaders.verticalHeader().setVisible(False); self.damage_type_leaders.verticalHeader().setDefaultSectionSize(27); self.damage_type_leaders.setMinimumHeight(430); self.damage_type_leaders.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Expanding)
         damage_header=self.damage_type_leaders.horizontalHeader(); damage_header.setSectionResizeMode(0,QHeaderView.ResizeToContents); damage_header.setSectionResizeMode(1,QHeaderView.Stretch); damage_header.setSectionResizeMode(2,QHeaderView.ResizeToContents); damage_header.setSectionResizeMode(3,QHeaderView.ResizeToContents)
         damage_types_layout.addWidget(self.damage_type_leaders,1)
         self.encounters_group=QGroupBox("Campaign Encounters"); encounters_layout=QVBoxLayout(self.encounters_group)
         self.history=QTableWidget(); self.history.setColumnCount(7); self.history.setHorizontalHeaderLabels(["Encounter","Status","Outcome","Rounds","Combatants","Actions","Completed"]); self.history.setAlternatingRowColors(True); self.history.setSelectionBehavior(QAbstractItemView.SelectRows); self.history.setEditTriggers(QAbstractItemView.NoEditTriggers); self.history.setSizePolicy(QSizePolicy.Expanding,QSizePolicy.Expanding); encounters_layout.addWidget(self.history)
         dashboard_lower_layout.addWidget(self.damage_types_group,1); dashboard_lower_layout.addWidget(self.encounters_group,1)
         root.addWidget(self.dashboard_lower,1); self.refresh()
+
+    @staticmethod
+    def _stat_card(title,accent_color):
+        card=QFrame(); card.setFrameShape(QFrame.StyledPanel); card.setMinimumHeight(112)
+        card.setStyleSheet(f"QFrame {{ background-color: rgba(42,44,48,235); border: 1px solid #484c52; border-left: 4px solid {accent_color}; border-radius: 8px; }} QFrame QLabel {{ background: transparent; border: none; }}")
+        layout=QVBoxLayout(card); layout.setContentsMargins(14,10,12,10); layout.setSpacing(5)
+        heading=QLabel(title); heading.setStyleSheet(f"color: {accent_color}; font-size: 12px; font-weight: 700;")
+        value=QLabel(); value.setWordWrap(True); value.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        layout.addWidget(heading); layout.addWidget(value,1)
+        return card,value
     def refresh(self):
         campaign_id=self.campaigns.currentData(); self.campaigns.blockSignals(True); self.campaigns.clear()
         for row in self.repo.list_campaigns(): self.campaigns.addItem(row['name'],row['id'])
@@ -1010,10 +1040,10 @@ class CampaignDashboardPage(QWidget):
         s=self.repo.campaign_summary(campaign_id); self.summary.setText(f"<b>{s['total']} encounters</b> · {s['completed'] or 0} completed · {s['victories'] or 0} victories · {s['defeats'] or 0} defeats · {s['retreats'] or 0} retreats · {s['rounds']} rounds · {s['actions']} actions · {s['damage']} damage · {s['healing']} healing")
         hit_names=", ".join(s['critical_hit_leaders']) or "No recorded critical hits"
         miss_names=", ".join(s['critical_miss_leaders']) or "No recorded critical misses"
-        self.party_dpr.setText(f"<b>Party DPR</b><br><span style='font-size:20px'>{s['party_dpr']:.1f}</span><br>{s['party_damage']} applied damage over {s['combat_rounds']} combat rounds")
-        self.party_hpr.setText(f"<b>Party HPR</b><br><span style='font-size:20px'>{s['party_hpr']:.1f}</span><br>{s['party_healing']} applied healing over {s['combat_rounds']} combat rounds")
-        self.critical_hits.setText(f"<b>Critical-hit leader</b><br>{hit_names}<br>{s['critical_hit_count']} critical hit{'s' if s['critical_hit_count'] != 1 else ''}")
-        self.critical_misses.setText(f"<b>Critical-miss leader</b><br>{miss_names}<br>{s['critical_miss_count']} critical miss{'es' if s['critical_miss_count'] != 1 else ''}")
+        self.party_dpr.setText(f"<span style='font-size:22px; font-weight:700'>{s['party_dpr']:.1f}</span><br>{s['party_damage']} applied damage<br>{s['combat_rounds']} combat rounds")
+        self.party_hpr.setText(f"<span style='font-size:22px; font-weight:700'>{s['party_hpr']:.1f}</span><br>{s['party_healing']} applied healing<br>{s['combat_rounds']} combat rounds")
+        self.critical_hits.setText(f"<span style='font-size:16px; font-weight:700'>{hit_names}</span><br>{s['critical_hit_count']} critical hit{'s' if s['critical_hit_count'] != 1 else ''}")
+        self.critical_misses.setText(f"<span style='font-size:16px; font-weight:700'>{miss_names}</span><br>{s['critical_miss_count']} critical miss{'es' if s['critical_miss_count'] != 1 else ''}")
         coverage=(100*s['attributed_stat_events']/s['stat_events']) if s['stat_events'] else 0
         self.stats_coverage.setText(f"Statistics coverage: {s['attributed_stat_events']} of {s['stat_events']} attack, damage, and healing events have party/hostile attribution ({coverage:.0f}%). Unattributed events are excluded from party metrics.")
         damage_rows=s['damage_type_leaders']; self.damage_type_leaders.setRowCount(len(damage_rows))
@@ -1023,8 +1053,13 @@ class CampaignDashboardPage(QWidget):
             elif len(leaders)==1: event_text=str(leaders[0]['events'])
             elif len({int(leader['events']) for leader in leaders})==1: event_text=f"{leaders[0]['events']} each"
             else: event_text="; ".join(f"{leader['name']}: {leader['events']}" for leader in leaders)
-            values=[str(damage_row['damage_type']).replace('-', ' ').title(),leader_names,damage_row['damage'],event_text]
-            for c,value in enumerate(values): self.damage_type_leaders.setItem(r,c,QTableWidgetItem(str(value)))
+            damage_type=str(damage_row['damage_type']).casefold()
+            values=[damage_type.replace('-', ' ').title(),leader_names,damage_row['damage'],event_text]
+            background,foreground=self.DAMAGE_TYPE_COLORS.get(damage_type,("#3f4348","#f1f3f4"))
+            for c,value in enumerate(values):
+                item=QTableWidgetItem(str(value)); item.setBackground(QBrush(QColor(background))); item.setForeground(QBrush(QColor(foreground)))
+                if c==0: item.setFont(QFont('',9,QFont.Bold))
+                self.damage_type_leaders.setItem(r,c,item)
         rows=self.repo.campaign_encounters(campaign_id); self.history.setRowCount(len(rows))
         for r,row in enumerate(rows):
             for c,value in enumerate([self.repo.encounter_display_name(row),row['status'],row['outcome'],row['round'],row['combatant_count'],row['action_count'],row['completed_at'] or '']): self.history.setItem(r,c,QTableWidgetItem(str(value or '')))

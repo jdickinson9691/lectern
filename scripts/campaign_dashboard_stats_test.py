@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QApplication
 
 from app.database.repositories import Repository
 from app.database.schema import connect, initialize_database
-from app.ui.main_window import CampaignDashboardPage
+from app.ui.main_window import CampaignDashboardPage, MainWindow
 
 
 try:
@@ -95,16 +95,39 @@ try:
     app.processEvents()
     assert "11.2" in page.party_dpr.text() and "3.0" in page.party_hpr.text(), "DPR/HPR cards were not populated"
     assert "Aria, Rook" in page.critical_hits.text() and "Mira" in page.critical_misses.text(), "Critical leader cards were not populated"
+    stat_cards = {page.party_dpr_card, page.party_hpr_card, page.critical_hits_card, page.critical_misses_card}
+    assert len(stat_cards) == 4 and all(card.isVisible() for card in stat_cards), "Party combat statistics do not have four distinct visible cards"
+    assert len({card.styleSheet() for card in stat_cards}) == 4, "Party combat statistic cards do not have distinct accent styling"
     assert "14 of 15" in page.stats_coverage.text(), "Coverage note was not populated"
     ui_type_rows = {page.damage_type_leaders.item(row, 0).text(): row for row in range(page.damage_type_leaders.rowCount())}
     assert len(ui_type_rows) == 13, "Damage-type leader table does not show every standard type"
     fire_row = ui_type_rows["Fire"]
     assert page.damage_type_leaders.item(fire_row, 1).text() == "Mira, Rook" and page.damage_type_leaders.item(fire_row, 2).text() == "6" and page.damage_type_leaders.item(fire_row, 3).text() == "1 each", "Damage-type tie was not rendered"
+    expected_colors = {"Fire": "#8f2f2a", "Cold": "#245b8a", "Poison": "#83b96b", "Acid": "#1f5a3b"}
+    for damage_type, expected_color in expected_colors.items():
+        row = ui_type_rows[damage_type]
+        assert all(page.damage_type_leaders.item(row, column).background().color().name() == expected_color for column in range(4)), f"{damage_type} row does not use its damage-type color"
+    assert len({page.damage_type_leaders.item(row, 0).background().color().name() for row in range(page.damage_type_leaders.rowCount())}) == 13, "Damage types do not have distinct row colors"
     assert page.damage_type_leaders.item(ui_type_rows["Acid"], 1).text() == "No recorded party damage", "Empty damage type state was not rendered"
     assert page.damage_types_group.geometry().left() < page.encounters_group.geometry().left(), "Damage-type leaders are not positioned left of campaign encounters"
     assert abs(page.damage_types_group.geometry().top() - page.encounters_group.geometry().top()) <= 1, "Dashboard lower panels are not aligned side by side"
-    assert page.damage_type_leaders.minimumHeight() >= 390 and page.damage_type_leaders.maximumHeight() > 10000, "Damage-type table is still vertically capped"
+    assert page.damage_type_leaders.minimumHeight() >= 430 and page.damage_type_leaders.maximumHeight() > 10000, "Damage-type table is still vertically capped"
     page.close()
+
+    screenshot_path = os.environ.get("LECTERN_CAMPAIGN_SCREENSHOT", "").strip()
+    if screenshot_path:
+        window = MainWindow(db)
+        window.resize(1400, 900)
+        window.nav.setCurrentRow(1)
+        campaign_page = next(item for item in window.pages if isinstance(item, CampaignDashboardPage))
+        campaign_page.campaigns.setCurrentIndex(campaign_page.campaigns.findData(campaign_id))
+        campaign_page.refresh_dashboard()
+        window.show()
+        app.processEvents()
+        last_damage_item = campaign_page.damage_type_leaders.item(campaign_page.damage_type_leaders.rowCount() - 1, 0)
+        assert campaign_page.damage_type_leaders.viewport().rect().contains(campaign_page.damage_type_leaders.visualItemRect(last_damage_item)), "The complete damage-type list is not visible at the normal launch size"
+        assert window.grab().save(screenshot_path), "Campaign Dashboard screenshot could not be saved"
+        window.close()
 
     print("Campaign Dashboard statistics test passed.")
 finally:

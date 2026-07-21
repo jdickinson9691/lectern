@@ -1,5 +1,7 @@
 # Changelog
 
+- Improved the Campaigns screen with individual Party Combat Statistic cards and distinct, readable colors for all standard damage-type leader rows.
+
 ## 3.0.0 — Workflow and Import Refinement (in progress)
 
 - Established the v3.0.0 development baseline from the completed v2.9.5 Fantasy Grounds synchronization and campaign-statistics work.

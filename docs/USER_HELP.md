@@ -135,7 +135,9 @@ Campaigns groups encounters and provides cumulative combat results.
 
 The summary includes encounter totals, outcomes, rounds, actions, damage, healing, party DPR and HPR, critical-hit and critical-miss leaders, attribution coverage, and leaders for all 13 standard 5E damage types.
 
-The lower section places **Party Damage Type Leaders** on the left and **Campaign Encounters** on the right. Damage-type totals use applied party damage. Rolled-but-unapplied damage, hostile actions, and manual or unattributed events are excluded. Mixed Fantasy Grounds damage is allocated by component after resistance, immunity, vulnerability, and similar adjustments.
+The **Party Combat Statistics** section presents Party DPR, Party HPR, critical-hit leaders, and critical-miss leaders in separate cards so each result can be scanned independently. The attribution coverage note beneath the cards explains how much of the imported or manually recorded combat data is eligible for those party metrics.
+
+The lower section places **Party Damage Type Leaders** on the left and **Campaign Encounters** on the right. Each damage-type row uses its own thematic color—for example, red for fire, blue for cold, light green for poison, and dark green for acid—while retaining high-contrast text for readability. Damage-type totals use applied party damage. Rolled-but-unapplied damage, hostile actions, and manual or unattributed events are excluded. Mixed Fantasy Grounds damage is allocated by component after resistance, immunity, vulnerability, and similar adjustments.
 
 ### Fantasy Grounds impact
 
