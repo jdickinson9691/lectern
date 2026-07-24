@@ -1079,7 +1079,7 @@ class CombatNarrativePage(QWidget):
         root=adaptive_page_layout(self); root.addWidget(QLabel("<h2>Combat Narrative</h2>"))
         top=QHBoxLayout(); self.campaign_filter=QComboBox(); self.campaign_filter.currentIndexChanged.connect(self.change_campaign_filter); self.encounters=QComboBox(); self.encounters.currentIndexChanged.connect(self.select_encounter)
         top.addWidget(QLabel("Campaign:")); top.addWidget(self.campaign_filter); top.addWidget(QLabel("Encounter:")); top.addWidget(self.encounters)
-        self.event_count=QLabel("0 narrative events"); top.addWidget(self.event_count); top.addStretch(); root.addLayout(top)
+        self.event_count=QLabel("0 source events"); top.addWidget(self.event_count); top.addStretch(); root.addLayout(top)
         explanation=QLabel("A chronological, round-by-round retelling derived from the authoritative Combat Session Log. Regenerating this view never changes the original events.")
         explanation.setWordWrap(True); root.addWidget(explanation)
         narrative_group=QGroupBox("Combat Session Narrative"); narrative_layout=QVBoxLayout(narrative_group)
@@ -1122,13 +1122,13 @@ class CombatNarrativePage(QWidget):
 
     def refresh_narrative(self):
         if not self.current_encounter_id:
-            self.event_count.setText("0 narrative events")
+            self.event_count.setText("0 source events")
             self.narrative_view.setPlainText("Select an encounter to review its combat narrative.")
             return
         encounter=self.repo.get_encounter(self.current_encounter_id)
         rows=list(self.repo.list_turn_log(self.current_encounter_id))
         meaningful=sum(1 for row in rows if not parse_combat_event(row)['system'])
-        self.event_count.setText(f"{meaningful} narrative event{'s' if meaningful!=1 else ''}")
+        self.event_count.setText(f"{meaningful} source event{'s' if meaningful!=1 else ''}")
         outcome=str(encounter['outcome'] or '') if encounter and 'outcome' in encounter.keys() else ''
         narrative=self.builder.build(rows,encounter['name'] if encounter else '',outcome)
         self.narrative_view.setMarkdown(narrative)

@@ -250,8 +250,9 @@ Combat Narrative retells the selected encounter as chronological, round-by-round
 
 - Use the same **Campaign** and **Encounter** selectors as Combat Dashboard.
 - Rounds are presented from earliest to latest so the account reads as a continuous story.
-- Attacks, critical hits, misses, damage, damage types, healing, target HP, actions, notes, and unattributed changes are translated into deterministic prose.
+- Attacks, critical hits, misses, damage, damage types, healing, target HP, actions, notes, and unattributed changes are translated into a deterministic, gritty heroic chronicle.
 - Turn-start and turn-end markers are omitted from the story.
+- Source-application names, initialization noise, unresolved placeholders, and duplicate roll/damage rows are omitted so the result reads as a battle story rather than an import transcript.
 - The narrative is regenerated from saved events whenever the selection or underlying log changes. It does not modify or replace the structured combat journal.
 
 ### Fantasy Grounds impact

@@ -1,5 +1,6 @@
 # Changelog
 
+- Reworked Combat Narrative into a terse, grim heroic chronicle with varied round openings, connected action and consequence, dramatic HP/critical/resistance language, duplicate-event folding, and no application-source names in the story.
 - Added a Combat Narrative page directly below Combat Dashboard with matching campaign and encounter selectors and deterministic, chronological round-by-round prose derived from authoritative local or Fantasy Grounds combat events.
 - Added managed player portraits with original-image preservation, normalized thumbnails, PDF-import preview/replace/clear controls, safe portrait retention during re-import, and visible initials fallbacks when no image is available.
 - Reorganized Combat Dashboard into a draggable 25/75 workspace with campaign entities and local combat controls on the left and the searchable combat-session log on the right.
