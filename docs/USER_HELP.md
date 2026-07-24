@@ -21,6 +21,7 @@ Select a title to jump directly to that section.
 - [Campaigns](#campaigns)
 - [Encounter Builder](#encounter-builder)
 - [Combat Dashboard](#combat-dashboard)
+- [Combat Narrative](#combat-narrative)
 
 ### Character and reference screens
 
@@ -243,6 +244,25 @@ The structured journal separates round, actor, action type, roll, target, defens
 
 [Back to Help contents](#help-contents)
 
+## Combat Narrative
+
+Combat Narrative retells the selected encounter as chronological, round-by-round prose derived from the authoritative Combat Session Log.
+
+- Use the same **Campaign** and **Encounter** selectors as Combat Dashboard.
+- Rounds are presented from earliest to latest so the account reads as a continuous story.
+- Attacks, critical hits, misses, damage, damage types, healing, target HP, actions, notes, and unattributed changes are translated into deterministic prose.
+- Turn-start and turn-end markers are omitted from the story.
+- The narrative is regenerated from saved events whenever the selection or underlying log changes. It does not modify or replace the structured combat journal.
+
+### Fantasy Grounds impact
+
+- Prepared Fantasy Grounds encounters may have a roster but no narrative because they do not contain a live combat journal.
+- Live Fantasy Grounds sessions use the synchronized authoritative rolls, results, damage, healing, and HP evidence already stored in Lectern.
+- Manual or unattributed changes remain explicitly unattributed; the narrative does not invent an actor or action.
+- Importing a newer snapshot refreshes the derived narrative without writing data back to Fantasy Grounds.
+
+[Back to Help contents](#help-contents)
+
 ## Players
 
 Players contains the character list and Player Character Editor.
@@ -250,10 +270,10 @@ Players contains the character list and Player Character Editor.
 ### Player controls
 
 - **+ New Player** starts a local character.
-- **Import Character PDF...** previews and imports a supported fillable character sheet.
+- **Import Character PDF...** previews and imports a supported fillable character sheet. The preview also shows a detected or existing portrait and lets you choose or clear an image.
 - **Edit Selected**, **Duplicate**, **Delete**, **Refresh**, and **Search** manage saved characters.
 
-The editor includes General, Abilities, Equipment, Inventory, Combat, Skills, Saving Throws, and Notes tabs. PDF imports can include names, class information, ability scores, AC, HP, initiative, feats, inventory, proficiencies, equipped items, spellcasting ability, and feature notes.
+The editor includes General, Abilities, Equipment, Inventory, Combat, Skills, Saving Throws, and Notes tabs. PDF imports can include names, class information, ability scores, AC, HP, initiative, feats, inventory, proficiencies, equipped items, spellcasting ability, feature notes, and an embedded portrait when the PDF contains one. A separately selected portrait is copied into Lectern's managed data, preserved at its original resolution, and displayed through a normalized thumbnail. Re-importing a sheet without a portrait preserves the character's existing image unless you explicitly clear it.
 
 ### Fantasy Grounds impact
 
@@ -466,6 +486,8 @@ The Help screen is read-only and does not trigger imports or change synchronized
 ### PDF import finds incorrect values
 
 Review the preview and cancel rather than importing incorrect data. Image-only PDFs may require OCR or manual entry.
+
+Some PDF exporters, including current D&D Beyond sheets, may omit the character portrait even though it appears on the website. Use **Choose Image...** in the import preview to select a separate PNG, JPEG, WebP, or BMP file. Characters without an image display an initials-based fallback.
 
 ### A player fails to open or the wrong player is selected
 

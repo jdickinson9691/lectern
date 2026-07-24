@@ -1,6 +1,9 @@
 # Development Workflow
 
-For a condensed history of completed Codex work and reusable prompt templates, see [CODEX_PROMPT_ARCHIVE.md](CODEX_PROMPT_ARCHIVE.md).
+For active 3.1 design work, see
+[LECTERN_3_1_DEVELOPMENT.md](LECTERN_3_1_DEVELOPMENT.md). For the completed
+Codex task index and reusable implementation prompt, see
+[CODEX_PROMPT_ARCHIVE.md](CODEX_PROMPT_ARCHIVE.md).
 
 This folder is the canonical evolving source tree for Lectern: **Lüdinn Entertainment Campaign Tracker for Encounters, Rules & Navigation**.
 
@@ -35,7 +38,10 @@ This folder is the canonical evolving source tree for Lectern: **Lüdinn Enterta
 
 ## Current baseline
 
-- Version: 3.0.0 Workflow and Import Refinement (in progress)
-- Baseline: completed v2.9.5 Fantasy Grounds synchronization and campaign-statistics work
-- Scope: define and implement the next major Lectern workflow, analytics, usability, documentation, and release improvements.
+- Application version: 3.0.0 Workflow and Import Refinement (in progress)
+- Planning milestone: 3.1 product design
+- Database schema: v10
+- Fantasy Grounds snapshot contract: v1
+- Scope: confirm the 3.0 release boundary, then define one primary 3.1 user
+  outcome before implementation.
 - Acceptance evidence: `docs/VERIFICATION_REPORT.md`.

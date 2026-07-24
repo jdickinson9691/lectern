@@ -18,7 +18,7 @@ from app.ui.main_window import HelpPage
 
 help_text = (ROOT / "docs" / "USER_HELP.md").read_text(encoding="utf-8")
 screen_sections = [
-    "Dashboard", "Campaigns", "Encounter Builder", "Combat Dashboard", "Players",
+    "Dashboard", "Campaigns", "Encounter Builder", "Combat Dashboard", "Combat Narrative", "Players",
     "Monster Library", "Add Monster", "Weapons", "Armor", "Equipment", "Magic Items",
     "Spells", "CSV Import and Export", "Fantasy Grounds Sync", "Data Workflow", "Error Logs", "Help",
 ]

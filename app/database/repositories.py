@@ -34,6 +34,7 @@ class Repository:
             return int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
 
     def upsert_player(self, data: dict):
+        portrait_provided = 'portrait_path' in data
         payload = {col: data.get(col) for col in PLAYER_COLUMNS}
         # Backward-compatible defaults for older callers/tests.
         for ability in ABILITY_FIELDS:
@@ -56,7 +57,11 @@ class Repository:
             payload[currency_col] = int(payload.get(currency_col) or 0)
         fields = PLAYER_COLUMNS
         placeholders = ','.join(':'+f for f in fields)
-        updates = ','.join(f"{f}=excluded.{f}" for f in fields if f != 'name')
+        updates = ','.join(
+            f"{f}=excluded.{f}"
+            for f in fields
+            if f != 'name' and (f != 'portrait_path' or portrait_provided)
+        )
         with connect(self.db_path) as conn:
             conn.execute(f"""
             INSERT INTO players({','.join(fields)})

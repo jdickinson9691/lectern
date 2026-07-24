@@ -4,12 +4,17 @@
 
 - Version: 3.0.0 (in progress)
 - Release: Workflow and Import Refinement
-- Database schema: v9
+- Database schema: v10
 - Code model: one continuously evolving Git repository
 
 ## Stabilization status
 
-The completed v2.9.5 work is the foundation for v3.0.0. It includes one-way Fantasy Grounds Unity 5E synchronization, explicit durable combat sessions, historical-log reprocessing, authoritative damage types, campaign party statistics, and safe imported-data clearing. Python 3.13 remains the validated development and packaging environment. See `docs/LECTERN_3_0_0_KICKOFF.md` for the current kickoff.
+The completed v2.9.5 work is the foundation for v3.0.0. The current 3.0 work
+adds refined Fantasy Grounds workflows, local campaign ownership, persistent
+parties, guided campaign setup, and the split Combat Dashboard. Python 3.13
+remains the validated development and packaging environment. See
+`docs/LECTERN_3_1_DEVELOPMENT.md` for active product planning and
+`docs/LECTERN_3_0_0_KICKOFF.md` for the original 3.0 baseline.
 
 ## Next required workstation checks
 

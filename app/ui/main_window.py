@@ -1,6 +1,7 @@
 from __future__ import annotations
 import json
 import re
+from tempfile import TemporaryDirectory
 from pathlib import Path
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
@@ -18,6 +19,8 @@ from ..importers.csv_transfer import CsvTransferService, CSV_TABLES
 from ..importers.character_pdf import CharacterPdfImporter
 from ..services.data_workflow import DataWorkflowService
 from ..services.manual_campaign_setup import ManualCampaignSetupService
+from ..services.portraits import is_managed_portrait, store_portrait
+from ..services.combat_narrative import CombatNarrativeBuilder, parse_combat_event
 from ..integrations.fantasy_grounds import FantasyGroundsSyncError, FantasyGroundsSyncService
 from ..version import APP_EXPANDED_NAME, APP_NAME, VERSION
 from ..paths import icon_path, watermark_path, help_path, user_data_dir
@@ -126,7 +129,18 @@ def adaptive_page_layout(page: QWidget) -> AdaptivePageLayout:
 
 def apply_portrait_icon(item: QTableWidgetItem, portrait_path_value) -> None:
     portrait=Path(str(portrait_path_value or ''))
-    if portrait.exists(): item.setIcon(QIcon(str(portrait)))
+    if portrait.is_file():
+        icon=QIcon(str(portrait))
+        if not icon.isNull():
+            item.setIcon(icon)
+            return
+    initials=''.join(part[0] for part in item.text().split()[:2] if part).upper() or '?'
+    fallback=QPixmap(40,40); fallback.fill(Qt.transparent)
+    painter=QPainter(fallback); painter.setRenderHint(QPainter.Antialiasing)
+    painter.setBrush(QColor('#46515f')); painter.setPen(Qt.NoPen); painter.drawEllipse(2,2,36,36)
+    painter.setPen(QColor('#f4f6f8')); painter.setFont(QFont('',10,QFont.Bold))
+    painter.drawText(fallback.rect(),Qt.AlignCenter,initials); painter.end()
+    item.setIcon(QIcon(fallback))
 
 class TablePage(QWidget):
     def __init__(self, title: str, repo: Repository, table: str):
@@ -452,7 +466,17 @@ class PlayerEditorWidget(QWidget):
         name=self.name.text().strip()
         if not name: QMessageBox.warning(self,"Missing Name","Character name is required."); return
         feats='; '.join(v for v in [self.feat_1.currentText().strip(),self.feat_2.currentText().strip(),self.feat_3.currentText().strip()] if v)
-        data={"name":name,"player_name":self.player_name.text().strip(),"species":self.species.currentText().strip(),"class_name":self.class_name.currentText().strip(),"subclass":self.subclass.currentText().strip(),"background":self.background.currentText().strip(),"level":self.level.value(),"armor_class":self.ac.value(),"max_hp":self.max_hp.value(),"current_hp":min(self.current_hp.value() or self.max_hp.value(),self.max_hp.value()),"initiative_mod":self.init_mod.value(),"feats":feats,"equipped_weapon":self.weapon.currentText().strip(),"equipped_armor":self.armor.currentText().strip(),"equipment":self.equipment.toPlainText().strip(),"inventory":self.inventory.toPlainText().strip(),"notes":self.notes.toPlainText().strip(),"portrait_path":self.portrait_path.text().strip(),"spellcasting_ability":self.spellcasting_ability.currentText().strip(),"skill_proficiencies":'; '.join(k for k,(_,p,_,_) in self.skill_boxes.items() if p.isChecked()),"skill_expertise":'; '.join(k for k,(_,_,e,_) in self.skill_boxes.items() if e.isChecked()),"saving_throw_proficiencies":'; '.join(k for k,(p,_) in self.save_boxes.items() if p.isChecked())}
+        portrait_value=self.portrait_path.text().strip()
+        if portrait_value:
+            portrait_source=Path(portrait_value)
+            try:
+                if not is_managed_portrait(portrait_source,user_data_dir() / 'portraits'):
+                    portrait_source=store_portrait(portrait_source,user_data_dir() / 'portraits',name)
+                portrait_value=str(portrait_source)
+                self.portrait_path.setText(portrait_value)
+            except ValueError as exc:
+                QMessageBox.warning(self,"Invalid Portrait",str(exc)); return
+        data={"name":name,"player_name":self.player_name.text().strip(),"species":self.species.currentText().strip(),"class_name":self.class_name.currentText().strip(),"subclass":self.subclass.currentText().strip(),"background":self.background.currentText().strip(),"level":self.level.value(),"armor_class":self.ac.value(),"max_hp":self.max_hp.value(),"current_hp":min(self.current_hp.value() or self.max_hp.value(),self.max_hp.value()),"initiative_mod":self.init_mod.value(),"feats":feats,"equipped_weapon":self.weapon.currentText().strip(),"equipped_armor":self.armor.currentText().strip(),"equipment":self.equipment.toPlainText().strip(),"inventory":self.inventory.toPlainText().strip(),"notes":self.notes.toPlainText().strip(),"portrait_path":portrait_value,"spellcasting_ability":self.spellcasting_ability.currentText().strip(),"skill_proficiencies":'; '.join(k for k,(_,p,_,_) in self.skill_boxes.items() if p.isChecked()),"skill_expertise":'; '.join(k for k,(_,_,e,_) in self.skill_boxes.items() if e.isChecked()),"saving_throw_proficiencies":'; '.join(k for k,(p,_) in self.save_boxes.items() if p.isChecked())}
         for coin,box in self.currency.items(): data[f'currency_{coin}']=box.value()
         data.update(self._ability_payload()); self.repo.upsert_player(data)
         if self.saved_callback: self.saved_callback()
@@ -577,24 +601,62 @@ class PlayerManagerPage(QWidget):
         path,_=QFileDialog.getOpenFileName(self,"Import Character PDF","","PDF Files (*.pdf)")
         if not path: return
         try:
-            result=CharacterPdfImporter().extract(Path(path),user_data_dir() / 'portraits'); data=result['data']
-            preview=[f"{key.replace('_',' ').title()}: {value}" for key,value in data.items() if value not in (None,'')]
-            warning_text="\n".join(result['warnings'])
-            message=f"Detected {result['field_count']} character fields ({result['form_field_count']} PDF form fields).\n\n" + "\n".join(preview[:24])
-            if warning_text: message += f"\n\nReview notes:\n{warning_text}"
-            message += "\n\nChoose Import Character to save this character to the Players database. A matching character name will be updated."
-            dialog=QDialog(self); dialog.setWindowTitle("Character PDF Preview"); dialog.resize(720,560)
-            layout=QVBoxLayout(dialog); summary=QLabel("Review the extracted character data before importing."); layout.addWidget(summary)
-            preview_box=QTextEdit(); preview_box.setReadOnly(True); preview_box.setPlainText(message); layout.addWidget(preview_box,1)
-            buttons=QDialogButtonBox(QDialogButtonBox.Cancel); import_button=buttons.addButton("Import Character",QDialogButtonBox.AcceptRole); import_button.setDefault(True); buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); layout.addWidget(buttons)
-            if dialog.exec() != QDialog.Accepted: return
-            name=str(data.get('name','')).strip()
-            if not name: QMessageBox.warning(self,"Character Name Missing","Enter a character name in the PDF or add it manually before importing."); return
-            payload=dict(data); payload['name']=name
-            self.repo.upsert_player(payload); self.after_save()
-            imported=next((row for row in self.repo.list_players() if row['name']==name),None)
-            if imported: self.editor.load_player(imported)
-            QMessageBox.information(self,"Character Imported",f"Imported {name} into Players. Review the editor and save any additional corrections.")
+            with TemporaryDirectory(prefix='lectern_pdf_portrait_') as staging_dir:
+                result=CharacterPdfImporter().extract(Path(path),Path(staging_dir)); data=result['data']
+                detected_value=str(data.pop('portrait_path','') or '')
+                name=str(data.get('name','')).strip()
+                existing=next((row for row in self.repo.list_players() if row['name']==name),None)
+                existing_value=str(existing['portrait_path'] or '') if existing and 'portrait_path' in existing.keys() else ''
+                portrait_state={'path':detected_value or existing_value,'cleared':False}
+                preview=[f"{key.replace('_',' ').title()}: {value}" for key,value in data.items() if value not in (None,'')]
+                warning_text="\n".join(result['warnings'])
+                message=f"Detected {result['field_count']} character fields ({result['form_field_count']} PDF form fields).\n\n" + "\n".join(preview[:24])
+                if warning_text: message += f"\n\nReview notes:\n{warning_text}"
+                message += "\n\nChoose Import Character to save this character to the Players database. A matching character name will be updated."
+                dialog=QDialog(self); dialog.setWindowTitle("Character PDF Preview"); dialog.resize(760,600)
+                layout=QVBoxLayout(dialog); summary=QLabel("Review the extracted character data and portrait before importing."); layout.addWidget(summary)
+                content=QHBoxLayout()
+                portrait_column=QVBoxLayout(); portrait_label=QLabel(); portrait_label.setFixedSize(180,180); portrait_label.setAlignment(Qt.AlignCenter); portrait_label.setFrameShape(QFrame.StyledPanel)
+                portrait_status=QLabel(); portrait_status.setWordWrap(True); portrait_status.setAlignment(Qt.AlignCenter)
+                choose_portrait=QPushButton("Choose Image..."); clear_portrait=QPushButton("Clear Portrait")
+                portrait_column.addWidget(portrait_label,0,Qt.AlignHCenter); portrait_column.addWidget(portrait_status); portrait_column.addWidget(choose_portrait); portrait_column.addWidget(clear_portrait); portrait_column.addStretch()
+                content.addLayout(portrait_column)
+                preview_box=QTextEdit(); preview_box.setReadOnly(True); preview_box.setPlainText(message); content.addWidget(preview_box,1); layout.addLayout(content,1)
+                def refresh_portrait_preview():
+                    selected=Path(str(portrait_state['path'] or ''))
+                    pixmap=QPixmap(str(selected)) if selected.is_file() else QPixmap()
+                    if pixmap.isNull():
+                        portrait_label.setPixmap(QPixmap())
+                        portrait_label.setText("No portrait")
+                        portrait_status.setText("Choose a separate image if the PDF does not include one.")
+                    else:
+                        portrait_label.setText("")
+                        portrait_label.setPixmap(pixmap.scaled(168,168,Qt.KeepAspectRatio,Qt.SmoothTransformation))
+                        portrait_status.setText("Detected from PDF" if detected_value and str(selected)==detected_value else "Existing or selected image")
+                def select_portrait():
+                    selected,_=QFileDialog.getOpenFileName(dialog,"Select Character Portrait","","Images (*.png *.jpg *.jpeg *.webp *.bmp)")
+                    if selected:
+                        portrait_state['path']=selected; portrait_state['cleared']=False; refresh_portrait_preview()
+                def clear_selected_portrait():
+                    portrait_state['path']=''; portrait_state['cleared']=True; refresh_portrait_preview()
+                choose_portrait.clicked.connect(select_portrait); clear_portrait.clicked.connect(clear_selected_portrait); refresh_portrait_preview()
+                buttons=QDialogButtonBox(QDialogButtonBox.Cancel); import_button=buttons.addButton("Import Character",QDialogButtonBox.AcceptRole); import_button.setDefault(True); buttons.accepted.connect(dialog.accept); buttons.rejected.connect(dialog.reject); layout.addWidget(buttons)
+                if dialog.exec() != QDialog.Accepted: return
+                if not name: QMessageBox.warning(self,"Character Name Missing","Enter a character name in the PDF or add it manually before importing."); return
+                payload=dict(data); payload['name']=name
+                selected_value=str(portrait_state['path'] or '')
+                if selected_value:
+                    selected_path=Path(selected_value)
+                    if existing_value and selected_path == Path(existing_value):
+                        payload['portrait_path']=existing_value
+                    else:
+                        payload['portrait_path']=str(store_portrait(selected_path,user_data_dir() / 'portraits',name))
+                elif portrait_state['cleared']:
+                    payload['portrait_path']=''
+                self.repo.upsert_player(payload); self.after_save()
+                imported=next((row for row in self.repo.list_players() if row['name']==name),None)
+                if imported: self.editor.load_player(imported)
+                QMessageBox.information(self,"Character Imported",f"Imported {name} into Players. Review the editor and save any additional corrections.")
         except Exception as exc:
             QMessageBox.critical(self,"Character PDF Import Failed",f"Could not read this character sheet.\n\n{exc}")
 
@@ -1009,6 +1071,67 @@ class CombatDashboardPage(QWidget):
     @staticmethod
     def toggle_log_details(item,_column):
         if item.childCount(): item.setExpanded(not item.isExpanded())
+
+
+class CombatNarrativePage(QWidget):
+    def __init__(self, repo: Repository):
+        super().__init__(); self.repo=repo; self.current_encounter_id=None; self._focus_encounter=False; self.builder=CombatNarrativeBuilder()
+        root=adaptive_page_layout(self); root.addWidget(QLabel("<h2>Combat Narrative</h2>"))
+        top=QHBoxLayout(); self.campaign_filter=QComboBox(); self.campaign_filter.currentIndexChanged.connect(self.change_campaign_filter); self.encounters=QComboBox(); self.encounters.currentIndexChanged.connect(self.select_encounter)
+        top.addWidget(QLabel("Campaign:")); top.addWidget(self.campaign_filter); top.addWidget(QLabel("Encounter:")); top.addWidget(self.encounters)
+        self.event_count=QLabel("0 narrative events"); top.addWidget(self.event_count); top.addStretch(); root.addLayout(top)
+        explanation=QLabel("A chronological, round-by-round retelling derived from the authoritative Combat Session Log. Regenerating this view never changes the original events.")
+        explanation.setWordWrap(True); root.addWidget(explanation)
+        narrative_group=QGroupBox("Combat Session Narrative"); narrative_layout=QVBoxLayout(narrative_group)
+        self.narrative_view=QTextBrowser(); self.narrative_view.setOpenExternalLinks(False); narrative_layout.addWidget(self.narrative_view,1); root.addWidget(narrative_group,1)
+        self.refresh()
+
+    def showEvent(self, event):
+        super().showEvent(event); self.refresh()
+
+    def refresh(self):
+        previous_id=self.current_encounter_id; encounters=list(self.repo.list_encounters())
+        filter_value=self.campaign_filter.currentData() if self.campaign_filter.count() else -1
+        if self._focus_encounter and self.current_encounter_id:
+            focused=self.repo.get_encounter(self.current_encounter_id); filter_value=focused['campaign_id'] if focused else -1
+        self.campaign_filter.blockSignals(True); self.campaign_filter.clear(); self.campaign_filter.addItem("All Campaigns",-1); self.campaign_filter.addItem("Unassigned Local",None)
+        for campaign in self.repo.list_campaigns():
+            source="Fantasy Grounds" if campaign['source_type']=='fantasy_grounds' else "Local"
+            self.campaign_filter.addItem(f"{campaign['name']} [{source}]",campaign['id'])
+        restore_filter=self.campaign_filter.findData(filter_value); self.campaign_filter.setCurrentIndex(restore_filter if restore_filter>=0 else 0); self.campaign_filter.blockSignals(False); self._focus_encounter=False
+        selected_filter=self.campaign_filter.currentData()
+        if selected_filter != -1: encounters=list(self.repo.list_encounters_for_campaign(selected_filter))
+        status_order={"active":0,"draft":1,"completed":2}
+        encounters.sort(key=lambda row:(status_order.get(str(row['status'] or '').casefold(),3),-int(row['id'])))
+        self.encounters.blockSignals(True); self.encounters.clear()
+        for encounter in encounters: self.encounters.addItem(self.repo.encounter_display_name(encounter),encounter['id'])
+        preferred=self.encounters.findData(previous_id) if previous_id is not None else -1
+        if preferred < 0 and self.encounters.count(): preferred=0
+        if preferred >= 0: self.encounters.setCurrentIndex(preferred); self.current_encounter_id=self.encounters.itemData(preferred)
+        else: self.current_encounter_id=None
+        self.encounters.blockSignals(False); self.refresh_narrative()
+
+    def change_campaign_filter(self):
+        self.current_encounter_id=None; self.refresh()
+
+    def select_encounter(self):
+        self.current_encounter_id=self.encounters.currentData(); self.refresh_narrative()
+
+    def select_encounter_id(self, encounter_id):
+        if encounter_id is not None: self.current_encounter_id=int(encounter_id); self._focus_encounter=True
+
+    def refresh_narrative(self):
+        if not self.current_encounter_id:
+            self.event_count.setText("0 narrative events")
+            self.narrative_view.setPlainText("Select an encounter to review its combat narrative.")
+            return
+        encounter=self.repo.get_encounter(self.current_encounter_id)
+        rows=list(self.repo.list_turn_log(self.current_encounter_id))
+        meaningful=sum(1 for row in rows if not parse_combat_event(row)['system'])
+        self.event_count.setText(f"{meaningful} narrative event{'s' if meaningful!=1 else ''}")
+        outcome=str(encounter['outcome'] or '') if encounter and 'outcome' in encounter.keys() else ''
+        narrative=self.builder.build(rows,encounter['name'] if encounter else '',outcome)
+        self.narrative_view.setMarkdown(narrative)
 
 
 class ManualCampaignSetupWizard(QWizard):
@@ -2030,6 +2153,7 @@ class MainWindow(QMainWindow):
             ("Campaigns", CampaignDashboardPage(self.repo, self.refresh_pages)),
             ("Encounter Builder", EncounterBuilderPage(self.repo, self.refresh_pages)),
             ("Combat Dashboard", CombatDashboardPage(self.repo)),
+            ("Combat Narrative", CombatNarrativePage(self.repo)),
             ("Players", PlayerManagerPage(self.repo, self.refresh_pages)),
             ("Monster Library", TablePage("Monster Library", self.repo, "monsters")),
             ("Add Monster", MonsterAddPage(self.repo)),
@@ -2065,7 +2189,7 @@ class MainWindow(QMainWindow):
             "<p><b>Fantasy Grounds integration:</b> Lectern Sync can import 5E characters, prepared encounters, live Combat Tracker state, "
             "and authoritative combat events while Fantasy Grounds remains the source of truth. Local Lectern encounters remain independent and editable.</p>"
             "<p>Begin with <b>Campaigns</b> and <b>Players</b>, prepare battles in <b>Encounter Builder</b>, run or review them in "
-            "<b>Combat Dashboard</b>, and open <b>Help</b> for linked screen-by-screen guidance.</p>"
+            "<b>Combat Dashboard</b>, retell completed sessions in <b>Combat Narrative</b>, and open <b>Help</b> for linked screen-by-screen guidance.</p>"
         )
         self.dashboard_intro.setWordWrap(True); l.addWidget(self.dashboard_intro)
         self.counts=QLabel(); l.addWidget(self.counts)

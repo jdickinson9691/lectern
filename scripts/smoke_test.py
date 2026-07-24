@@ -130,6 +130,7 @@ try:
     assert imported_pdf_player['saving_throw_proficiencies'] == 'str', 'Character PDF saving throw persistence failed'
     assert imported_pdf_player['equipped_weapon'] == 'Longsword' and imported_pdf_player['equipped_armor'] == 'Chain Mail', 'Character PDF equipped item persistence failed'
     assert imported_pdf_player['spellcasting_ability'] == 'Intelligence', 'Character PDF spellcasting persistence failed'
+    assert Path(imported_pdf_player['portrait_path']).exists(), 'Character PDF re-import cleared the existing portrait'
     assert imported_pdf_player['currency_gp'] == 0 and isinstance(imported_pdf_player['currency_gp'], int), 'Character PDF numeric defaults failed'
     workflow = DataWorkflowService(db)
     backup_path = workflow.backup_database(temp_dir / 'backup.db')
