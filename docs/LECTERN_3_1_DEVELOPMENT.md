@@ -97,6 +97,7 @@ Add only durable, approved decisions here.
 |---|---|---|
 | 2026-07-23 | Treat 3.1 as a design milestone before implementation. | Existing version and contracts remain unchanged until scope approval. |
 | 2026-07-24 | Keep the offline Combat Narrative grounded in D&D 5e mechanics and authoritative actor/action/target/result evidence. | Templates may connect confirmed events, but they must not invent effects, causes, conditions, actions, or outcomes; richer literary rewriting remains a separate optional milestone. |
+| 2026-07-24 | Replace mechanical quantities in Combat Narrative prose with qualitative combat consequences. | Damage language is derived from applied damage relative to the target's pre-effect endurance; healing, resistance, vulnerability, and temporary vitality remain qualitative, while round headings and combatant names retain their identifying numbers. |
 
 ## Proposed 3.1 milestone roadmap
 

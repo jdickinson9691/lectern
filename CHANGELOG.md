@@ -1,6 +1,6 @@
 # Changelog
 
-- Rebuilt Combat Narrative around grounded D&D 5e action-effect-consequence prose: each sentence preserves the recorded actor, action, target, and applied result while explaining confirmed combat impact such as recovery, continued participation, resistance, vulnerability, and temporary-hit-point protection without inventing effects or causes.
+- Rebuilt Combat Narrative around grounded D&D 5e action-effect-consequence prose: mechanical quantities are replaced by qualitative damage severity, recovery, resistance, vulnerability, and temporary-vitality language derived from the target's confirmed combat state, while numbered round headings and digits in combatant names remain intact.
 - Corrected narrative attribution and targeting by excluding provisional damage rolls whose active-turn owner may not be the damage source, carrying confirmed spells and weapons across contiguous secondary-target damage, retaining effect targets, and preserving genuinely unknown sources.
 - Added a Combat Narrative page directly below Combat Dashboard with matching campaign and encounter selectors and deterministic, chronological round-by-round prose derived from authoritative local or Fantasy Grounds combat events.
 - Added managed player portraits with original-image preservation, normalized thumbnails, PDF-import preview/replace/clear controls, safe portrait retention during re-import, and visible initials fallbacks when no image is available.

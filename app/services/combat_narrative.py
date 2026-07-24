@@ -300,7 +300,7 @@ class CombatNarrativeBuilder:
             return "Before the first round, the combat log recorded the following events."
         if round_number == 1:
             return "The combatants entered the first round."
-        return f"The battle continued into round {round_number}."
+        return "The battle continued into the next round."
 
     def event_sentence(self, event: Mapping[str, object]) -> str:
         actor = _clean_record_text(event["actor"])
@@ -354,9 +354,12 @@ class CombatNarrativeBuilder:
             damage_type = self.damage_label(event)
             damage_text = f"{damage_type} damage" if damage_type else "damage"
             target_text = target or "the target"
-            hp_text = self.hp_phrase(str(event["defense"]), target_text)
             adjustment_text = self.adjustment_phrase(event)
             temporary_hp_text = self.temporary_hp_damage_phrase(
+                event,
+                target_text,
+            )
+            consequence_text = self.damage_consequence_phrase(
                 event,
                 target_text,
             )
@@ -371,43 +374,36 @@ class CombatNarrativeBuilder:
                 else:
                     base = f"{target_text} takes no {damage_text} from {actor}"
                 return _sentence(
-                    f"{base}{adjustment_text}{temporary_hp_text}{hp_text}"
+                    f"{base}{adjustment_text}"
                 )
-            amount_text = f"{amount} {damage_text}" if amount is not None else damage_text
             if source_actor or "manual / unattributed" in actor.casefold():
                 base = (
-                    f"{target_text} takes {amount_text} from an unidentified source"
+                    f"{target_text} takes {damage_text} from an unidentified source"
                 )
             elif action and action.casefold() not in {"damage", "damage roll"}:
                 base = (
-                    f"{_possessive(actor)} {action} deals {amount_text} "
+                    f"{_possessive(actor)} {action} deals {damage_text} "
                     f"to {target_text}"
                 )
             else:
-                base = f"{actor} deals {amount_text} to {target_text}"
+                base = f"{actor} deals {damage_text} to {target_text}"
             return _sentence(
-                f"{base}{adjustment_text}{temporary_hp_text}{hp_text}"
+                f"{base}{adjustment_text}{temporary_hp_text}{consequence_text}"
             )
 
         if category == "healing":
-            amount = event["amount"]
             target_text = target or (actor if not source_actor else "the wounded")
-            hp_text = self.healing_hp_phrase(str(event["defense"]), target_text)
             if source_actor:
-                amount_text = f" {amount} hit points" if amount is not None else " hit points"
-                return _sentence(
-                    f"{target_text} recovers{amount_text}{hp_text}, "
-                    f"helping {target_text} remain in the battle"
+                return self.healing_sentence(
+                    event,
+                    target_text,
+                    cause="",
                 )
-            amount_text = f"{amount} hit points" if amount is not None else "hit points"
             if action and action.casefold() not in {"healing", "healing applied"}:
                 cause = f"{_possessive(actor)} {action}"
             else:
                 cause = actor
-            return _sentence(
-                f"{cause} helps {target_text} recover, restoring {amount_text}"
-                f"{hp_text} and helping {target_text} remain in the battle"
-            )
+            return self.healing_sentence(event, target_text, cause)
 
         if category == "manual":
             detail = result or str(event["details"])
@@ -436,47 +432,99 @@ class CombatNarrativeBuilder:
 
     @staticmethod
     def attack_evidence(roll: str, defense: str, category: str) -> str:
-        total = _first_number(roll)
-        defense_match = re.search(r"\bAC\s+(\d+)", defense, re.IGNORECASE)
-        natural_match = re.search(r"\bdice\s+(\d+)", roll, re.IGNORECASE)
-        if total is None and not defense_match:
-            return ""
-        armor = int(defense_match.group(1)) if defense_match else None
-        if natural_match and category == "critical":
-            if total is not None and armor is not None:
-                return f" (natural {natural_match.group(1)}; {total} against AC {armor})"
-            return f" (natural {natural_match.group(1)})"
-        if total is not None and armor is not None:
-            return f" ({total} against AC {armor})"
-        if total is not None:
-            return f" (attack roll {total})"
-        return f" (against AC {armor})"
+        return ""
 
     @staticmethod
-    def hp_phrase(defense: str, target: str) -> str:
-        match = re.search(r"Target HP\s+(\d+)\s*/\s*(\d+)", defense, re.IGNORECASE)
-        if not match:
+    def damage_consequence_phrase(
+        event: Mapping[str, object],
+        target: str,
+    ) -> str:
+        if event.get("temporary_hp_change"):
+            return ""
+        match = re.search(
+            r"Target HP\s+(\d+)\s*/\s*(\d+)",
+            str(event["defense"]),
+            re.IGNORECASE,
+        )
+        amount = event.get("amount")
+        if not match or not isinstance(amount, int) or amount <= 0:
             return ""
         current, maximum = int(match.group(1)), int(match.group(2))
         if current <= 0:
-            return f". The damage reduces {target} to 0 hit points"
-        if current == maximum:
             return (
-                f". {_possessive(target)} hit points remain unchanged at "
-                f"{current} of {maximum}"
+                f". The effect overwhelms {_possessive(target)} remaining "
+                f"endurance and brings {target} down"
             )
+        endurance_before = current + amount
+        impact = amount / endurance_before if endurance_before > 0 else 1.0
+        if impact <= 0.20:
+            return (
+                f". The effect causes limited harm, and {target} remains "
+                "firmly in the fight"
+            )
+        if impact <= 0.40:
+            return (
+                f". The effect lands with telling force, weakening {target} "
+                f"without taking {target} out of the fight"
+            )
+        if impact <= 0.65:
+            return f". The effect hits hard, leaving {target} badly weakened"
         return (
-            f". {target} remains in the fight with {current} of {maximum} "
-            "hit points"
+            f". The effect is devastating, leaving {target} barely able to "
+            "continue"
         )
 
     @staticmethod
-    def healing_hp_phrase(defense: str, target: str) -> str:
-        match = re.search(r"Target HP\s+(\d+)\s*/\s*(\d+)", defense, re.IGNORECASE)
-        if not match:
-            return ""
+    def healing_sentence(
+        event: Mapping[str, object],
+        target: str,
+        cause: str,
+    ) -> str:
+        match = re.search(
+            r"Target HP\s+(\d+)\s*/\s*(\d+)",
+            str(event["defense"]),
+            re.IGNORECASE,
+        )
+        amount = event.get("amount")
+        if not match or not isinstance(amount, int) or amount <= 0:
+            if cause:
+                return _sentence(
+                    f"{cause} helps {target} recover and remain in the battle"
+                )
+            return _sentence(
+                f"{target} recovers enough strength to remain in the battle"
+            )
         current, maximum = int(match.group(1)), int(match.group(2))
-        return f", bringing {target} to {current} of {maximum} hit points"
+        before = max(0, current - amount)
+        missing_before = max(1, maximum - before)
+        recovery = min(1.0, amount / missing_before)
+        if current >= maximum:
+            if cause:
+                return _sentence(f"{cause} restores {target} to fighting form")
+            return _sentence(f"{target} recovers and returns to fighting form")
+        if recovery >= 0.66:
+            if cause:
+                return _sentence(
+                    f"{cause} helps {target} rally, restoring much of the "
+                    "strength lost in battle"
+                )
+            return _sentence(
+                f"{target} rallies and recovers much of the strength lost in battle"
+            )
+        if recovery >= 0.33:
+            if cause:
+                return _sentence(
+                    f"{cause} eases {_possessive(target)} wounds and restores "
+                    "enough strength to keep fighting"
+                )
+            return _sentence(
+                f"{_possessive(target)} wounds ease, allowing {target} to keep fighting"
+            )
+        if cause:
+            return _sentence(
+                f"{cause} steadies {target} and restores some fighting strength"
+            )
+        return _sentence(f"{target} steadies and recovers some fighting strength")
 
     @staticmethod
     def temporary_hp_damage_phrase(
@@ -491,10 +539,15 @@ class CombatNarrativeBuilder:
         ):
             return ""
         before, after = change
-        absorbed = before - after
+        if after <= 0:
+            return (
+                f". {_possessive(target)} temporary vitality absorbs the brunt "
+                "of the impact and is spent"
+            )
         return (
-            f". {_possessive(target)} temporary hit points absorb {absorbed} "
-            f"damage, decreasing from {before} to {after}"
+            f". {_possessive(target)} temporary vitality absorbs the impact "
+            f"and is weakened, leaving {_possessive(target)} normal endurance "
+            "untouched"
         )
 
     @staticmethod
@@ -522,27 +575,27 @@ class CombatNarrativeBuilder:
                 except (TypeError, ValueError):
                     continue
 
-        def resistance_phrase(amount: str) -> str:
+        def resistance_phrase() -> str:
             if known_cause:
                 return (
-                    f". {_possessive(target)} resistance reduces the damage "
-                    f"from {_possessive(actor)} {action} by {amount}"
+                    f". {_possessive(target)} resistance blunts "
+                    f"{_possessive(actor)} {action}, limiting its effect"
                 )
             return (
-                f". {_possessive(target)} resistance reduces the applied "
-                f"damage by {amount}"
+                f". {_possessive(target)} resistance blunts the damage, "
+                "limiting its effect"
             )
 
-        def vulnerability_phrase(amount: str) -> str:
+        def vulnerability_phrase() -> str:
             if known_cause:
                 return (
                     f". {_possessive(actor)} {action} exploits "
-                    f"{_possessive(target)} vulnerability, increasing the "
-                    f"applied damage by {amount}"
+                    f"{_possessive(target)} vulnerability, greatly magnifying "
+                    "the effect"
                 )
             return (
-                f". {_possessive(target)} vulnerability increases the "
-                f"applied damage by {amount}"
+                f". {_possessive(target)} vulnerability greatly magnifies "
+                "the effect"
             )
 
         if "negated" in result.casefold():
@@ -554,21 +607,21 @@ class CombatNarrativeBuilder:
         )
         if reduced_match:
             if resisted:
-                return resistance_phrase(reduced_match.group(1))
-            return f". The applied damage is reduced by {reduced_match.group(1)}"
+                return resistance_phrase()
+            return ". The effect is blunted, limiting its impact"
         increased_match = re.search(
             r"increased by\s+(\d+(?:\.\d+)?)",
             result,
             re.IGNORECASE,
         )
         if increased_match:
-            return vulnerability_phrase(increased_match.group(1))
+            return vulnerability_phrase()
 
         phrases = []
         if resisted:
-            phrases.append(resistance_phrase(f"{resisted:g}").removeprefix(". "))
+            phrases.append(resistance_phrase().removeprefix(". "))
         if vulnerable:
-            phrases.append(vulnerability_phrase(f"{vulnerable:g}").removeprefix(". "))
+            phrases.append(vulnerability_phrase().removeprefix(". "))
         if phrases:
             return "".join(f". {phrase}" for phrase in phrases)
         return ""
@@ -636,7 +689,6 @@ class CombatNarrativeBuilder:
             before, after = int(temporary.group(1)), int(temporary.group(2))
             subject = target or "The target"
             if after > before:
-                gained = after - before
                 actor = _clean_record_text(event["actor"])
                 action = _clean_record_text(event["action"])
                 known_cause = (
@@ -647,19 +699,21 @@ class CombatNarrativeBuilder:
                 )
                 if known_cause:
                     cause = (
-                        f"{_possessive(actor)} {action} grants {subject} "
-                        f"{gained} temporary hit points"
+                        f"{_possessive(actor)} {action} bolsters {subject} "
+                        "with temporary vitality"
                     )
                 else:
-                    cause = f"{subject} gains {gained} temporary hit points"
+                    cause = f"{subject} is bolstered by temporary vitality"
                 return _sentence(
-                    f"{cause}, increasing the total from {before} to {after} "
-                    f"and giving {subject} an additional buffer against damage"
+                    f"{cause}, providing an additional buffer against harm"
                 )
-            lost = before - after
+            if after <= 0:
+                return _sentence(
+                    f"{_possessive(subject)} temporary vitality is spent"
+                )
             return _sentence(
-                f"{_possessive(subject)} temporary hit point buffer is reduced "
-                f"by {lost}, decreasing from {before} to {after}"
+                f"{_possessive(subject)} temporary vitality is weakened but "
+                "remains in place"
             )
         target_text = f"{target} is affected: " if target else ""
         return _sentence(f"{target_text}{detail}")

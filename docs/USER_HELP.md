@@ -252,6 +252,7 @@ Combat Narrative retells the selected encounter as chronological, round-by-round
 - Rounds are presented from earliest to latest so the account reads as a continuous story.
 - Each sentence follows the authoritative actor, action, target, and applied result. Attacks, critical hits, misses, damage types, resistance, negated damage, vulnerability, healing, hit points, temporary hit points, notes, and outcomes use grounded D&D 5e terminology.
 - Confirmed events are written as action, immediate effect, and combat consequence: healing supports recovery, resistance or vulnerability explains adjusted damage, and temporary hit points provide an additional buffer against damage.
+- Mechanical quantities are omitted from the story. Damage severity is described by comparing the applied effect with the target's endurance immediately before it; healing and temporary hit points use qualitative recovery and protection language. Numbered round headings and digits that are part of combatant names remain unchanged.
 - Narrative transitions may connect recorded events, but the recap does not invent spells, wards, injuries, deaths, motives, or causes that are absent from the Combat Session Log.
 - Turn-start and turn-end markers are omitted from the story.
 - Source-application names, initialization noise, unresolved placeholders, and duplicate roll/damage rows are omitted so the result reads as a battle story rather than an import transcript.
