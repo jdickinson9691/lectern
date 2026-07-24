@@ -17,7 +17,7 @@ from PySide6.QtWidgets import QApplication
 
 from app.database.repositories import Repository
 from app.database.schema import connect, initialize_database
-from app.services.combat_narrative import CombatNarrativeBuilder
+from app.services.combat_narrative import CombatNarrativeBuilder, parse_combat_event
 from app.ui.main_window import CombatNarrativePage, MainWindow
 
 
@@ -44,7 +44,15 @@ try:
             (encounter_id, 2, "Pallor", "Action", " | Fighter1 |  | Healing Word | Result not reported", "", None),
             (encounter_id, 2, "Pallor", "Healing", "5 | Fighter1 | Target HP 20/20 | Healing Word | 5 healing applied", "", 5),
             (encounter_id, 2, "Fantasy Grounds", "Effect", "0 | Fighter1 | Target HP 18/20 | Effect | Temporary HP changed from 0 to 5", "", None),
-            (encounter_id, 2, "Fantasy Grounds", "Encounter End", "Encounter ended: victory", "", None),
+            (encounter_id, 2, "Fantasy Grounds", "Effect", " | Fighter1 | Effect state | Effect | Temporary HP changed from 5 to 2", "", None),
+            (encounter_id, 2, "Goblin", "Damage", "3 | Fighter1 | Target HP 20/20 | Dagger | 3 damage applied", "piercing", 3),
+            (encounter_id, 3, "Goblin Minion 2", "Damage Roll", "10 | Fighter1 | Against AC 16 | Fire Bolt | 10 damage rolled", "fire", None),
+            (encounter_id, 3, "Manual / Unattributed", "Damage", "5 | Goblin Minion 1 | Target HP 2/7 | Damage | 5 damage applied", "fire", 5),
+            (encounter_id, 3, "Fantasy Grounds", "Healing", "5 | Goblin Minion 1 | Target HP 7/7 | Healing | 5 healing applied", "", 5),
+            (encounter_id, 4, "Wizard1", "Damage Roll", "15 | Goblin Minion 3 | Against AC 12 | Burning Hands | 15 damage rolled", "fire", None),
+            (encounter_id, 4, "Wizard1", "Damage", "28 | Goblin Minion 3 | Target HP 0/30 | Burning Hands | 28 damage applied from 15 rolled (increased by 13)", "fire", 28),
+            (encounter_id, 4, "Manual / Unattributed", "Damage", "15 | Goblin Minion 4 | Target HP 0/30 | Damage | 15 damage applied", "fire", 15),
+            (encounter_id, 4, "Fantasy Grounds", "Encounter End", "Encounter ended: victory", "", None),
         ]
         connection.executemany(
             """
@@ -58,20 +66,74 @@ try:
     log_rows = repo.list_turn_log(encounter_id)
     narrative = CombatNarrativeBuilder().build(log_rows, "Lectern Broken Gate")
     assert narrative.index("## Round 1") < narrative.index("## Round 2"), "Narrative rounds are not chronological"
-    assert "Fighter1 came on with Longsword and caught Goblin clean" in narrative, "Hit was not narrated heroically"
-    assert "Fighter1's Longsword struck Goblin for 7 points of slashing damage" in narrative, "Damage was not narrated"
-    assert "Defenses robbed 3 points from the blow" in narrative, "Damage reduction evidence was lost"
-    assert "Goblin stayed upright by spite alone, with 3 of 10 hit points" in narrative, "Target HP evidence was lost"
-    assert "Goblin struck at Fighter1 with Scimitar, but the blow went wide" in narrative, "Miss was not narrated"
-    assert "struck Fighter1 for 2 points of damage" in narrative, "Manual damage was not narrated safely"
-    assert "Pallor reached Fighter1 through Healing Word, dragging back 5 hit points from the dark" in narrative, "Healing was not narrated"
-    assert "A ward hardened around Fighter1" in narrative, "Temporary HP was not narrated"
-    assert "Victory belonged to those still standing" in narrative, "Encounter outcome was not narrated"
+    assert "Fighter1 attacks Goblin with Longsword and lands a hit (18 against AC 14)" in narrative, "Hit actor, target, action, or result was lost"
+    assert "Fighter1's Longsword deals 7 slashing damage to Goblin" in narrative, "Damage actor, action, result, or target was lost"
+    assert "The applied damage is reduced by 3" in narrative, "Damage reduction evidence was lost"
+    assert "Goblin remains in the fight with 3 of 10 hit points" in narrative, "Target HP evidence was lost"
+    assert "Goblin attacks Fighter1 with Scimitar, but the attack misses (9 against AC 16)" in narrative, "Miss actor, target, action, or result was lost"
+    assert "Fighter1 takes 2 damage from an unidentified source" in narrative, "Unattributed damage was not represented safely"
+    assert "Pallor's Healing Word helps Fighter1 recover, restoring 5 hit points" in narrative, "Healing actor, action, result, or target was lost"
+    assert "helping Fighter1 remain in the battle" in narrative, "Healing consequence was not narrated"
+    assert "Fighter1 gains 5 temporary hit points, increasing the total from 0 to 5 and giving Fighter1 an additional buffer against damage" in narrative, "Temporary hit points were not narrated with a grounded combat consequence"
+    dagger_damage = "Goblin's Dagger deals 3 piercing damage to Fighter1"
+    absorbed_damage = "Fighter1's temporary hit points absorb 3 damage, decreasing from 5 to 2"
+    assert dagger_damage in narrative and absorbed_damage in narrative, "Temporary-hit-point damage was not connected to its action"
+    assert narrative.index(dagger_damage) < narrative.index(absorbed_damage), "Temporary-hit-point loss appeared before the damage that caused it"
+    assert "The encounter ends in victory" in narrative, "Encounter outcome was not narrated"
     assert "promise of 10" not in narrative, "Resolved damage roll was repeated"
+    assert "Goblin Minion 2 gathered Fire Bolt" not in narrative, "A provisional roll was attributed as a completed action"
+    assert "Goblin Minion 1 takes 5 fire damage from an unidentified source" in narrative, "Unattributed damage lost its target"
+    assert "Goblin Minion 1 recovers 5 hit points" in narrative, "System healing implied an unsupported actor or action"
+    assert "Wizard1's Burning Hands deals 15 fire damage to Goblin Minion 4" in narrative, "A confirmed spell was not carried to its secondary target"
+    assert "Goblin Minion 4 takes 15 fire damage from an unidentified source" not in narrative, "Confirmed secondary spell damage remained unattributed"
     assert "brought Healing Word to bear" not in narrative, "Resolved healing action was repeated"
+    assert not any(
+        phrase in narrative.casefold()
+        for phrase in ("ward", "spite", "from the dark", "nameless", "murderous precision")
+    ), f"Unsupported literary language leaked into the D&D narrative:\n{narrative}"
     assert "Result not reported" not in narrative, f"Missing source details leaked into the story:\n{narrative}"
     assert "Lectern" not in narrative and "Fantasy Grounds" not in narrative, "Tool names leaked into the story"
     assert "Turn started" not in narrative, "System turn marker leaked into the story"
+
+    capped_vulnerability = CombatNarrativeBuilder().event_sentence(parse_combat_event({
+        "id": 99,
+        "round": 4,
+        "actor": "Wizard1",
+        "action_type": "Damage",
+        "details": "7 | Goblin | Target HP 0/7 | Fire Bolt | 7 damage applied from 6 rolled (increased by 1)",
+        "damage_types": "fire",
+        "damage_components_json": '[{"rolled":6,"applied":7,"resisted":0,"vulnerable":6}]',
+        "amount": 7,
+    }))
+    assert "Wizard1's Fire Bolt exploits Goblin's vulnerability, increasing the applied damage by 1" in capped_vulnerability, "Applied vulnerability result was not authoritative"
+    assert "increases the applied damage by 6" not in capped_vulnerability, "Uncapped component evidence overstated applied vulnerability"
+
+    resisted_damage = CombatNarrativeBuilder().event_sentence(parse_combat_event({
+        "id": 100,
+        "round": 4,
+        "actor": "Wizard1",
+        "action_type": "Damage",
+        "details": "5 | Goblin | Target HP 2/7 | Fire Bolt | 5 damage applied from 10 rolled (reduced by 5)",
+        "damage_types": "fire",
+        "damage_components_json": '[{"rolled":10,"applied":5,"resisted":5,"vulnerable":0}]',
+        "amount": 5,
+    }))
+    assert "Goblin's resistance reduces the damage from Wizard1's Fire Bolt by 5" in resisted_damage, "Confirmed resistance was not connected to its actor and action"
+
+    attributed_temporary_hp = CombatNarrativeBuilder().event_sentence(parse_combat_event({
+        "id": 101,
+        "round": 4,
+        "actor": "Pallor",
+        "action_type": "Effect",
+        "details": " | Fighter1 | Effect state | Inspiring Leader | Temporary HP changed from 0 to 5",
+        "damage_types": "",
+        "amount": None,
+    }))
+    assert attributed_temporary_hp == (
+        "Pallor's Inspiring Leader grants Fighter1 5 temporary hit points, "
+        "increasing the total from 0 to 5 and giving Fighter1 an additional "
+        "buffer against damage."
+    ), "A confirmed temporary-HP source was not carried into the narrative"
 
     page = CombatNarrativePage(repo)
     page.resize(1100, 700)
@@ -80,7 +142,7 @@ try:
     assert page.current_encounter_id == encounter_id, "Narrative page did not select the encounter"
     assert page.campaign_filter.findData(campaign_id) >= 0, "Narrative page is missing campaign selection"
     assert page.encounters.findData(encounter_id) >= 0, "Narrative page is missing encounter selection"
-    assert page.event_count.text() == "11 source events", "Narrative source-event count is incorrect"
+    assert page.event_count.text() == "19 source events", "Narrative source-event count is incorrect"
     assert "Round 1" in page.narrative_view.toPlainText(), "Narrative page did not render the story"
 
     window = MainWindow(database)

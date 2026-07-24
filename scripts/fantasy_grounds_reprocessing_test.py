@@ -14,7 +14,11 @@ temp_dir = Path(mkdtemp(prefix="lectern_fg_reprocess_"))
 os.environ["LECTERN_DATA_DIR"] = str(temp_dir / "user-data")
 
 from app.database.schema import connect, initialize_database
-from app.integrations.fantasy_grounds import FantasyGroundsSyncError, FantasyGroundsSyncService
+from app.integrations.fantasy_grounds import (
+    FantasyGroundsSyncError,
+    FantasyGroundsSyncService,
+    format_event_log,
+)
 
 
 def event(event_id: str, event_type: str, **changes):
@@ -38,6 +42,17 @@ def event(event_id: str, event_type: str, **changes):
 try:
     db = temp_dir / "lectern.db"
     initialize_database(db)
+    effect_log = format_event_log(event(
+        "history:0",
+        "effect",
+        actor=None,
+        description="Temporary HP changed from 0 to 5",
+    ))
+    assert effect_log.details == (
+        " | Historical Goblin | Effect state | Effect | "
+        "Temporary HP changed from 0 to 5"
+    ), "Effect target was discarded while formatting the combat log"
+    assert not effect_log.incomplete, "A targeted system effect was marked incomplete"
     events = [
         event(
             "history:1", "attack", description="Longsword attack",

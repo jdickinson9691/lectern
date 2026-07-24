@@ -502,6 +502,18 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
             incomplete = False
         details = " | ".join((str(applied), target_name, hp, action_name or ACTION_TYPES[event_type], outcome))
         incomplete = incomplete or amount is None or not bool(target.get("name")) or metadata.get("current_hp") is None
+    elif event_type == "effect":
+        effect_result = description or action_name or "Effect details not reported"
+        details = " | ".join((
+            "",
+            target_name,
+            "Effect state",
+            action_name or "Effect",
+            effect_result,
+        ))
+        # Effects are often emitted by the rules engine rather than a named
+        # actor. Their target and state change are the authoritative evidence.
+        incomplete = not bool(target.get("name")) or not bool(description or action_name)
     elif roll_total is not None:
         if event_type == "save":
             defense = f"Against DC {target_ac}" if target_ac is not None else "Save DC not reported"

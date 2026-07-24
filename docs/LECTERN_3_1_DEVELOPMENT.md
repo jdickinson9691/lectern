@@ -96,6 +96,7 @@ Add only durable, approved decisions here.
 | Date | Decision | Consequence |
 |---|---|---|
 | 2026-07-23 | Treat 3.1 as a design milestone before implementation. | Existing version and contracts remain unchanged until scope approval. |
+| 2026-07-24 | Keep the offline Combat Narrative grounded in D&D 5e mechanics and authoritative actor/action/target/result evidence. | Templates may connect confirmed events, but they must not invent effects, causes, conditions, actions, or outcomes; richer literary rewriting remains a separate optional milestone. |
 
 ## Proposed 3.1 milestone roadmap
 

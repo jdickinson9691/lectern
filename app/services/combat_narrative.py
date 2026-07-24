@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Iterable, Mapping
 
@@ -39,6 +40,17 @@ def _clean_record_text(value: str) -> str:
     text = re.sub(r"\bFantasy Grounds\b", "the record", text, flags=re.IGNORECASE)
     text = re.sub(r"\bLectern\b", "the record", text, flags=re.IGNORECASE)
     return text
+
+
+def _damage_components(row) -> list[dict[str, object]]:
+    raw = _value(row, "damage_components_json", "[]")
+    try:
+        value = json.loads(raw) if isinstance(raw, str) else raw
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+    if not isinstance(value, list):
+        return []
+    return [component for component in value if isinstance(component, dict)]
 
 
 def parse_combat_event(row) -> dict[str, object]:
@@ -102,11 +114,12 @@ def parse_combat_event(row) -> dict[str, object]:
         "system": action_type.casefold() in SYSTEM_ACTIONS,
         "amount": amount,
         "damage_type": str(_value(row, "damage_types", "") or ""),
+        "damage_components": _damage_components(row),
     }
 
 
 class CombatNarrativeBuilder:
-    """Turn authoritative combat-log events into a grim heroic chronicle."""
+    """Turn authoritative combat-log events into grounded D&D 5e prose."""
 
     SOURCE_ACTORS = {"fantasy grounds", "lectern", "system", "encounter"}
 
@@ -125,8 +138,8 @@ class CombatNarrativeBuilder:
 
         if not grouped:
             return (
-                "No blows have been set down for this fight yet. "
-                "When steel is drawn, the chronicle will begin."
+                "No combat events have been recorded for this encounter. "
+                "The narrative will appear when the combat log contains events."
             )
 
         sections = []
@@ -139,7 +152,11 @@ class CombatNarrativeBuilder:
             sentences = self.round_sentences(round_events)
             if not sentences:
                 continue
-            opening = self.round_opening(round_number)
+            encounter_started = any(
+                str(event["type"]).casefold() == "encounter start"
+                for event in round_events
+            )
+            opening = self.round_opening(round_number, encounter_started)
             sections.append(f"## {heading}\n\n{opening} {' '.join(sentences)}")
 
         clean_outcome = _clean_record_text(outcome)
@@ -149,18 +166,18 @@ class CombatNarrativeBuilder:
         return _clean_record_text("\n\n".join(sections))
 
     def round_sentences(self, events: list[dict[str, object]]) -> list[str]:
+        events = self.attribute_secondary_damage(events)
+        events = self.link_temporary_hp_damage(events)
         resolved_events = {
             self.event_link_key(event)
             for event in events
-            if str(event["type"]).casefold() in {"damage", "healing"}
+            if str(event["type"]).casefold() == "healing"
         }
-        encounter_opening = False
         opening_snapshot = False
         sentences = []
         for event in events:
             action_type = str(event["type"]).casefold()
             if action_type == "encounter start":
-                encounter_opening = True
                 opening_snapshot = True
                 continue
             if (
@@ -172,7 +189,11 @@ class CombatNarrativeBuilder:
                 continue
             if action_type not in {"encounter start", "healing"}:
                 opening_snapshot = False
-            if action_type == "damage roll" and self.event_link_key(event) in resolved_events:
+            # A Fantasy Grounds damage-roll event records who owned the active
+            # turn, not necessarily who caused the later HP change. The applied
+            # damage event is authoritative; narrating the roll independently
+            # can assign a spell or weapon to the wrong combatant.
+            if action_type == "damage roll":
                 continue
             if action_type == "action" and self.event_link_key(event) in resolved_events:
                 continue
@@ -184,27 +205,102 @@ class CombatNarrativeBuilder:
             sentence = self.event_sentence(event)
             if sentence:
                 sentences.append(sentence)
-        if encounter_opening and sentences:
-            sentences.insert(0, "Steel came free, and the killing work began.")
         return sentences
 
     @staticmethod
-    def round_opening(round_number: int) -> str:
+    def link_temporary_hp_damage(
+        events: list[dict[str, object]],
+    ) -> list[dict[str, object]]:
+        """Attach a matching temporary-HP loss to its applied-damage event."""
+        linked: list[dict[str, object]] = []
+        index = 0
+        while index < len(events):
+            event = events[index]
+            temporary = re.search(
+                r"Temporary HP changed from\s+(\d+)\s+to\s+(\d+)",
+                str(event["result"] or event["details"]),
+                re.IGNORECASE,
+            )
+            if (
+                str(event["type"]).casefold() == "effect"
+                and temporary
+                and int(temporary.group(2)) < int(temporary.group(1))
+                and index + 1 < len(events)
+            ):
+                following = events[index + 1]
+                before, after = int(temporary.group(1)), int(temporary.group(2))
+                same_target = (
+                    str(event["target"]).strip().casefold()
+                    == str(following["target"]).strip().casefold()
+                    and bool(str(event["target"]).strip())
+                )
+                if (
+                    str(following["type"]).casefold() == "damage"
+                    and same_target
+                    and following["amount"] == before - after
+                ):
+                    damage_event = dict(following)
+                    damage_event["temporary_hp_change"] = (before, after)
+                    linked.append(damage_event)
+                    index += 2
+                    continue
+            linked.append(event)
+            index += 1
+        return linked
+
+    def attribute_secondary_damage(
+        self,
+        events: list[dict[str, object]],
+    ) -> list[dict[str, object]]:
+        """Carry a confirmed action across its contiguous secondary targets."""
+        attributed: list[dict[str, object]] = []
+        confirmed_damage: dict[str, object] | None = None
+        for original in events:
+            event = dict(original)
+            action_type = str(event["type"]).casefold()
+            actor = str(event["actor"])
+            action = str(event["action"])
+
+            if action_type == "damage":
+                unattributed = "manual / unattributed" in actor.casefold()
+                if unattributed:
+                    if confirmed_damage and self.damage_types_overlap(
+                        confirmed_damage,
+                        event,
+                    ):
+                        event["actor"] = confirmed_damage["actor"]
+                        event["action"] = confirmed_damage["action"]
+                        event["category"] = "damage"
+                    else:
+                        confirmed_damage = None
+                elif (
+                    not self.is_source_actor(actor)
+                    and action.casefold() not in {"", "damage", "damage roll"}
+                ):
+                    # This applied-damage row establishes both the acting
+                    # combatant and the spell or weapon. Contiguous unattributed
+                    # damage of the same type can therefore be a secondary
+                    # target of this action.
+                    confirmed_damage = event
+                else:
+                    confirmed_damage = None
+            else:
+                # A roll alone is provisional. Any other event also ends the
+                # contiguous applied-damage sequence.
+                confirmed_damage = None
+
+            attributed.append(event)
+        return attributed
+
+    @staticmethod
+    def round_opening(round_number: int, encounter_started: bool = False) -> str:
+        if encounter_started:
+            return "The encounter began."
         if round_number <= 0:
-            return "The field was already moving before anyone could name the first blow."
+            return "Before the first round, the combat log recorded the following events."
         if round_number == 1:
-            return "The first exchange stripped away ceremony. What remained was nerve and sharpened steel."
-        openings = (
-            "There was no room left for ceremony. Both sides went back to the hard work of breaking the other.",
-            "Breath shortened and courage earned its keep. Still, neither side yielded.",
-            "The line bent without breaking. The next exchange came on hard.",
-            "Pain had found them by then. Discipline kept them standing.",
-            "The easy choices were gone. Every move now carried a price.",
-            "Dust hung in the air and blood ran hot. The fighters closed again.",
-            "Whatever plans they had brought to the field were spent. Instinct and training took over.",
-            "The fight had become a test of who could suffer longest and still raise a weapon.",
-        )
-        return openings[(round_number - 2) % len(openings)]
+            return "The combatants entered the first round."
+        return f"The battle continued into round {round_number}."
 
     def event_sentence(self, event: Mapping[str, object]) -> str:
         actor = _clean_record_text(event["actor"])
@@ -226,85 +322,100 @@ class CombatNarrativeBuilder:
             return self.outcome_sentence(detail)
 
         if action_type == "damage roll":
-            amount = event["amount"] or _first_number(roll, result)
-            damage_type = self.damage_label(event)
-            damage_text = f"{damage_type} damage" if damage_type else "damage"
-            target_text = f" at {target}" if target else ""
-            if source_actor:
-                return ""
-            if amount is not None:
-                return _sentence(
-                    f"{actor} gathered {action} and hurled the promise of {amount} {damage_text}{target_text}"
-                )
-            return _sentence(f"{actor} gathered {action} and sent it{target_text}")
+            return ""
 
         if action_type == "attack":
             if source_actor:
                 return ""
-            weapon = f" with {action}" if action and action.casefold() != "attack" else ""
+            action_text = (
+                f" with {action}"
+                if action and action.casefold() != "attack"
+                else ""
+            )
             target_text = target or "the foe"
             evidence = self.attack_evidence(roll, defense, category)
             if category == "critical":
                 return _sentence(
-                    f"{actor} drove at {target_text}{weapon} and found the open line. "
-                    f"The blow landed with murderous precision{evidence}"
+                    f"{actor} attacks {target_text}{action_text}, finds an opening, "
+                    f"and scores a critical hit{evidence}"
                 )
             if category == "hit":
                 return _sentence(
-                    f"{actor} came on{weapon} and caught {target_text} clean{evidence}"
+                    f"{actor} attacks {target_text}{action_text} and lands a hit{evidence}"
                 )
             if category == "miss":
                 return _sentence(
-                    f"{actor} struck at {target_text}{weapon}, but the blow went wide{evidence}"
+                    f"{actor} attacks {target_text}{action_text}, but the attack misses{evidence}"
                 )
-            return _sentence(f"{actor} pressed {target_text}{weapon}{evidence}")
+            return _sentence(f"{actor} attacks {target_text}{action_text}{evidence}")
 
         if category == "damage" or action_type == "damage":
             amount = event["amount"]
             damage_type = self.damage_label(event)
             damage_text = f"{damage_type} damage" if damage_type else "damage"
-            if source_actor or "manual / unattributed" in actor.casefold():
-                subject = self.unseen_subject(event, damage_type)
-            elif action and action.casefold() not in {"damage", "damage roll"}:
-                subject = f"{_possessive(actor)} {action}"
-            else:
-                subject = actor
             target_text = target or "the target"
             hp_text = self.hp_phrase(str(event["defense"]), target_text)
-            adjustment_text = self.adjustment_phrase(result)
+            adjustment_text = self.adjustment_phrase(event)
+            temporary_hp_text = self.temporary_hp_damage_phrase(
+                event,
+                target_text,
+            )
             if amount == 0:
+                if source_actor or "manual / unattributed" in actor.casefold():
+                    base = f"{target_text} takes no {damage_text} from an unidentified source"
+                elif action and action.casefold() not in {"damage", "damage roll"}:
+                    base = (
+                        f"{_possessive(actor)} {action} has no damaging effect "
+                        f"on {target_text}"
+                    )
+                else:
+                    base = f"{target_text} takes no {damage_text} from {actor}"
                 return _sentence(
-                    f"{subject} washed over {target_text} and found no purchase{hp_text}"
+                    f"{base}{adjustment_text}{temporary_hp_text}{hp_text}"
                 )
-            amount_text = f" for {amount} points of {damage_text}" if amount is not None else f" with {damage_text}"
+            amount_text = f"{amount} {damage_text}" if amount is not None else damage_text
+            if source_actor or "manual / unattributed" in actor.casefold():
+                base = (
+                    f"{target_text} takes {amount_text} from an unidentified source"
+                )
+            elif action and action.casefold() not in {"damage", "damage roll"}:
+                base = (
+                    f"{_possessive(actor)} {action} deals {amount_text} "
+                    f"to {target_text}"
+                )
+            else:
+                base = f"{actor} deals {amount_text} to {target_text}"
             return _sentence(
-                f"{subject} struck {target_text}{amount_text}{adjustment_text}{hp_text}"
+                f"{base}{adjustment_text}{temporary_hp_text}{hp_text}"
             )
 
         if category == "healing":
             amount = event["amount"]
             target_text = target or (actor if not source_actor else "the wounded")
-            hp_text = self.hp_phrase(str(event["defense"]), target_text)
+            hp_text = self.healing_hp_phrase(str(event["defense"]), target_text)
             if source_actor:
-                amount_text = f" {amount} hard-won hit points" if amount is not None else " strength"
-                return _sentence(f"{target_text} clawed back{amount_text}{hp_text}")
-            action_text = (
-                f" through {action}"
-                if action and action.casefold() not in {"healing", "healing applied"}
-                else ""
-            )
-            amount_text = f" {amount} hit points" if amount is not None else " a measure of strength"
+                amount_text = f" {amount} hit points" if amount is not None else " hit points"
+                return _sentence(
+                    f"{target_text} recovers{amount_text}{hp_text}, "
+                    f"helping {target_text} remain in the battle"
+                )
+            amount_text = f"{amount} hit points" if amount is not None else "hit points"
+            if action and action.casefold() not in {"healing", "healing applied"}:
+                cause = f"{_possessive(actor)} {action}"
+            else:
+                cause = actor
             return _sentence(
-                f"{actor} reached {target_text}{action_text}, dragging back{amount_text} from the dark{hp_text}"
+                f"{cause} helps {target_text} recover, restoring {amount_text}"
+                f"{hp_text} and helping {target_text} remain in the battle"
             )
 
         if category == "manual":
             detail = result or str(event["details"])
-            return _sentence(f"Something moved beyond sight, and the balance shifted: {_clean_record_text(detail)}")
+            return _sentence(f"An unattributed combat event occurs: {_clean_record_text(detail)}")
 
         if action_type == "note":
             detail = _clean_record_text(event["details"] or result)
-            return _sentence(f"The chronicler marked it plainly: {detail}")
+            return _sentence(f"The combat log records: {detail}")
 
         if action_type == "effect":
             return self.effect_sentence(event, target)
@@ -312,7 +423,7 @@ class CombatNarrativeBuilder:
         target_text = f" against {target}" if target else ""
         detail = result or _clean_record_text(event["details"])
         if source_actor:
-            return _sentence(f"The balance shifted: {detail}") if detail else ""
+            return _sentence(detail) if detail else ""
         if action.casefold() == "action not reported" and detail.casefold() == "result not reported":
             return ""
         if detail and detail.casefold() not in {
@@ -320,8 +431,8 @@ class CombatNarrativeBuilder:
             action_type,
             "result not reported",
         }:
-            return _sentence(f"{actor} brought {action} to bear{target_text}. {detail}")
-        return _sentence(f"{actor} brought {action} to bear{target_text}")
+            return _sentence(f"{actor} uses {action}{target_text}. {detail}")
+        return _sentence(f"{actor} uses {action}{target_text}")
 
     @staticmethod
     def attack_evidence(roll: str, defense: str, category: str) -> str:
@@ -333,13 +444,13 @@ class CombatNarrativeBuilder:
         armor = int(defense_match.group(1)) if defense_match else None
         if natural_match and category == "critical":
             if total is not None and armor is not None:
-                return f"—the die showed {natural_match.group(1)}, and the attack reached {total} against armor {armor}"
-            return f"—the die showed {natural_match.group(1)}"
+                return f" (natural {natural_match.group(1)}; {total} against AC {armor})"
+            return f" (natural {natural_match.group(1)})"
         if total is not None and armor is not None:
-            return f"—the attack reached {total} against armor {armor}"
+            return f" ({total} against AC {armor})"
         if total is not None:
-            return f"—the attack reached {total}"
-        return f" against armor {armor}"
+            return f" (attack roll {total})"
+        return f" (against AC {armor})"
 
     @staticmethod
     def hp_phrase(defense: str, target: str) -> str:
@@ -348,21 +459,118 @@ class CombatNarrativeBuilder:
             return ""
         current, maximum = int(match.group(1)), int(match.group(2))
         if current <= 0:
-            return f". {target} went down with nothing left"
+            return f". The damage reduces {target} to 0 hit points"
         if current == maximum:
-            return f". {target} stood whole at {current} of {maximum} hit points"
-        if current * 3 <= maximum:
-            return f". {target} stayed upright by spite alone, with {current} of {maximum} hit points"
-        return f". {target} endured with {current} of {maximum} hit points"
+            return (
+                f". {_possessive(target)} hit points remain unchanged at "
+                f"{current} of {maximum}"
+            )
+        return (
+            f". {target} remains in the fight with {current} of {maximum} "
+            "hit points"
+        )
 
     @staticmethod
-    def adjustment_phrase(result: str) -> str:
-        reduced = re.search(r"reduced by\s+(\d+(?:\.\d+)?)", result, re.IGNORECASE)
-        if reduced:
-            return f". Defenses robbed {reduced.group(1)} points from the blow"
-        increased = re.search(r"increased by\s+(\d+(?:\.\d+)?)", result, re.IGNORECASE)
-        if increased:
-            return f". Vulnerability made it crueler by {increased.group(1)}"
+    def healing_hp_phrase(defense: str, target: str) -> str:
+        match = re.search(r"Target HP\s+(\d+)\s*/\s*(\d+)", defense, re.IGNORECASE)
+        if not match:
+            return ""
+        current, maximum = int(match.group(1)), int(match.group(2))
+        return f", bringing {target} to {current} of {maximum} hit points"
+
+    @staticmethod
+    def temporary_hp_damage_phrase(
+        event: Mapping[str, object],
+        target: str,
+    ) -> str:
+        change = event.get("temporary_hp_change")
+        if (
+            not isinstance(change, tuple)
+            or len(change) != 2
+            or not all(isinstance(value, int) for value in change)
+        ):
+            return ""
+        before, after = change
+        absorbed = before - after
+        return (
+            f". {_possessive(target)} temporary hit points absorb {absorbed} "
+            f"damage, decreasing from {before} to {after}"
+        )
+
+    @staticmethod
+    def adjustment_phrase(event: Mapping[str, object]) -> str:
+        result = str(event["result"])
+        actor = _clean_record_text(event["actor"])
+        target = _clean_record_text(event["target"]) or "the target"
+        action = _clean_record_text(event["action"])
+        known_cause = (
+            actor
+            and not CombatNarrativeBuilder.is_source_actor(actor)
+            and "manual / unattributed" not in actor.casefold()
+            and action.casefold() not in {"", "damage", "damage roll"}
+        )
+
+        components = event.get("damage_components", [])
+        resisted = vulnerable = 0.0
+        if isinstance(components, list):
+            for component in components:
+                if not isinstance(component, Mapping):
+                    continue
+                try:
+                    resisted += max(0.0, float(component.get("resisted", 0) or 0))
+                    vulnerable += max(0.0, float(component.get("vulnerable", 0) or 0))
+                except (TypeError, ValueError):
+                    continue
+
+        def resistance_phrase(amount: str) -> str:
+            if known_cause:
+                return (
+                    f". {_possessive(target)} resistance reduces the damage "
+                    f"from {_possessive(actor)} {action} by {amount}"
+                )
+            return (
+                f". {_possessive(target)} resistance reduces the applied "
+                f"damage by {amount}"
+            )
+
+        def vulnerability_phrase(amount: str) -> str:
+            if known_cause:
+                return (
+                    f". {_possessive(actor)} {action} exploits "
+                    f"{_possessive(target)} vulnerability, increasing the "
+                    f"applied damage by {amount}"
+                )
+            return (
+                f". {_possessive(target)} vulnerability increases the "
+                f"applied damage by {amount}"
+            )
+
+        if "negated" in result.casefold():
+            return f". The effect is negated, leaving {target} unharmed"
+        reduced_match = re.search(
+            r"reduced by\s+(\d+(?:\.\d+)?)",
+            result,
+            re.IGNORECASE,
+        )
+        if reduced_match:
+            if resisted:
+                return resistance_phrase(reduced_match.group(1))
+            return f". The applied damage is reduced by {reduced_match.group(1)}"
+        increased_match = re.search(
+            r"increased by\s+(\d+(?:\.\d+)?)",
+            result,
+            re.IGNORECASE,
+        )
+        if increased_match:
+            return vulnerability_phrase(increased_match.group(1))
+
+        phrases = []
+        if resisted:
+            phrases.append(resistance_phrase(f"{resisted:g}").removeprefix(". "))
+        if vulnerable:
+            phrases.append(vulnerability_phrase(f"{vulnerable:g}").removeprefix(". "))
+        if phrases:
+            return "".join(f". {phrase}" for phrase in phrases)
         return ""
 
     @staticmethod
@@ -374,6 +582,22 @@ class CombatNarrativeBuilder:
         if len(parts) > 1:
             return ", ".join(parts[:-1]) + f" and {parts[-1]}"
         return damage_type
+
+    @staticmethod
+    def damage_types_overlap(
+        first: Mapping[str, object],
+        second: Mapping[str, object],
+    ) -> bool:
+        ignored = {"", "unknown", "not reported"}
+
+        def values(event: Mapping[str, object]) -> set[str]:
+            return {
+                value.strip().casefold()
+                for value in str(event["damage_type"] or "").split(",")
+                if value.strip().casefold() not in ignored
+            }
+
+        return bool(values(first) & values(second))
 
     @classmethod
     def is_source_actor(cls, actor: str) -> bool:
@@ -396,8 +620,12 @@ class CombatNarrativeBuilder:
         )
         return bool(match and match.group(1) == match.group(2))
 
-    @staticmethod
-    def effect_sentence(event: Mapping[str, object], target: str) -> str:
+    @classmethod
+    def effect_sentence(
+        cls,
+        event: Mapping[str, object],
+        target: str,
+    ) -> str:
         detail = _clean_record_text(event["result"] or event["details"])
         temporary = re.search(
             r"Temporary HP changed from\s+(\d+)\s+to\s+(\d+)",
@@ -406,37 +634,44 @@ class CombatNarrativeBuilder:
         )
         if temporary:
             before, after = int(temporary.group(1)), int(temporary.group(2))
-            subject = target or "the warrior"
+            subject = target or "The target"
             if after > before:
-                return _sentence(
-                    f"A ward hardened around {subject}, raising its borrowed strength from {before} to {after}"
+                gained = after - before
+                actor = _clean_record_text(event["actor"])
+                action = _clean_record_text(event["action"])
+                known_cause = (
+                    actor
+                    and not cls.is_source_actor(actor)
+                    and "manual / unattributed" not in actor.casefold()
+                    and action.casefold() not in {"", "effect"}
                 )
+                if known_cause:
+                    cause = (
+                        f"{_possessive(actor)} {action} grants {subject} "
+                        f"{gained} temporary hit points"
+                    )
+                else:
+                    cause = f"{subject} gains {gained} temporary hit points"
+                return _sentence(
+                    f"{cause}, increasing the total from {before} to {after} "
+                    f"and giving {subject} an additional buffer against damage"
+                )
+            lost = before - after
             return _sentence(
-                f"The ward around {subject} took the blow and dwindled from {before} to {after}"
+                f"{_possessive(subject)} temporary hit point buffer is reduced "
+                f"by {lost}, decreasing from {before} to {after}"
             )
-        return _sentence(f"The balance shifted: {detail}")
-
-    @staticmethod
-    def unseen_subject(event: Mapping[str, object], damage_type: str) -> str:
-        if damage_type:
-            if " and " in damage_type:
-                return "A nameless blow"
-            return f"{damage_type.capitalize()} from no named hand"
-        variants = (
-            "A blow from no named hand",
-            "Something unseen",
-            "A hidden force",
-        )
-        return variants[int(event["id"] or 0) % len(variants)]
+        target_text = f"{target} is affected: " if target else ""
+        return _sentence(f"{target_text}{detail}")
 
     @staticmethod
     def outcome_sentence(outcome: str) -> str:
         clean = _clean_record_text(outcome)
         lowered = clean.casefold()
         if "victory" in lowered or "won" in lowered:
-            return "Victory belonged to those still standing. They had paid for it, as soldiers always do."
+            return "The encounter ends in victory."
         if "defeat" in lowered or "loss" in lowered:
-            return "The field was lost. The survivors carried the cost away with them."
+            return "The encounter ends in defeat."
         if clean:
-            return _sentence(f"When the noise died, this much remained: {clean}")
-        return "At last the weapons lowered, and the living counted the cost."
+            return _sentence(f"The encounter ends with this result: {clean}")
+        return "The encounter ends."

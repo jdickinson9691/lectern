@@ -250,7 +250,9 @@ Combat Narrative retells the selected encounter as chronological, round-by-round
 
 - Use the same **Campaign** and **Encounter** selectors as Combat Dashboard.
 - Rounds are presented from earliest to latest so the account reads as a continuous story.
-- Attacks, critical hits, misses, damage, damage types, healing, target HP, actions, notes, and unattributed changes are translated into a deterministic, gritty heroic chronicle.
+- Each sentence follows the authoritative actor, action, target, and applied result. Attacks, critical hits, misses, damage types, resistance, negated damage, vulnerability, healing, hit points, temporary hit points, notes, and outcomes use grounded D&D 5e terminology.
+- Confirmed events are written as action, immediate effect, and combat consequence: healing supports recovery, resistance or vulnerability explains adjusted damage, and temporary hit points provide an additional buffer against damage.
+- Narrative transitions may connect recorded events, but the recap does not invent spells, wards, injuries, deaths, motives, or causes that are absent from the Combat Session Log.
 - Turn-start and turn-end markers are omitted from the story.
 - Source-application names, initialization noise, unresolved placeholders, and duplicate roll/damage rows are omitted so the result reads as a battle story rather than an import transcript.
 - The narrative is regenerated from saved events whenever the selection or underlying log changes. It does not modify or replace the structured combat journal.
@@ -260,6 +262,7 @@ Combat Narrative retells the selected encounter as chronological, round-by-round
 - Prepared Fantasy Grounds encounters may have a roster but no narrative because they do not contain a live combat journal.
 - Live Fantasy Grounds sessions use the synchronized authoritative rolls, results, damage, healing, and HP evidence already stored in Lectern.
 - Manual or unattributed changes remain explicitly unattributed; the narrative does not invent an actor or action.
+- Multi-target damage inherits a spell or weapon only when a preceding applied-damage event confirms the actor and action and the contiguous target damage has a compatible damage type.
 - Importing a newer snapshot refreshes the derived narrative without writing data back to Fantasy Grounds.
 
 [Back to Help contents](#help-contents)
