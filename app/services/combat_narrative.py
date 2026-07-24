@@ -295,12 +295,18 @@ class CombatNarrativeBuilder:
     @staticmethod
     def round_opening(round_number: int, encounter_started: bool = False) -> str:
         if encounter_started:
-            return "The encounter began."
+            return "The encounter began, and the first exchange followed."
         if round_number <= 0:
-            return "Before the first round, the combat log recorded the following events."
+            return "Before the first round, the struggle had already begun to take shape."
         if round_number == 1:
-            return "The combatants entered the first round."
-        return "The battle continued into the next round."
+            return "The first exchange came hard and fast."
+        openings = (
+            "The struggle tightened.",
+            "The struggle sharpened.",
+            "The fighting continued.",
+            "The battle pressed into another bitter exchange.",
+        )
+        return openings[(round_number - 2) % len(openings)]
 
     def event_sentence(self, event: Mapping[str, object]) -> str:
         actor = _clean_record_text(event["actor"])
@@ -336,16 +342,16 @@ class CombatNarrativeBuilder:
             evidence = self.attack_evidence(roll, defense, category)
             if category == "critical":
                 return _sentence(
-                    f"{actor} attacks {target_text}{action_text}, finds an opening, "
-                    f"and scores a critical hit{evidence}"
+                    f"{actor} presses {target_text}{action_text}, finds an opening, "
+                    f"and lands a critical hit{evidence}"
                 )
             if category == "hit":
                 return _sentence(
-                    f"{actor} attacks {target_text}{action_text} and lands a hit{evidence}"
+                    f"{actor} drives at {target_text}{action_text} and lands a hit{evidence}"
                 )
             if category == "miss":
                 return _sentence(
-                    f"{actor} attacks {target_text}{action_text}, but the attack misses{evidence}"
+                    f"{actor} strikes at {target_text}{action_text}, but the attack misses{evidence}"
                 )
             return _sentence(f"{actor} attacks {target_text}{action_text}{evidence}")
 
@@ -382,11 +388,11 @@ class CombatNarrativeBuilder:
                 )
             elif action and action.casefold() not in {"damage", "damage roll"}:
                 base = (
-                    f"{_possessive(actor)} {action} deals {damage_text} "
-                    f"to {target_text}"
+                    f"{_possessive(actor)} {action} finds {target_text}, "
+                    f"dealing {damage_text}"
                 )
             else:
-                base = f"{actor} deals {damage_text} to {target_text}"
+                base = f"{actor} strikes {target_text}, dealing {damage_text}"
             return _sentence(
                 f"{base}{adjustment_text}{temporary_hp_text}{consequence_text}"
             )
@@ -452,25 +458,25 @@ class CombatNarrativeBuilder:
         current, maximum = int(match.group(1)), int(match.group(2))
         if current <= 0:
             return (
-                f". The effect overwhelms {_possessive(target)} remaining "
+                f". The assault overwhelms {_possessive(target)} remaining "
                 f"endurance and brings {target} down"
             )
         endurance_before = current + amount
         impact = amount / endurance_before if endurance_before > 0 else 1.0
         if impact <= 0.20:
             return (
-                f". The effect causes limited harm, and {target} remains "
+                f". The strike causes limited harm, and {target} stays "
                 "firmly in the fight"
             )
         if impact <= 0.40:
             return (
-                f". The effect lands with telling force, weakening {target} "
-                f"without taking {target} out of the fight"
+                f". The strike lands with telling force, but {target} remains "
+                "in the fight"
             )
         if impact <= 0.65:
-            return f". The effect hits hard, leaving {target} badly weakened"
+            return f". The blow hits hard, leaving {target} hard pressed"
         return (
-            f". The effect is devastating, leaving {target} barely able to "
+            f". The blow is devastating, leaving {target} barely able to "
             "continue"
         )
 
@@ -500,13 +506,16 @@ class CombatNarrativeBuilder:
         recovery = min(1.0, amount / missing_before)
         if current >= maximum:
             if cause:
-                return _sentence(f"{cause} restores {target} to fighting form")
+                return _sentence(
+                    f"{cause} eases {_possessive(target)} wounds and restores "
+                    f"{target} to fighting form"
+                )
             return _sentence(f"{target} recovers and returns to fighting form")
         if recovery >= 0.66:
             if cause:
                 return _sentence(
-                    f"{cause} helps {target} rally, restoring much of the "
-                    "strength lost in battle"
+                    f"{cause} calls {target} back into the fight, restoring much "
+                    "of the strength lost in battle"
                 )
             return _sentence(
                 f"{target} rallies and recovers much of the strength lost in battle"
@@ -514,15 +523,15 @@ class CombatNarrativeBuilder:
         if recovery >= 0.33:
             if cause:
                 return _sentence(
-                    f"{cause} eases {_possessive(target)} wounds and restores "
-                    "enough strength to keep fighting"
+                    f"{cause} makes {_possessive(target)} wounds less severe, "
+                    "allowing them to keep fighting"
                 )
             return _sentence(
                 f"{_possessive(target)} wounds ease, allowing {target} to keep fighting"
             )
         if cause:
             return _sentence(
-                f"{cause} steadies {target} and restores some fighting strength"
+                f"{cause} steadies {target} and returns some fighting strength"
             )
         return _sentence(f"{target} steadies and recovers some fighting strength")
 
@@ -541,13 +550,12 @@ class CombatNarrativeBuilder:
         before, after = change
         if after <= 0:
             return (
-                f". {_possessive(target)} temporary vitality absorbs the brunt "
+                f". {_possessive(target)} temporary vitality bears the brunt "
                 "of the impact and is spent"
             )
         return (
-            f". {_possessive(target)} temporary vitality absorbs the impact "
-            f"and is weakened, leaving {_possessive(target)} normal endurance "
-            "untouched"
+            f". {_possessive(target)} temporary vitality absorbs the impact, "
+            f"leaving {_possessive(target)} normal endurance untouched"
         )
 
     @staticmethod
@@ -578,23 +586,23 @@ class CombatNarrativeBuilder:
         def resistance_phrase() -> str:
             if known_cause:
                 return (
-                    f". {_possessive(target)} resistance blunts "
-                    f"{_possessive(actor)} {action}, limiting its effect"
+                    f". {_possessive(target)} resistance turns aside part of "
+                    f"{_possessive(actor)} {action}'s force"
                 )
             return (
-                f". {_possessive(target)} resistance blunts the damage, "
-                "limiting its effect"
+                f". {_possessive(target)} resistance turns aside part of the "
+                "damage"
             )
 
         def vulnerability_phrase() -> str:
             if known_cause:
                 return (
-                    f". {_possessive(actor)} {action} exploits "
-                    f"{_possessive(target)} vulnerability, greatly magnifying "
+                    f". {_possessive(actor)} {action} finds "
+                    f"{_possessive(target)} vulnerability, magnifying "
                     "the effect"
                 )
             return (
-                f". {_possessive(target)} vulnerability greatly magnifies "
+                f". {_possessive(target)} vulnerability magnifies "
                 "the effect"
             )
 
@@ -608,7 +616,7 @@ class CombatNarrativeBuilder:
         if reduced_match:
             if resisted:
                 return resistance_phrase()
-            return ". The effect is blunted, limiting its impact"
+            return ". The damage is blunted, limiting its impact"
         increased_match = re.search(
             r"increased by\s+(\d+(?:\.\d+)?)",
             result,
@@ -705,7 +713,7 @@ class CombatNarrativeBuilder:
                 else:
                     cause = f"{subject} is bolstered by temporary vitality"
                 return _sentence(
-                    f"{cause}, providing an additional buffer against harm"
+                    f"{cause}, granting an additional buffer against harm"
                 )
             if after <= 0:
                 return _sentence(
