@@ -67,7 +67,7 @@ try:
             encoding="utf-8"
         )
     )
-    payload["source"]["extension_version"] = "1.4.8"
+    payload["source"]["extension_version"] = "1.4.9"
     payload["sequence"] = 5
     payload["combat"].update(
         {

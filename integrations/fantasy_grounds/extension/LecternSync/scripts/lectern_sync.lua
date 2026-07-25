@@ -1,7 +1,7 @@
--- Lectern Sync 1.4.8
+-- Lectern Sync 1.4.9
 -- One-way Fantasy Grounds Unity 5E export. This script never writes FG database nodes.
 
-local EXTENSION_VERSION = "1.4.8"
+local EXTENSION_VERSION = "1.4.9"
 local SCHEMA_VERSION = 1
 local bExporting = false
 local tCachedSnapshot = nil
@@ -30,9 +30,13 @@ local fPreviousActionPostGetEffect = nil
 local fPreviousActionPreModDamage = nil
 local tPendingEffectActions = {}
 local tContributorNamesByEffectKey = {}
+local tEffectOriginsByEffectKey = {}
+local tPendingOneRollDamageContributorsByActor = {}
 local tPendingDamageContributorsByTarget = {}
 local bWarnedNoSession = false
 local saveSessionState = nil
+local enrichEffectAddedEvent = nil
+local exportCombatUpdate = nil
 local sPersistedEventsJSON = ""
 
 local tFallbackMappings = {
@@ -575,6 +579,22 @@ local function normalizedEffectText(sText)
   return tostring(sText or ""):lower():gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")
 end
 
+local function canonicalEffectText(sText)
+  local s = normalizedEffectText(sText)
+  s = s:gsub("%[[^%]]*%]", "")
+  s = s:gsub("%([cC]%)", "")
+  return s:gsub("[^%w%+%-:]", "")
+end
+
+local function effectTextsMatch(sLeft, sRight)
+  local sCanonicalLeft = canonicalEffectText(sLeft)
+  local sCanonicalRight = canonicalEffectText(sRight)
+  return sCanonicalLeft ~= "" and sCanonicalRight ~= "" and
+    (sCanonicalLeft == sCanonicalRight or
+      sCanonicalLeft:sub(1, #sCanonicalRight) == sCanonicalRight or
+      sCanonicalRight:sub(1, #sCanonicalLeft) == sCanonicalLeft)
+end
+
 local function contributorNameFromEffect(sEffectKey, sLabel)
   local sMappedName = tContributorNamesByEffectKey[sEffectKey]
   if sMappedName and sMappedName ~= "" then return sMappedName end
@@ -602,6 +622,7 @@ local function rememberOriginatingEffectAction(rActor, rAction, rRoll)
       ActorManager.getCTNodeName(rActor) or "",
     action_name = sActionName,
     effect_text = normalizedEffectText(sEffectText),
+    raw_effect_text = sEffectText,
     captured_at = os and os.time and os.time() or 0,
   })
   while #tPendingEffectActions > 12 do table.remove(tPendingEffectActions, 1) end
@@ -614,6 +635,12 @@ local function authoritativeEffectAdded(rTarget, nodeEffect)
     nodeText(nodeEffect, "label", nodeText(nodeEffect, "name", ""))
   )
   local sSourcePath = nodeText(nodeEffect, "source", "")
+  if sSourcePath == "" then
+    local sSourceName = nodeText(nodeEffect, "source_name", "")
+    if string.lower(sSourceName):find("^combattracker%.list%.") then
+      sSourcePath = sSourceName
+    end
+  end
   local sTargetPath = ActorManager and ActorManager.getCTNodeName and
     ActorManager.getCTNodeName(rTarget) or ""
   for nIndex = #tPendingEffectActions, 1, -1 do
@@ -624,9 +651,51 @@ local function authoritativeEffectAdded(rTarget, nodeEffect)
     end
     local bSameActor = tPending.actor_path == "" or
       tPending.actor_path == sSourcePath or tPending.actor_path == sTargetPath
-    if bRecent and bSameActor and tPending.effect_text == sEffectText then
+    if bRecent and bSameActor and effectTextsMatch(tPending.effect_text, sEffectText) then
       tContributorNamesByEffectKey[sEffectKey] = tPending.action_name
+      tEffectOriginsByEffectKey[sEffectKey] = {
+        actor_path = tPending.actor_path,
+        action_name = tPending.action_name,
+        captured_at = tPending.captured_at,
+      }
+      local sRawEffect = tostring(tPending.raw_effect_text or "")
+      if sRawEffect:lower():find("dmg%s*:") and
+        sRawEffect:lower():find("%[roll%]") and tPending.actor_path ~= "" then
+        local sComponent = sRawEffect:match("[Dd][Mm][Gg]%s*:%s*([^;]+)") or ""
+        local sDice = sComponent:match("(%d+[dD]%d+[%+%-]?%d*)") or ""
+        local sTypeText = sComponent:gsub("%d+[dD]%d+[%+%-]?%d*", "")
+        tPendingOneRollDamageContributorsByActor[tPending.actor_path] = {
+          name = tPending.action_name,
+          effect_key = sEffectKey,
+          effect_label = nodeText(nodeEffect, "label", nodeText(nodeEffect, "name", "")),
+          effect_component = "DMG: " .. sComponent,
+          dice = sDice,
+          modifier = 0,
+          damage_types = damageTypesFromText(sTypeText),
+          captured_at = tPending.captured_at,
+        }
+      end
       table.remove(tPendingEffectActions, nIndex)
+      if enrichEffectAddedEvent then
+        local tCombat = combatState()
+        local tTargetEntry = combatantForActor(rTarget, tCombat)
+        if tTargetEntry then
+          enrichEffectAddedEvent({
+            effect_key = sEffectKey,
+            name = nodeText(nodeEffect, "label", nodeText(nodeEffect, "name", "Effect")),
+            duration = nodeNumber(nodeEffect, "duration", 0),
+            source_name = nodeText(nodeEffect, "source_name", ""),
+            source_reference = nodeText(nodeEffect, "source", ""),
+            is_active = nodeNumber(nodeEffect, "isactive", 1) ~= 0,
+            apply = nodeText(nodeEffect, "apply", ""),
+          }, tTargetEntry, tCombat)
+        end
+      end
+      if exportCombatUpdate then
+        exportCombatUpdate()
+      elseif saveSessionState then
+        pcall(saveSessionState)
+      end
       return
     end
     if not bRecent then table.remove(tPendingEffectActions, nIndex) end
@@ -685,6 +754,38 @@ local function captureDamageContributors(rSource, rTarget, rRoll)
         tSeen[sIdentity] = true
       end
     end
+  end
+  local sSourcePath = ActorManager and ActorManager.getCTNodeName and
+    ActorManager.getCTNodeName(rSource) or ""
+  local tPendingOneRoll = tPendingOneRollDamageContributorsByActor[sSourcePath]
+  if tPendingOneRoll then
+    local bRecent = true
+    if tPendingOneRoll.captured_at and tPendingOneRoll.captured_at > 0 and
+      os and os.time and os.difftime then
+      bRecent = os.difftime(os.time(), tPendingOneRoll.captured_at) <= 10
+    end
+    local bAlreadyCaptured = false
+    for _, tContributor in ipairs(tContributors) do
+      if tostring(tContributor.effect_key or "") ==
+        tostring(tPendingOneRoll.effect_key or "") or
+        tostring(tContributor.name or "") ==
+        tostring(tPendingOneRoll.name or "") then
+        bAlreadyCaptured = true
+        break
+      end
+    end
+    if bRecent and not bAlreadyCaptured then
+      table.insert(tContributors, {
+        name = tPendingOneRoll.name,
+        effect_key = tPendingOneRoll.effect_key,
+        effect_label = tPendingOneRoll.effect_label,
+        effect_component = tPendingOneRoll.effect_component,
+        dice = tPendingOneRoll.dice,
+        modifier = tPendingOneRoll.modifier,
+        damage_types = tPendingOneRoll.damage_types,
+      })
+    end
+    tPendingOneRollDamageContributorsByActor[sSourcePath] = nil
   end
   local sKey = damageContributorContextKey(rSource, rTarget)
   if #tContributors > 0 then
@@ -872,14 +973,32 @@ local function effectSourceParticipant(
       tEffect.resolved_source_key, tEffect.resolved_source_name
     ), tEffect.resolved_source_attribution or "unattributed"
   end
+  local tOrigin = tEffectOriginsByEffectKey[tostring(tEffect.effect_key or "")]
+  if tOrigin and tostring(tOrigin.actor_path or "") ~= "" then
+    local sOriginPath = string.lower(tostring(tOrigin.actor_path))
+    for _, tEntry in ipairs(tCombat.combatants or {}) do
+      local sCombatantPath = string.lower(
+        tostring(tEntry.raw and tEntry.raw.source_path or "")
+      )
+      if sCombatantPath ~= "" and sOriginPath == sCombatantPath then
+        return eventParticipant(tEntry.source_key, tEntry.name),
+          "originating_effect_action"
+      end
+    end
+  end
   local sReference = tostring(tEffect.source_reference or "")
   local sSourceName = tostring(tEffect.source_name or "")
-  local sReferenceLower = string.lower(sReference)
+  local sReferenceCandidate = sReference
+  if sReferenceCandidate == "" and
+    string.lower(sSourceName):find("^combattracker%.list%.") then
+    sReferenceCandidate = sSourceName
+  end
+  local sReferenceLower = string.lower(sReferenceCandidate)
   local sSourceNameLower = string.lower(sSourceName)
   for _, tEntry in ipairs(tCombat.combatants or {}) do
     local sSourceKey = tostring(tEntry.source_key or "")
     local sCombatantPath = tostring(tEntry.raw and tEntry.raw.source_path or "")
-    local bReferenceMatch = sReference ~= "" and (
+    local bReferenceMatch = sReferenceCandidate ~= "" and (
       sReferenceLower == string.lower(sSourceKey) or
       sReferenceLower == string.lower(sCombatantPath) or
       (sCombatantPath ~= "" and
@@ -917,11 +1036,17 @@ local function appendEffectLifecycleEvent(
   end
   local tTarget = eventParticipant(tTargetEntry.source_key, tTargetEntry.name)
   local sEffectName = tostring(tEffect.name or "Effect")
+  local tOrigin = tEffectOriginsByEffectKey[tostring(tEffect.effect_key or "")]
+  local sActionName = tostring(
+    (tOrigin and tOrigin.action_name) or tEffect.resolved_action_name or sEffectName
+  )
+  tEffect.resolved_action_name = sActionName
   local sVerb = sLifecycle == "effect_added" and "added to" or "ended on"
   appendEvent("effect", tActor, tTarget, nil,
     "Effect " .. sVerb .. " " .. tostring(tTargetEntry.name) .. ": " .. sEffectName,
     {
-      action_name = sEffectName,
+      action_name = sActionName,
+      originating_action = sActionName,
       effect_name = sEffectName,
       effect_key = tEffect.effect_key or JSON_NULL,
       effect_state = sLifecycle == "effect_added" and "added" or "removed",
@@ -929,14 +1054,19 @@ local function appendEffectLifecycleEvent(
       duration = tonumber(tEffect.duration) or 0,
       apply = tEffect.apply ~= "" and tEffect.apply or JSON_NULL,
       is_active = tEffect.is_active ~= false,
-      source_name = tEffect.source_name ~= "" and tEffect.source_name or JSON_NULL,
+      source_name = tActor and tActor ~= JSON_NULL and
+        tActor.name or (tEffect.source_name ~= "" and tEffect.source_name or JSON_NULL),
       source_reference = tEffect.source_reference ~= "" and
-        tEffect.source_reference or JSON_NULL,
+        tEffect.source_reference or (
+          string.lower(tostring(tEffect.source_name or "")):find(
+            "^combattracker%.list%."
+          ) and tEffect.source_name or JSON_NULL
+        ),
       source_attribution = sSourceAttribution,
     }, tCombat)
 end
 
-local function enrichEffectAddedEvent(tEffect, tTargetEntry, tCombat)
+enrichEffectAddedEvent = function(tEffect, tTargetEntry, tCombat)
   local sEffectKey = tostring(tEffect.effect_key or "")
   if sEffectKey == "" then return end
   for nIndex = #aEventJournal, 1, -1 do
@@ -957,17 +1087,29 @@ local function enrichEffectAddedEvent(tEffect, tTargetEntry, tCombat)
         tEffect.resolved_source_attribution = sSourceAttribution
       end
       local sEffectName = tostring(tEffect.name or "Effect")
+      local tOrigin = tEffectOriginsByEffectKey[sEffectKey]
+      local sActionName = tostring(
+        (tOrigin and tOrigin.action_name) or
+        tEffect.resolved_action_name or sEffectName
+      )
+      tEffect.resolved_action_name = sActionName
       tEvent.description =
         "Effect added to " .. tostring(tTargetEntry.name) .. ": " .. sEffectName
-      tMetadata.action_name = sEffectName
+      tMetadata.action_name = sActionName
+      tMetadata.originating_action = sActionName
       tMetadata.effect_name = sEffectName
       tMetadata.duration = tonumber(tEffect.duration) or 0
       tMetadata.apply = tEffect.apply ~= "" and tEffect.apply or JSON_NULL
       tMetadata.is_active = tEffect.is_active ~= false
-      tMetadata.source_name = tEffect.source_name ~= "" and
-        tEffect.source_name or JSON_NULL
+      tMetadata.source_name = tActor and tActor ~= JSON_NULL and
+        tActor.name or (tEffect.source_name ~= "" and
+          tEffect.source_name or JSON_NULL)
       tMetadata.source_reference = tEffect.source_reference ~= "" and
-        tEffect.source_reference or JSON_NULL
+        tEffect.source_reference or (
+          string.lower(tostring(tEffect.source_name or "")):find(
+            "^combattracker%.list%."
+          ) and tEffect.source_name or JSON_NULL
+        )
       tMetadata.source_attribution = sSourceAttribution
       tEvent.metadata = tMetadata
       return
@@ -1044,6 +1186,8 @@ local function updateCombatBaseline(tCombat, bRecordEvents)
             tPreviousEffects[sEffectKey].resolved_source_name
           tCurrentEffects[sEffectKey].resolved_source_attribution =
             tPreviousEffects[sEffectKey].resolved_source_attribution
+          tCurrentEffects[sEffectKey].resolved_action_name =
+            tPreviousEffects[sEffectKey].resolved_action_name
           -- Fantasy Grounds can populate an effect node over several database
           -- updates. Enrich the original addition instead of journaling a
           -- second event when its label or source becomes available.
@@ -1210,7 +1354,7 @@ function exportAll()
   end
 end
 
-local function exportCombatUpdate()
+exportCombatUpdate = function()
   if bExporting or not tCachedSnapshot or not Session.IsHost then return end
   bExporting = true
   local ok, result = pcall(function()
@@ -1495,6 +1639,7 @@ local function onDiceLanded(draginfo)
   elseif sLower:find("[miss]", 1, true) then sResult = "Miss" end
   local sEventType = classifyRoll(sRollType, sDescription)
   if sEventType == "attack" and bHaveAuthoritativeAttackHook then return end
+  if sEventType == "save" and bHaveAuthoritativeSaveHook then return end
   local nTargetAC = tTargetCombatant and tonumber(tTargetCombatant.armor_class) or nil
   if sEventType == "attack" and sResult == JSON_NULL and nTotal and nTargetAC then
     sResult = nTotal >= nTargetAC and "Hit" or "Miss"
@@ -1556,6 +1701,10 @@ local function startEncounter(_, sParameters)
   bHaveCombatBaseline = false
   bLastCombatActive = false
   clearRollContexts()
+  tPendingEffectActions = {}
+  tContributorNamesByEffectKey = {}
+  tEffectOriginsByEffectKey = {}
+  tPendingOneRollDamageContributorsByActor = {}
   bWarnedNoSession = false
   local tCombat = ensureCombatSession(combatState())
   updateCombatBaseline(tCombat, false)
@@ -1620,6 +1769,10 @@ local function resetEncounterJournal(_, sParameters)
   bHaveCombatBaseline = false
   bLastCombatActive = false
   clearRollContexts()
+  tPendingEffectActions = {}
+  tContributorNamesByEffectKey = {}
+  tEffectOriginsByEffectKey = {}
+  tPendingOneRollDamageContributorsByActor = {}
   bWarnedNoSession = false
   tCachedSnapshot = nil
   pcall(saveSessionState)

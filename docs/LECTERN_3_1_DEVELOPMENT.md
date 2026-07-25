@@ -20,7 +20,8 @@ snapshot contract, or release artifacts during design work.
 - Local campaign ownership, archive state, and persistent parties use database
   schema v10.
 - Fantasy Grounds synchronization remains one-way, uses snapshot contract v1,
-  and ships Lectern Sync 1.4.8 with explicit overkill versus mitigation,
+  and ships Lectern Sync 1.4.9 with authoritative-save deduplication,
+  originating effect action/source attribution, explicit overkill versus mitigation,
   named damage contributors, authoritative healing and saving throws, and
   effect addition/removal events. Overflow, resistance/reduction,
   vulnerability, temporary-HP absorption, and HP damage remain separate.

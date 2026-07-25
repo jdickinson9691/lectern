@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <root version="4.0" release="1">
-  <announcement text="Lectern Sync 1.4.8 - explicit overkill and damage mitigation" />
+  <announcement text="Lectern Sync 1.4.9 - authoritative saves and effect attribution" />
   <properties>
     <name>Lectern Sync</name>
-    <version>1.4.8</version>
+    <version>1.4.9</version>
     <author>Lectern</author>
-    <description>One-way Fantasy Grounds Unity 5E catalog and durable combat-session export with explicit overkill and mitigation, named damage contributors, authoritative healing and saves, component-aware damage, and effect lifecycle events for Lectern.</description>
+    <description>One-way Fantasy Grounds Unity 5E catalog and durable combat-session export with authoritative per-target saves, effect origins, named damage contributors, healing attribution, and explicit overkill and mitigation evidence for Lectern.</description>
     <ruleset>
       <name>5E</name>
     </ruleset>

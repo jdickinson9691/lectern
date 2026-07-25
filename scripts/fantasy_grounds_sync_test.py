@@ -32,7 +32,7 @@ try:
     extension_manifest = (
         ROOT / "integrations" / "fantasy_grounds" / "extension" / "LecternSync" / "extension.xml"
     ).read_text(encoding="utf-8")
-    assert 'local EXTENSION_VERSION = "1.4.8"' in extension_source and "<version>1.4.8</version>" in extension_manifest, "Extension version metadata is inconsistent"
+    assert 'local EXTENSION_VERSION = "1.4.9"' in extension_source and "<version>1.4.9</version>" in extension_manifest, "Extension version metadata is inconsistent"
     assert 'if vValue == JSON_EMPTY_OBJECT then return "{}" end' in extension_source, "Empty event metadata is not encoded as a JSON object"
     assert 'Comm.registerSlashHandler("lectern-start", startEncounter' in extension_source, "Explicit encounter start command is missing"
     assert 'Comm.registerSlashHandler("lectern-end", endEncounter' in extension_source, "Explicit encounter end command is missing"
@@ -58,6 +58,7 @@ try:
     assert 'GameManager.addEventFunction("onDamagePostResolve", authoritativeDamageResolved)' in extension_source, "Authoritative 5E damage resolution is not captured"
     assert 'GameManager.addEventFunction("onSavePostResolve", authoritativeSaveResolved)' in extension_source, "Authoritative 5E save resolution is not captured"
     assert 'GameManager.removeEventFunction("onSavePostResolve", authoritativeSaveResolved)' in extension_source, "Authoritative 5E save hook is not removed"
+    assert 'if sEventType == "save" and bHaveAuthoritativeSaveHook then return end' in extension_source, "Generic dice capture is still creating duplicate provisional save rows"
     assert 'tEventMetadata.authoritative_result ~= true' in extension_source and 'tEvent.actor = tOriginActor' in extension_source, "Provisional power-save rows are not authoritatively enriched"
     assert 'originating_action = sOriginatingAction' in extension_source, "Originating save action is not preserved"
     assert 'save_dc = nSaveDC' in extension_source and 'save_total = nSaveTotal' in extension_source, "Authoritative save DC and total are not preserved"
@@ -71,6 +72,7 @@ try:
     assert 'GameManager.addEventFunction("onEffectAdd", authoritativeEffectAdded)' in extension_source, "Originating effect actions are not linked to applied effects"
     assert 'damage_contributors = tDamageContributors' in extension_source, "Named damage contributors are not attached to resolved damage"
     assert 'contributorNameFromEffect' in extension_source and 'local sCustomName' in extension_source, "Named and conditional contributors are not resolved"
+    assert 'tPendingOneRollDamageContributorsByActor' in extension_source and 'bAlreadyCaptured' in extension_source, "Consumed one-roll damage effects are not retained safely without duplication"
     assert 'local nOverkill = math.max(0, tonumber(rRoll.nOverflow) or 0)' in extension_source, "Fantasy Grounds overflow is not captured as overkill"
     assert 'tMetadata.mitigated_damage = nMitigated' in extension_source and 'tMetadata.overkill = nOverkill' in extension_source, "Mitigation and overkill are not stored separately"
     assert 'temporary_hp_absorbed' in extension_source and 'post_mitigation_damage' in extension_source, "Temporary HP and post-mitigation damage are not distinguished"
@@ -80,6 +82,8 @@ try:
     assert 'tEvent.actor = tActor' in extension_source and 'tMetadata.action_name = sActionName' in extension_source, "Authoritative enrichment does not repair attribution"
     assert '"effect_added"' in extension_source and '"effect_removed"' in extension_source, "Effect lifecycle events are not journaled"
     assert 'effectSourceParticipant' in extension_source and 'source_attribution = sSourceAttribution' in extension_source, "Effect sources are not retained"
+    assert 'originating_effect_action' in extension_source and 'originating_action = sActionName' in extension_source, "Effect source/action provenance is not retained"
+    assert 'string.lower(sSourceName):find("^combattracker%.list%.")' in extension_source, "Combat Tracker paths stored in effect source_name are not resolved as source references"
     assert 'DB.addHandler("combattracker.list.*.effects", "onChildAdded"' in extension_source, "Effect additions are not observed"
     assert 'DB.addHandler("combattracker.list.*.effects", "onChildDeleted"' in extension_source, "Effect removals are not observed"
 

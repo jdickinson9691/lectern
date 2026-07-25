@@ -46,6 +46,7 @@ def effect_event(
         "description": description,
         "metadata": {
             "action_name": "Bardic Inspiration Die",
+            "originating_action": "Bardic Inspiration Die",
             "effect_name": "Bardic Inspiration Die",
             "effect_key": "combattracker.list.id-00001.effects.id-00001",
             "effect_state": state,
@@ -69,7 +70,7 @@ try:
             / "fantasy_grounds_snapshot_v1.example.json"
         ).read_text(encoding="utf-8")
     )
-    payload["source"]["extension_version"] = "1.4.8"
+    payload["source"]["extension_version"] = "1.4.9"
     payload["sequence"] = 2
     payload["combat"].update(
         {

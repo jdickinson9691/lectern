@@ -238,7 +238,7 @@ The structured journal separates round, actor, action type, roll, target, defens
 - Fantasy Grounds live sessions show synchronized turn order, initiative, AC, HP, and journal events.
 - Source-owned controls are read-only. Apply turns, damage, healing, and effects in Fantasy Grounds.
 - Resistance, immunity, vulnerability, temporary HP, mixed damage, and overkill are displayed from authoritative applied results. Damage beyond remaining HP is labeled as overkill and is not described as resistance or damage reduction. Component applied totals are capped to actual HP loss.
-- Lectern Sync 1.4.8 attaches eligible named damage contributors such as Sneak Attack, Hunter's Mark, and Divine Smite to the resolved weapon or spell action. Contributor names come from the applied Fantasy Grounds effect/action evidence, not from guessing based on dice or damage type.
+- Lectern Sync 1.4.9 attaches eligible named damage contributors such as Sneak Attack, Hunter's Mark, and Divine Smite to the resolved weapon or spell action, including one-roll effects consumed immediately before damage resolution. Contributor names come from the applied Fantasy Grounds effect/action evidence, not from guessing based on dice or damage type.
 - It records the healer and originating spell/ability for rolled healing and fixed healing such as Lay on Hands. Manual HP edits remain unattributed.
 - It records authoritative saving throws with the originating spell/ability, caster, target, save ability, actual DC, final total, and success/failure. Multi-target powers retain a separate result for each creature.
 - It also records Combat Tracker effect additions and endings with their label, target, duration, and source reference/name when Fantasy Grounds provides it. A disappearing effect is shown as ended without guessing why it disappeared.
@@ -521,7 +521,7 @@ Open its linked **Live combat** counterpart. If none exists, run `/lectern-start
 
 ### Equipped weapon or armor is empty on an imported character
 
-Confirm Lectern Sync 1.4.8 or newer is enabled, mark the item equipped in the Fantasy Grounds inventory, restart Fantasy Grounds after extension updates, and run `/lectern-export` again.
+Confirm Lectern Sync 1.4.9 or newer is enabled, mark the item equipped in the Fantasy Grounds inventory, restart Fantasy Grounds after extension updates, and run `/lectern-export` again.
 
 ### Ability totals look wrong
 
