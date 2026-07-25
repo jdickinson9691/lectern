@@ -179,7 +179,67 @@
                 }
               }
             },
-            "damage_resolution": { "enum": ["authoritative", "description"] }
+            "damage_contributors": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "effect_key", "effect_label", "effect_component", "dice", "modifier", "damage_types"],
+                "properties": {
+                  "name": { "type": "string", "minLength": 1 },
+                  "effect_key": { "type": ["string", "null"] },
+                  "effect_label": { "type": "string" },
+                  "effect_component": { "type": "string" },
+                  "dice": { "type": "string" },
+                  "modifier": { "type": "number" },
+                  "damage_types": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 },
+                    "uniqueItems": true
+                  }
+                }
+              }
+            },
+            "damage_resolution": { "enum": ["authoritative", "description"] },
+            "post_mitigation_damage": { "type": "number", "minimum": 0 },
+            "mitigated_damage": { "type": "number", "minimum": 0 },
+            "vulnerability_bonus": { "type": "number", "minimum": 0 },
+            "temporary_hp_absorbed": { "type": "number", "minimum": 0 },
+            "overkill": { "type": "number", "minimum": 0 },
+            "originating_action": { "type": "string", "minLength": 1 },
+            "save_ability": {
+              "enum": ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"]
+            },
+            "save_dc": { "type": "number" },
+            "save_total": { "type": "number" },
+            "save_resolution": {
+              "enum": ["success", "failure", "half_success", "half_failure", "none"]
+            },
+            "healing_kind": { "enum": ["dice", "fixed"] },
+            "healing_resolution": { "enum": ["authoritative"] },
+            "lifecycle": {
+              "enum": [
+                "encounter_start",
+                "encounter_end",
+                "effect_added",
+                "effect_removed"
+              ]
+            },
+            "effect_name": { "type": "string", "minLength": 1 },
+            "effect_key": { "type": ["string", "null"] },
+            "effect_state": { "enum": ["added", "removed"] },
+            "duration": { "type": "number" },
+            "apply": { "type": ["string", "null"] },
+            "is_active": { "type": "boolean" },
+            "source_name": { "type": ["string", "null"] },
+            "source_reference": { "type": ["string", "null"] },
+            "source_attribution": {
+              "enum": [
+                "effect_source_reference",
+                "effect_source_name",
+                "active_self",
+                "unattributed"
+              ]
+            }
           }
         }
       }

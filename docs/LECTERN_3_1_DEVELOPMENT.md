@@ -20,7 +20,15 @@ snapshot contract, or release artifacts during design work.
 - Local campaign ownership, archive state, and persistent parties use database
   schema v10.
 - Fantasy Grounds synchronization remains one-way, uses snapshot contract v1,
-  and ships Lectern Sync 1.4.3.
+  and ships Lectern Sync 1.4.8 with explicit overkill versus mitigation,
+  named damage contributors, authoritative healing and saving throws, and
+  effect addition/removal events. Overflow, resistance/reduction,
+  vulnerability, temporary-HP absorption, and HP damage remain separate.
+  Contributors
+  retain eligible effect evidence for features such as Sneak Attack, Hunter's
+  Mark, and Divine Smite. Healing includes fixed abilities such as Lay on
+  Hands; saves include originating action, source, target, actual DC, final
+  total, and result; effects include source/target evidence.
 - The guided local campaign setup now validates optional player and monster CSV
   files, creates a persistent party, and creates a campaign-scoped opening
   encounter.
@@ -98,6 +106,7 @@ Add only durable, approved decisions here.
 | 2026-07-23 | Treat 3.1 as a design milestone before implementation. | Existing version and contracts remain unchanged until scope approval. |
 | 2026-07-24 | Keep the offline Combat Narrative grounded in D&D 5e mechanics and authoritative actor/action/target/result evidence. | Templates may connect confirmed events, but they must not invent effects, causes, conditions, actions, or outcomes; richer literary rewriting remains a separate optional milestone. |
 | 2026-07-24 | Replace mechanical quantities in Combat Narrative prose with qualitative combat consequences. | Damage language is derived from applied damage relative to the target's pre-effect endurance; healing, resistance, vulnerability, and temporary vitality remain qualitative, while round headings and combatant names retain their identifying numbers. |
+| 2026-07-24 | Keep Combat Narrative entirely offline and build it from a versioned internal narrative library. | No combat or campaign data is sent to an external AI provider; authoritative event parsing remains code-owned, approved phrase variants are application-owned, and rendered prose remains derived and regenerable. |
 
 ## Proposed 3.1 milestone roadmap
 
@@ -132,7 +141,10 @@ concept.
   already-linked campaign record. Do not begin with HP, initiative, active
   Combat Tracker state, or record deletion.
 - Decide whether narrative prose is deterministic/offline only or may optionally
-  use an AI provider. Source combat events always remain authoritative.
+  use an AI provider. **Decided:** narrative generation remains entirely
+  offline and uses the versioned internal library described in
+  [`COMBAT_NARRATIVE_LIBRARY.md`](COMBAT_NARRATIVE_LIBRARY.md). Source combat
+  events always remain authoritative.
 - Define ownership labels: Fantasy Grounds-owned, Lectern-owned, derived, and
   user-edited.
 
@@ -189,6 +201,8 @@ summary without losing evidence.
 - Add a **Narrative Recap** section beside the structured Combat Session Log.
 - Generate concise offline prose from tested templates, with controls for tone
   and detail level.
+- Load those templates from a validated, versioned internal narrative library
+  so prose can grow without weakening event attribution or source ownership.
 - Keep links from each paragraph or round back to the source log events.
 - Generate on demand at first; do not require a database migration until users
   need saved edits or multiple versions.
@@ -203,14 +217,16 @@ summary without losing evidence.
 
 ### Milestone 3 - Optional literary rewrite and editorial workflow
 
-**Goal:** provide richer fictional prose while keeping facts and user control.
+**Goal:** provide richer offline fictional prose and editorial controls while
+keeping facts and user control.
 
-- Add an optional literary rewrite over the deterministic round summaries.
+- Expand the internal narrative library over the deterministic round summaries;
+  do not require an external AI provider.
 - Offer a small set of useful styles such as concise chronicle, heroic fantasy,
   and dark/gritty, plus a length control.
 - Show a factual preview before replacement and flag unsupported additions.
-- If an external AI service is used, require explicit configuration and explain
-  what combat data leaves the device. The offline recap remains available.
+- Keep all narrative generation local. No combat or campaign data leaves the
+  device for rewriting.
 - Decide whether saved narrative text is derived-only, user-editable, or
   versioned; add schema only if persistence is approved.
 - Support copy/export for session notes.
@@ -220,7 +236,8 @@ summary without losing evidence.
 - Names, targets, outcomes, quantities, and sequence remain grounded in the
   source summary.
 - The user can regenerate one round without overwriting edited rounds.
-- Failure or lack of network credentials falls back to the offline recap.
+- A missing or invalid narrative-library entry fails safely without changing
+  the authoritative combat log.
 
 ### Milestone 4 - Fantasy Grounds write-back proof of concept
 

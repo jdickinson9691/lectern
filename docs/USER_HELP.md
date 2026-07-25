@@ -94,7 +94,7 @@ The import can add or update:
 - Loaded class, subclass, species/race, feat, and background references
 - Prepared encounter rosters
 - Live Combat Tracker state and combat journals
-- Authoritative attacks, criticals, damage types, mixed-damage components, healing, effects, temporary HP, and outcomes
+- Authoritative attacks, criticals, damage types, mixed-damage components, healing, effect additions/endings with source and target evidence, temporary HP, and outcomes
 
 The import does not add Fantasy Grounds NPCs to **Monster Library**, populate the standalone **Weapons**, **Armor**, **Equipment**, **Magic Items**, or **Spells** reference tables, or send Lectern-created records back to Fantasy Grounds.
 
@@ -237,7 +237,11 @@ The structured journal separates round, actor, action type, roll, target, defens
 - Fantasy Grounds prepared entries show a roster but no live journal. Follow the displayed counterpart link/name to the live session.
 - Fantasy Grounds live sessions show synchronized turn order, initiative, AC, HP, and journal events.
 - Source-owned controls are read-only. Apply turns, damage, healing, and effects in Fantasy Grounds.
-- Resistance, immunity, vulnerability, temporary HP, mixed damage, and overkill are displayed from authoritative applied results. Component applied totals are capped to actual HP loss.
+- Resistance, immunity, vulnerability, temporary HP, mixed damage, and overkill are displayed from authoritative applied results. Damage beyond remaining HP is labeled as overkill and is not described as resistance or damage reduction. Component applied totals are capped to actual HP loss.
+- Lectern Sync 1.4.8 attaches eligible named damage contributors such as Sneak Attack, Hunter's Mark, and Divine Smite to the resolved weapon or spell action. Contributor names come from the applied Fantasy Grounds effect/action evidence, not from guessing based on dice or damage type.
+- It records the healer and originating spell/ability for rolled healing and fixed healing such as Lay on Hands. Manual HP edits remain unattributed.
+- It records authoritative saving throws with the originating spell/ability, caster, target, save ability, actual DC, final total, and success/failure. Multi-target powers retain a separate result for each creature.
+- It also records Combat Tracker effect additions and endings with their label, target, duration, and source reference/name when Fantasy Grounds provides it. A disappearing effect is shown as ended without guessing why it disappeared.
 - Multi-target actions retain actor and action attribution for every target.
 - Manual Fantasy Grounds wound edits remain **Manual / Unattributed** and use `unknown` damage type unless reliable source evidence exists.
 - Natural 20 and natural 1 results retain authoritative critical-hit and automatic-miss outcomes.
@@ -254,6 +258,7 @@ Combat Narrative retells the selected encounter as chronological, round-by-round
 - Confirmed events are written as action, immediate effect, and combat consequence: healing supports recovery, resistance or vulnerability explains adjusted damage, and temporary hit points provide an additional buffer against damage.
 - Mechanical quantities are omitted from the story. Damage severity is described by comparing the applied effect with the target's endurance immediately before it; healing and temporary hit points use qualitative recovery and protection language. Numbered round headings and digits that are part of combatant names remain unchanged.
 - Narrative transitions may connect recorded events, but the recap does not invent spells, wards, injuries, deaths, motives, or causes that are absent from the Combat Session Log.
+- Narrative language comes from Lectern's versioned offline phrase library. Phrase selection is deterministic, validated, and performed entirely on this computer; no combat or campaign data is sent to an external AI provider.
 - Turn-start and turn-end markers are omitted from the story.
 - Source-application names, initialization noise, unresolved placeholders, and duplicate roll/damage rows are omitted so the result reads as a battle story rather than an import transcript.
 - The narrative is regenerated from saved events whenever the selection or underlying log changes. It does not modify or replace the structured combat journal.
@@ -516,7 +521,7 @@ Open its linked **Live combat** counterpart. If none exists, run `/lectern-start
 
 ### Equipped weapon or armor is empty on an imported character
 
-Confirm Lectern Sync 1.4.3 or newer is enabled, mark the item equipped in the Fantasy Grounds inventory, restart Fantasy Grounds after extension updates, and run `/lectern-export` again.
+Confirm Lectern Sync 1.4.8 or newer is enabled, mark the item equipped in the Fantasy Grounds inventory, restart Fantasy Grounds after extension updates, and run `/lectern-export` again.
 
 ### Ability totals look wrong
 

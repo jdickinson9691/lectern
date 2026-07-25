@@ -32,7 +32,7 @@ try:
     extension_manifest = (
         ROOT / "integrations" / "fantasy_grounds" / "extension" / "LecternSync" / "extension.xml"
     ).read_text(encoding="utf-8")
-    assert 'local EXTENSION_VERSION = "1.4.3"' in extension_source and "<version>1.4.3</version>" in extension_manifest, "Extension version metadata is inconsistent"
+    assert 'local EXTENSION_VERSION = "1.4.8"' in extension_source and "<version>1.4.8</version>" in extension_manifest, "Extension version metadata is inconsistent"
     assert 'if vValue == JSON_EMPTY_OBJECT then return "{}" end' in extension_source, "Empty event metadata is not encoded as a JSON object"
     assert 'Comm.registerSlashHandler("lectern-start", startEncounter' in extension_source, "Explicit encounter start command is missing"
     assert 'Comm.registerSlashHandler("lectern-end", endEncounter' in extension_source, "Explicit encounter end command is missing"
@@ -56,10 +56,113 @@ try:
     assert 'nRawRoll + nModifier' in extension_source, "Net roll does not include Fantasy Grounds modifiers"
     assert 'GameManager.addEventFunction("onAttackPostResolve", authoritativeAttackResolved)' in extension_source, "Authoritative 5E attack outcomes are not captured"
     assert 'GameManager.addEventFunction("onDamagePostResolve", authoritativeDamageResolved)' in extension_source, "Authoritative 5E damage resolution is not captured"
+    assert 'GameManager.addEventFunction("onSavePostResolve", authoritativeSaveResolved)' in extension_source, "Authoritative 5E save resolution is not captured"
+    assert 'GameManager.removeEventFunction("onSavePostResolve", authoritativeSaveResolved)' in extension_source, "Authoritative 5E save hook is not removed"
+    assert 'tEventMetadata.authoritative_result ~= true' in extension_source and 'tEvent.actor = tOriginActor' in extension_source, "Provisional power-save rows are not authoritatively enriched"
+    assert 'originating_action = sOriginatingAction' in extension_source, "Originating save action is not preserved"
+    assert 'save_dc = nSaveDC' in extension_source and 'save_total = nSaveTotal' in extension_source, "Authoritative save DC and total are not preserved"
+    assert 'save_ability = sSaveAbility' in extension_source and 'save_resolution = sSaveResolution' in extension_source, "Save ability and outcome are not preserved"
+    assert 'GameManager.getFunction("onHealthPostApply")' in extension_source and 'GameManager.setFunction("onHealthPostApply", authoritativeHealthPostApply)' in extension_source, "Authoritative 5E healing application is not captured"
+    assert 'fPreviousHealthPostApply(rSource, rTarget, rRoll, tApplyData)' in extension_source, "The existing 5E health callback is not preserved"
+    assert 'healing_kind = sHealingKind' in extension_source and 'originating_action = sActionName' in extension_source, "Fixed and rolled healing action metadata is missing"
+    assert 'GameManager.getFunction("onHealthPostApply") == authoritativeHealthPostApply' in extension_source, "The health callback is not safely restored"
+    assert 'GameManager.getMultiKeyFunction("onActionPreModRoll", "damage")' in extension_source, "Named damage effects are not captured before one-roll expiration"
+    assert 'EffectManager.getCompsDataByTag(rSource, sEffectTag, tQuery)' in extension_source and 'bIgnoreExpire = true' in extension_source, "Damage contributor queries are not authoritative and non-consuming"
+    assert 'GameManager.addEventFunction("onEffectAdd", authoritativeEffectAdded)' in extension_source, "Originating effect actions are not linked to applied effects"
+    assert 'damage_contributors = tDamageContributors' in extension_source, "Named damage contributors are not attached to resolved damage"
+    assert 'contributorNameFromEffect' in extension_source and 'local sCustomName' in extension_source, "Named and conditional contributors are not resolved"
+    assert 'local nOverkill = math.max(0, tonumber(rRoll.nOverflow) or 0)' in extension_source, "Fantasy Grounds overflow is not captured as overkill"
+    assert 'tMetadata.mitigated_damage = nMitigated' in extension_source and 'tMetadata.overkill = nOverkill' in extension_source, "Mitigation and overkill are not stored separately"
+    assert 'temporary_hp_absorbed' in extension_source and 'post_mitigation_damage' in extension_source, "Temporary HP and post-mitigation damage are not distinguished"
     assert 'rRoll.tResults' in extension_source and 'damage_components = tComponents' in extension_source, "Component-aware damage types are not exported"
     assert 'natural_roll = nRawRoll' in extension_source and 'authoritative_result = true' in extension_source, "Natural attack roll and authoritative result metadata are missing"
     assert 'contextForAppliedChange(tTarget, "damage")' in extension_source, "Applied damage attribution is not target matched and time bounded"
     assert 'tEvent.actor = tActor' in extension_source and 'tMetadata.action_name = sActionName' in extension_source, "Authoritative enrichment does not repair attribution"
+    assert '"effect_added"' in extension_source and '"effect_removed"' in extension_source, "Effect lifecycle events are not journaled"
+    assert 'effectSourceParticipant' in extension_source and 'source_attribution = sSourceAttribution' in extension_source, "Effect sources are not retained"
+    assert 'DB.addHandler("combattracker.list.*.effects", "onChildAdded"' in extension_source, "Effect additions are not observed"
+    assert 'DB.addHandler("combattracker.list.*.effects", "onChildDeleted"' in extension_source, "Effect removals are not observed"
+
+    successful_save = format_event_log({
+        "type": "save",
+        "round": 2,
+        "actor": {"source_key": "5E:character:bard1", "name": "Bard1"},
+        "target": {"source_key": "5E:ct:kobold-1", "name": "Kobold Warrior 1"},
+        "amount": None,
+        "description": "[SAVE VS] Bane [CHA DC 10] [MAGIC]",
+        "metadata": {
+            "action_name": "Bane",
+            "originating_action": "Bane",
+            "save_ability": "charisma",
+            "save_dc": 10,
+            "save_total": 13,
+            "raw_roll": 11,
+            "modifier": 2,
+            "roll_total": 13,
+            "result": "Success",
+            "save_resolution": "success",
+            "authoritative_result": True,
+        },
+    })
+    assert successful_save.actor == "Bard1", "Save actor is not the originating caster"
+    assert successful_save.result_code == "save_success", "Successful save is not normalized"
+    assert successful_save.details == (
+        "13 (dice 11; modifiers +2) | Kobold Warrior 1 | Against DC 10 | "
+        "Bane | Charisma save: Success"
+    ), "Authoritative save details are not displayed correctly"
+
+    failed_save = format_event_log({
+        "type": "save",
+        "round": 2,
+        "actor": {"source_key": "5E:character:bard1", "name": "Bard1"},
+        "target": {"source_key": "5E:ct:kobold-2", "name": "Kobold Warrior 2"},
+        "amount": None,
+        "description": "[SAVE VS] Bane [CHA DC 10] [MAGIC]",
+        "metadata": {
+            "action_name": "Bane",
+            "originating_action": "Bane",
+            "save_ability": "charisma",
+            "save_dc": 10,
+            "save_total": 8,
+            "raw_roll": 9,
+            "modifier": -1,
+            "roll_total": 8,
+            "result": "Failure",
+            "save_resolution": "failure",
+            "authoritative_result": True,
+        },
+    })
+    assert failed_save.result_code == "save_failure", "Failed save is not normalized"
+    assert "Bane | Charisma save: Failure" in failed_save.details, "Failed save lost its originating action"
+
+    sneak_attack_damage = format_event_log({
+        "type": "damage",
+        "round": 2,
+        "actor": {"source_key": "5E:character:rogue1", "name": "Rogue1"},
+        "target": {"source_key": "5E:ct:kobold-1", "name": "Kobold Warrior 1"},
+        "amount": 7,
+        "description": "Damage resolved by Fantasy Grounds",
+        "metadata": {
+            "action_name": "Shortbow",
+            "roll_total": 7,
+            "current_hp": 0,
+            "maximum_hp": 7,
+            "damage_types": ["piercing"],
+            "damage_components": [
+                {"types": ["piercing"], "rolled": 7, "applied": 7},
+            ],
+            "damage_contributors": [{
+                "name": "Sneak Attack",
+                "effect_key": "combattracker.list.rogue.effects.sneak",
+                "effect_label": "Sneak Attack; DMG: 1d6; [ROLL]",
+                "effect_component": "DMG: 1d6",
+                "dice": "1d6",
+                "modifier": 0,
+                "damage_types": [],
+            }],
+        },
+    })
+    assert "Shortbow with Sneak Attack" in sneak_attack_damage.details, "Sneak Attack is not attached to its damage"
 
     immune = format_event_log({
         "type": "damage", "round": 1, "actor": None, "target": {"name": "Immune Target"},
@@ -89,6 +192,42 @@ try:
         },
     })
     assert sum(component["applied"] for component in json.loads(overkill.damage_components_json)) == 7, "Overkill component totals exceed actual HP loss"
+
+    explicit_overkill = format_event_log({
+        "type": "damage", "round": 1,
+        "actor": {"name": "Ranger1"}, "target": {"name": "Kobold"},
+        "amount": 7, "description": "Damage resolved", "metadata": {
+            "action_name": "Longbow", "roll_total": 10,
+            "current_hp": 0, "maximum_hp": 7,
+            "damage_types": ["piercing"],
+            "damage_components": [
+                {"types": ["piercing"], "rolled": 10, "applied": 10, "resisted": 0, "vulnerable": 0},
+            ],
+            "post_mitigation_damage": 10, "mitigated_damage": 0,
+            "vulnerability_bonus": 0, "temporary_hp_absorbed": 0, "overkill": 3,
+            "damage_resolution": "authoritative",
+        },
+    })
+    assert "3 exceeded remaining HP" in explicit_overkill.details
+    assert "reduced" not in explicit_overkill.details and "resistance" not in explicit_overkill.details
+
+    resisted_damage = format_event_log({
+        "type": "damage", "round": 1,
+        "actor": {"name": "Wizard1"}, "target": {"name": "Resistant Target"},
+        "amount": 7, "description": "Damage resolved", "metadata": {
+            "action_name": "Fire Bolt", "roll_total": 10,
+            "current_hp": 13, "maximum_hp": 20,
+            "damage_types": ["fire"],
+            "damage_components": [
+                {"types": ["fire"], "rolled": 10, "applied": 7, "resisted": 3, "vulnerable": 0},
+            ],
+            "post_mitigation_damage": 7, "mitigated_damage": 3,
+            "vulnerability_bonus": 0, "temporary_hp_absorbed": 0, "overkill": 0,
+            "damage_resolution": "authoritative",
+        },
+    })
+    assert "3 prevented by resistance or damage reduction" in resisted_damage.details
+    assert "exceeded remaining HP" not in resisted_damage.details
 
     db = temp_dir / "lectern.db"
     initialize_database(db)
@@ -341,7 +480,7 @@ try:
         assert json.loads(damage_roll["damage_components_json"])[0] == {"types": ["slashing"], "rolled": 6, "applied": 3, "resisted": 3, "vulnerable": 0}, "Damage component details were not preserved"
         assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE details LIKE '%Critical Hit (25 vs AC 30)%'").fetchone()[0] == 1, "Authoritative critical hit was not preserved"
         assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE details LIKE '%Automatic Miss (15 vs AC 10)%'").fetchone()[0] == 1, "Authoritative natural-one miss was not preserved"
-        assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE details LIKE '%4 damage applied from 9 rolled (reduced by 5)%'").fetchone()[0] == 1, "Adjusted damage was not explained"
+        assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE details LIKE '%4 damage applied from 9 rolled (5 prevented by resistance or damage reduction)%'").fetchone()[0] == 1, "Mitigated damage was not explained"
         assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE actor='Manual / Unattributed'").fetchone()[0] == 1, "Manual damage inherited a stale actor"
         assert conn.execute("SELECT damage_types FROM turn_log WHERE actor='Manual / Unattributed'").fetchone()[0] == "unknown", "Manual damage type was guessed"
         explicit_encounter = conn.execute("SELECT id,status FROM encounters WHERE name='Explicit Test Combat'").fetchone()

@@ -245,6 +245,79 @@ def validate_snapshot(payload: Any) -> dict[str, Any]:
         _require(event.get("amount") is None or isinstance(event.get("amount"), int), f"{field}.amount must be an integer or null")
         _require(isinstance(event.get("description"), str), f"{field}.description must be a string")
         _require(isinstance(event.get("metadata"), dict), f"{field}.metadata must be an object")
+        metadata = event["metadata"]
+        if event.get("type") == "save" and metadata.get("authoritative_result") is True:
+            _require(isinstance(event.get("actor"), dict), f"{field}.actor must identify the originating actor")
+            _require(isinstance(event.get("target"), dict), f"{field}.target must identify the creature making the save")
+            _require_text(metadata.get("originating_action"), f"{field}.metadata.originating_action")
+            _require(
+                metadata.get("save_ability")
+                in {"strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"},
+                f"{field}.metadata.save_ability is invalid",
+            )
+            for save_field in ("save_dc", "save_total"):
+                value = metadata.get(save_field)
+                _require(
+                    isinstance(value, (int, float)) and not isinstance(value, bool),
+                    f"{field}.metadata.{save_field} must be a number",
+                )
+            _require(
+                metadata.get("result") in {"Success", "Failure"},
+                f"{field}.metadata.result must be Success or Failure",
+            )
+        if event.get("type") == "healing" and metadata.get("healing_resolution") == "authoritative":
+            _require(isinstance(event.get("actor"), dict), f"{field}.actor must identify the healer")
+            _require(isinstance(event.get("target"), dict), f"{field}.target must identify the healing target")
+            _require_text(metadata.get("originating_action"), f"{field}.metadata.originating_action")
+            _require(
+                metadata.get("healing_kind") in {"dice", "fixed"},
+                f"{field}.metadata.healing_kind must be dice or fixed",
+            )
+            _require(
+                metadata.get("attribution") == "authoritative_health_apply",
+                f"{field}.metadata.attribution must identify authoritative health application",
+            )
+        if metadata.get("damage_contributors") is not None:
+            contributors = metadata["damage_contributors"]
+            _require(isinstance(contributors, list), f"{field}.metadata.damage_contributors must be an array")
+            for contributor_index, contributor in enumerate(contributors):
+                contributor_field = f"{field}.metadata.damage_contributors[{contributor_index}]"
+                _require(isinstance(contributor, dict), f"{contributor_field} must be an object")
+                _require_text(contributor.get("name"), f"{contributor_field}.name")
+                _require(
+                    isinstance(contributor.get("damage_types", []), list),
+                    f"{contributor_field}.damage_types must be an array",
+                )
+        for damage_adjustment_field in (
+            "post_mitigation_damage",
+            "mitigated_damage",
+            "vulnerability_bonus",
+            "temporary_hp_absorbed",
+            "overkill",
+        ):
+            if metadata.get(damage_adjustment_field) is not None:
+                value = metadata[damage_adjustment_field]
+                _require(
+                    isinstance(value, (int, float))
+                    and not isinstance(value, bool)
+                    and value >= 0,
+                    f"{field}.metadata.{damage_adjustment_field} must be a non-negative number",
+                )
+        lifecycle = metadata.get("lifecycle")
+        if event.get("type") == "effect" and lifecycle is not None:
+            _require(
+                lifecycle in {"effect_added", "effect_removed"},
+                f"{field}.metadata.lifecycle is not a supported effect lifecycle",
+            )
+            _require_text(metadata.get("effect_name"), f"{field}.metadata.effect_name")
+            _require(
+                metadata.get("effect_state") in {"added", "removed"},
+                f"{field}.metadata.effect_state must be added or removed",
+            )
+            _require(
+                isinstance(metadata.get("source_attribution"), str),
+                f"{field}.metadata.source_attribution must be a string",
+            )
     return payload
 
 
@@ -386,6 +459,19 @@ def _damage_metadata(
         types.append("unknown")
     return ", ".join(types), _json(components)
 
+def _damage_contributor_names(metadata: dict[str, Any]) -> list[str]:
+    contributors = metadata.get("damage_contributors")
+    if not isinstance(contributors, list):
+        return []
+    names: list[str] = []
+    for contributor in contributors:
+        if not isinstance(contributor, dict):
+            continue
+        name = str(contributor.get("name") or "").strip()
+        if name and name not in names:
+            names.append(name)
+    return names
+
 
 def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
     """Convert one Fantasy Grounds event into the canonical Lectern log fields."""
@@ -408,6 +494,10 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
     raw_roll = metadata.get("raw_roll")
     modifier = metadata.get("modifier")
     target_ac = metadata.get("target_ac")
+    save_dc = metadata.get("save_dc")
+    save_total = metadata.get("save_total", roll_total)
+    save_ability = str(metadata.get("save_ability") or "").strip()
+    originating_action = str(metadata.get("originating_action") or action_name).strip()
     result = str(metadata.get("result") or "").strip()
     natural_roll = metadata.get("natural_roll", raw_roll)
     try:
@@ -423,6 +513,10 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
         result_code = "hit"
     elif result_text == "miss":
         result_code = "miss"
+    elif event_type == "save" and result_text == "success":
+        result_code = "save_success"
+    elif event_type == "save" and result_text == "failure":
+        result_code = "save_failure"
     else:
         result_code = ""
     is_damage_roll = event_type == "action" and "damage" in (
@@ -434,6 +528,13 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
     damage_types, damage_components_json = _damage_metadata(
         metadata, description, is_damage_roll or event_type == "damage", component_cap
     )
+    damage_contributors = _damage_contributor_names(metadata)
+    damage_action = action_name
+    if damage_contributors:
+        damage_action = (
+            f"{action_name or 'Damage'} with "
+            + ", ".join(damage_contributors)
+        )
     action_type = "Damage Roll" if is_damage_roll else ACTION_TYPES[event_type]
     lifecycle = str(metadata.get("lifecycle") or "")
     if lifecycle == "encounter_start":
@@ -459,7 +560,7 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
     elif is_damage_roll:
         defense = f"Against AC {target_ac}" if target_ac is not None else "Target AC not reported"
         outcome = f"{roll_total} damage rolled" if roll_total is not None else "Damage result not reported"
-        details = " | ".join((roll_text, target_name, defense, action_name or "Damage not reported", outcome))
+        details = " | ".join((roll_text, target_name, defense, damage_action or "Damage not reported", outcome))
         incomplete = incomplete or not bool(target.get("name")) or any(
             value is None for value in (roll_total, raw_roll, modifier)
         ) or not bool(action_name or description)
@@ -487,8 +588,45 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
         ):
             adjustment = applied - rolled
         if event_type == "damage" and rolled is not None:
-            if applied == 0:
+            mitigated = metadata.get("mitigated_damage")
+            if not isinstance(mitigated, (int, float)):
+                mitigated = _component_total(metadata, "resisted")
+            vulnerability = metadata.get("vulnerability_bonus")
+            if not isinstance(vulnerability, (int, float)):
+                vulnerability = _component_total(metadata, "vulnerable")
+            overkill = metadata.get("overkill")
+            temporary_absorbed = metadata.get("temporary_hp_absorbed")
+            has_authoritative_adjustments = any(
+                isinstance(value, (int, float))
+                for value in (mitigated, vulnerability, overkill, temporary_absorbed)
+            )
+            fully_mitigated = (
+                applied == 0
+                and isinstance(mitigated, (int, float))
+                and mitigated > 0
+                and not (isinstance(overkill, (int, float)) and overkill > 0)
+                and not (
+                    isinstance(temporary_absorbed, (int, float))
+                    and temporary_absorbed > 0
+                )
+            )
+            if applied == 0 and (fully_mitigated or not has_authoritative_adjustments):
                 outcome = f"0 damage applied from {rolled} rolled (negated)"
+            elif has_authoritative_adjustments:
+                qualifiers = []
+                if isinstance(mitigated, (int, float)) and mitigated > 0:
+                    qualifiers.append(
+                        f"{mitigated:g} prevented by resistance or damage reduction"
+                    )
+                if isinstance(vulnerability, (int, float)) and vulnerability > 0:
+                    qualifiers.append(f"increased by {vulnerability:g} from vulnerability")
+                if isinstance(temporary_absorbed, (int, float)) and temporary_absorbed > 0:
+                    qualifiers.append(f"{temporary_absorbed:g} absorbed by temporary HP")
+                if isinstance(overkill, (int, float)) and overkill > 0:
+                    qualifiers.append(f"{overkill:g} exceeded remaining HP")
+                outcome = f"{applied} damage applied from {rolled} rolled"
+                if qualifiers:
+                    outcome += f" ({'; '.join(qualifiers)})"
             elif isinstance(adjustment, (int, float)) and adjustment < 0:
                 outcome = f"{applied} damage applied from {rolled} rolled (reduced by {-adjustment:g})"
             elif isinstance(adjustment, (int, float)) and adjustment > 0:
@@ -500,24 +638,62 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
             actor_source_key = ""
             actor_side = "unknown"
             incomplete = False
-        details = " | ".join((str(applied), target_name, hp, action_name or ACTION_TYPES[event_type], outcome))
+        displayed_action = damage_action if event_type == "damage" else action_name
+        details = " | ".join((str(applied), target_name, hp, displayed_action or ACTION_TYPES[event_type], outcome))
         incomplete = incomplete or amount is None or not bool(target.get("name")) or metadata.get("current_hp") is None
     elif event_type == "effect":
         effect_result = description or action_name or "Effect details not reported"
+        effect_state = str(metadata.get("effect_state") or "").strip().casefold()
+        state_label = {
+            "added": "Effect added",
+            "removed": "Effect ended",
+        }.get(effect_state, "Effect state")
         details = " | ".join((
             "",
             target_name,
-            "Effect state",
+            state_label,
             action_name or "Effect",
             effect_result,
         ))
-        # Effects are often emitted by the rules engine rather than a named
-        # actor. Their target and state change are the authoritative evidence.
-        incomplete = not bool(target.get("name")) or not bool(description or action_name)
+        # Lifecycle events include the resolved source when Fantasy Grounds
+        # exposes one. Temporary-HP state changes remain valid without an actor.
+        lifecycle = str(metadata.get("lifecycle") or "")
+        incomplete = (
+            not bool(target.get("name"))
+            or not bool(description or action_name)
+            or (
+                lifecycle in {"effect_added", "effect_removed"}
+                and not bool(actor.get("name"))
+            )
+        )
+    elif event_type == "save":
+        save_roll_text = str(save_total) if save_total is not None else "Save total not reported"
+        if save_total is not None and raw_roll is not None and modifier is not None:
+            modifier_text = f"{modifier:+g}" if isinstance(modifier, (int, float)) else str(modifier)
+            save_roll_text += f" (dice {raw_roll}; modifiers {modifier_text})"
+        defense = f"Against DC {save_dc}" if save_dc is not None else "Save DC not reported"
+        save_label = f"{save_ability.title()} save" if save_ability else "Save ability not reported"
+        outcome = result or "Result not reported"
+        details = " | ".join((
+            save_roll_text,
+            target_name,
+            defense,
+            originating_action or "Originating action not reported",
+            f"{save_label}: {outcome}",
+        ))
+        incomplete = (
+            incomplete
+            or not bool(target.get("name"))
+            or save_total is None
+            or save_dc is None
+            or raw_roll is None
+            or modifier is None
+            or not bool(save_ability)
+            or not bool(originating_action)
+            or result_text not in {"success", "failure"}
+        )
     elif roll_total is not None:
-        if event_type == "save":
-            defense = f"Against DC {target_ac}" if target_ac is not None else "Save DC not reported"
-        elif target_ac is not None:
+        if target_ac is not None:
             defense = f"Against defense {target_ac}"
         else:
             defense = "Defense not reported"

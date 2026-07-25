@@ -122,7 +122,15 @@
         "initiative": 14,
         "armor_class": 13,
         "hit_points": { "maximum": 12, "current": 9, "temporary": 0, "wounds": 3 },
-        "effects": [{ "name": "Tested", "duration": 2, "source": "Fixture" }],
+        "effects": [{
+          "effect_key": "combattracker.list.id-00001.effects.id-00001",
+          "name": "Tested",
+          "duration": 2,
+          "source_name": "Fantasy Grounds Test Hero",
+          "source_reference": "combattracker.list.id-00002",
+          "is_active": true,
+          "apply": ""
+        }],
         "raw": {}
       }
     ]

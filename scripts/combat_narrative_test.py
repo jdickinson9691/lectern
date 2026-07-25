@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -18,7 +19,12 @@ from PySide6.QtWidgets import QApplication
 
 from app.database.repositories import Repository
 from app.database.schema import connect, initialize_database
-from app.services.combat_narrative import CombatNarrativeBuilder, parse_combat_event
+from app.services.combat_narrative import (
+    CombatNarrativeBuilder,
+    NarrativeLibrary,
+    NarrativeLibraryError,
+    parse_combat_event,
+)
 from app.ui.main_window import CombatNarrativePage, MainWindow
 
 
@@ -26,6 +32,17 @@ temp_dir = Path(mkdtemp(prefix="lectern_combat_narrative_"))
 app = QApplication.instance() or QApplication([])
 page = None
 window = None
+
+
+def contains_sentence(text: str, *terms: str) -> bool:
+    """Return whether one rendered sentence preserves every required fact."""
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    return any(
+        all(term.casefold() in sentence.casefold() for term in terms)
+        for sentence in sentences
+    )
+
+
 try:
     database = temp_dir / "lectern.db"
     initialize_database(database)
@@ -65,39 +82,143 @@ try:
         )
 
     log_rows = repo.list_turn_log(encounter_id)
-    narrative = CombatNarrativeBuilder().build(log_rows, "Lectern Broken Gate")
+    builder = CombatNarrativeBuilder()
+    narrative = builder.build(log_rows, "Lectern Broken Gate")
+    assert narrative == builder.build(log_rows, "Lectern Broken Gate"), "Narrative library selection is not deterministic"
+    assert builder.library.schema_version == 1, "Unexpected narrative library schema"
+    assert builder.library.content_version, "Narrative library content version is missing"
+    assert builder.library.default_style == "heroic_military", "Offline narrative style default is incorrect"
+    assert builder.library.available_styles == ("heroic_military",), "Unexpected narrative style registry"
+    phrase_count = sum(
+        len(phrases)
+        for entries in builder.library.sections.values()
+        for phrases in entries.values()
+    )
+    assert phrase_count >= 70, f"Narrative library is unexpectedly small: {phrase_count}"
+    all_templates = " ".join(
+        phrase
+        for entries in builder.library.sections.values()
+        for phrases in entries.values()
+        for phrase in phrases
+    )
+    assert not re.search(r"\bdrives?\s+(?:at|into|against)\b", all_templates, re.IGNORECASE), (
+        "The repetitive 'drives at' construction remains in the phrase library"
+    )
+    assert len(builder.library.sections["beat"]["attack_damage"]) >= 8, (
+        "Attack-and-damage beat language is not varied enough"
+    )
+    assert len(builder.library.sections["attack"]["miss"]) >= 6, (
+        "Miss language is not varied enough"
+    )
+    try:
+        NarrativeLibrary(style="not-a-style")
+    except NarrativeLibraryError:
+        pass
+    else:
+        raise AssertionError("Unknown narrative styles were not rejected")
+    unsafe_library = json.loads(builder.library.path.read_text(encoding="utf-8"))
+    unsafe_library["styles"]["heroic_military"]["sections"]["attack"]["hit"][0] = (
+        "Fantasy Grounds reports {actor} hitting {target}."
+    )
+    unsafe_path = temp_dir / "unsafe_narrative_library.json"
+    unsafe_path.write_text(json.dumps(unsafe_library), encoding="utf-8")
+    try:
+        NarrativeLibrary(unsafe_path)
+    except NarrativeLibraryError:
+        pass
+    else:
+        raise AssertionError("Forbidden literal language was not rejected")
     assert narrative.index("## Round 1") < narrative.index("## Round 2"), "Narrative rounds are not chronological"
-    assert "Fighter1 drives at Goblin with Longsword and lands a hit" in narrative, "Hit actor, target, action, or result was lost"
-    assert "Fighter1's Longsword finds Goblin, dealing slashing damage" in narrative, "Damage actor, action, result, or target was lost"
-    assert "The damage is blunted, limiting its impact" in narrative, "Damage reduction evidence was lost"
-    assert "The blow is devastating, leaving Goblin barely able to continue" in narrative, "Damage severity was not derived from the target's remaining endurance"
-    assert "Goblin strikes at Fighter1 with Scimitar, but the attack misses" in narrative, "Miss actor, target, action, or result was lost"
-    assert "Fighter1 takes damage from an unidentified source" in narrative, "Unattributed damage was not represented safely"
-    assert "The strike causes limited harm, and Fighter1 stays firmly in the fight" in narrative, "Minor damage consequence was not narrated"
-    assert "Pallor's Healing Word eases Fighter1's wounds and restores Fighter1 to fighting form" in narrative, "Healing actor, action, result, or target was lost"
-    assert "Fighter1 is bolstered by temporary vitality, granting an additional buffer against harm" in narrative, "Temporary vitality was not narrated with a grounded combat consequence"
-    dagger_damage = "Goblin's Dagger finds Fighter1, dealing piercing damage"
-    absorbed_damage = "Fighter1's temporary vitality absorbs the impact, leaving Fighter1's normal endurance untouched"
-    assert dagger_damage in narrative and absorbed_damage in narrative, "Temporary-hit-point damage was not connected to its action"
-    assert narrative.index(dagger_damage) < narrative.index(absorbed_damage), "Temporary-hit-point loss appeared before the damage that caused it"
-    assert "The encounter ends in victory" in narrative, "Encounter outcome was not narrated"
+    hit_sentence = next(
+        sentence
+        for sentence in re.split(r"(?<=[.!?])\s+", narrative)
+        if all(term in sentence for term in ("Fighter1", "Goblin", "Longsword"))
+        and any(
+            result in sentence
+            for result in ("lands a hit", "finds its mark", "solid hit", "attack connects")
+        )
+    )
+    assert hit_sentence, "Hit actor, target, action, or result was lost"
+    assert contains_sentence(narrative, "Fighter1", "Goblin", "Longsword", "slashing damage"), "Damage actor, action, result, or target was lost"
+    assert "Hit (" not in narrative, "Attack mechanics leaked from a source row"
+    fighter_attack_sentences = [
+        sentence
+        for sentence in re.split(r"(?<=[.!?])\s+", narrative)
+        if all(term in sentence for term in ("Fighter1", "Goblin", "Longsword"))
+    ]
+    assert len(fighter_attack_sentences) == 1, "Linked attack and damage were not coalesced into one beat sentence"
+    assert (
+        contains_sentence(narrative, "damage", "blunted")
+        or contains_sentence(narrative, "damage", "turned aside")
+    ), "Damage reduction evidence was lost"
+    assert (
+        contains_sentence(narrative, "Goblin", "barely able")
+        or contains_sentence(narrative, "Goblin", "nearly exhausts")
+    ), "Damage severity was not derived from the target's remaining endurance"
+    miss_sentence = next(
+        sentence
+        for sentence in re.split(r"(?<=[.!?])\s+", narrative)
+        if all(term in sentence for term in ("Goblin", "Fighter1", "Scimitar"))
+        and any(
+            result in sentence
+            for result in (
+                "misses",
+                "fails to find",
+                "does not connect",
+                "cannot land",
+                "goes wide",
+                "finds none",
+            )
+        )
+    )
+    assert miss_sentence, "Miss actor, target, action, or result was lost"
+    assert contains_sentence(narrative, "Fighter1", "damage", "unidentified"), "Unattributed damage was not represented safely"
+    assert (
+        contains_sentence(narrative, "Fighter1", "limited harm")
+        or contains_sentence(narrative, "Fighter1", "light enough")
+    ), "Minor damage consequence was not narrated"
+    assert contains_sentence(narrative, "Pallor", "Healing Word", "Fighter1", "fighting form"), "Healing actor, action, result, or target was lost"
+    assert contains_sentence(narrative, "Fighter1", "temporary vitality"), "Temporary vitality was not narrated with a grounded combat consequence"
+    dagger_sentence = next(
+        sentence
+        for sentence in re.split(r"(?<=[.!?])\s+", narrative)
+        if all(term in sentence for term in ("Goblin", "Dagger", "Fighter1", "piercing damage"))
+    )
+    absorbed_sentence = next(
+        sentence
+        for sentence in re.split(r"(?<=[.!?])\s+", narrative)
+        if "fighter1" in sentence.casefold()
+        and "temporary vitality" in sentence.casefold()
+        and "impact" in sentence.casefold()
+    )
+    assert narrative.index(dagger_sentence) < narrative.index(absorbed_sentence), "Temporary-hit-point loss appeared before the damage that caused it"
+    assert contains_sentence(narrative, "victory"), "Encounter outcome was not narrated"
     assert "promise of 10" not in narrative, "Resolved damage roll was repeated"
     assert "Goblin Minion 2 gathered Fire Bolt" not in narrative, "A provisional roll was attributed as a completed action"
-    assert "Goblin Minion 1 takes fire damage from an unidentified source" in narrative, "Unattributed damage lost its target"
-    assert "Goblin Minion 1 recovers and returns to fighting form" in narrative, "System healing implied an unsupported actor or action"
-    assert "Wizard1's Burning Hands finds Goblin Minion 4, dealing fire damage" in narrative, "A confirmed spell was not carried to its secondary target"
-    assert "Goblin Minion 4 takes fire damage from an unidentified source" not in narrative, "Confirmed secondary spell damage remained unattributed"
+    assert contains_sentence(narrative, "Goblin Minion 1", "fire damage", "unidentified"), "Unattributed damage lost its target"
+    assert (
+        contains_sentence(narrative, "Goblin Minion 1", "recovers", "fighting form")
+        or contains_sentence(narrative, "Goblin Minion 1", "rallies", "fighting form")
+    ), "System healing implied an unsupported actor or action"
+    assert contains_sentence(narrative, "Wizard1", "Burning Hands", "Goblin Minion 4", "fire damage"), "A confirmed spell was not carried to its secondary target"
+    assert not contains_sentence(narrative, "Goblin Minion 4", "fire damage", "unidentified"), "Confirmed secondary spell damage remained unattributed"
     assert "brought Healing Word to bear" not in narrative, "Resolved healing action was repeated"
     assert not re.search(
         r"\b(?:ward|spite|nameless)\b|from the dark|murderous precision",
         narrative,
         re.IGNORECASE,
     ), f"Unsupported literary language leaked into the D&D narrative:\n{narrative}"
-    assert "The encounter began, and the first exchange followed" in narrative, "Opening narrative transition was not rendered"
-    assert "The struggle tightened" in narrative and "The struggle sharpened" in narrative, "Round-to-round narrative transitions were not varied"
+    round_openings = [
+        builder.round_opening(round_number, round_number == 1)
+        for round_number in range(1, 9)
+    ]
+    assert len(set(round_openings)) >= 4, "Round-to-round narrative transitions were not varied"
     assert "Result not reported" not in narrative, f"Missing source details leaked into the story:\n{narrative}"
     assert "Lectern" not in narrative and "Fantasy Grounds" not in narrative, "Tool names leaked into the story"
     assert "Turn started" not in narrative, "System turn marker leaked into the story"
+    assert not re.search(r"\bdrives?\s+(?:at|into|against)\b", narrative, re.IGNORECASE), (
+        f"Repetitive drive phrasing remained in the narrative:\n{narrative}"
+    )
     numeric_prose = re.sub(r"## Round \d+", "## Round", narrative)
     numeric_prose = re.sub(r"\b(?:Fighter|Wizard|Cleric)\d+\b", "Combatant", numeric_prose)
     numeric_prose = re.sub(r"\bGoblin Minion \d+\b", "Goblin Minion", numeric_prose)
@@ -113,7 +234,7 @@ try:
         "damage_components_json": '[{"rolled":6,"applied":7,"resisted":0,"vulnerable":6}]',
         "amount": 7,
     }))
-    assert "Wizard1's Fire Bolt finds Goblin's vulnerability, magnifying the effect" in capped_vulnerability, "Vulnerability was not connected to its actor and action"
+    assert contains_sentence(capped_vulnerability, "Wizard1", "Fire Bolt", "Goblin", "vulnerability"), "Vulnerability was not connected to its actor and action"
     assert not re.search(r"\d", capped_vulnerability.replace("Wizard1", "")), "Vulnerability narration exposed mechanical quantities"
 
     resisted_damage = CombatNarrativeBuilder().event_sentence(parse_combat_event({
@@ -126,8 +247,119 @@ try:
         "damage_components_json": '[{"rolled":10,"applied":5,"resisted":5,"vulnerable":0}]',
         "amount": 5,
     }))
-    assert "Goblin's resistance turns aside part of Wizard1's Fire Bolt's force" in resisted_damage, "Confirmed resistance was not connected to its actor and action"
+    assert contains_sentence(resisted_damage, "Goblin", "resistance", "Wizard1", "Fire Bolt"), "Confirmed resistance was not connected to its actor and action"
     assert not re.search(r"\d", resisted_damage.replace("Wizard1", "")), "Resistance narration exposed mechanical quantities"
+
+    linked_save_beat = [
+        parse_combat_event({
+            "id": 110,
+            "round": 4,
+            "actor": "Wizard1",
+            "action_type": "Save",
+            "details": "11 | Goblin | Against DC 14 | Burning Hands | Failure (11 vs DC 14)",
+            "result_code": "save_failure",
+        }),
+        parse_combat_event({
+            "id": 111,
+            "round": 4,
+            "actor": "Wizard1",
+            "action_type": "Damage",
+            "details": "6 | Goblin | Target HP 1/7 | Burning Hands | 6 damage applied",
+            "damage_types": "fire",
+            "amount": 6,
+        }),
+        parse_combat_event({
+            "id": 112,
+            "round": 4,
+            "actor": "Wizard1",
+            "action_type": "Effect",
+            "details": " | Goblin | Effect state | Burning Hands | Effect added to Goblin: Burning Hands",
+        }),
+    ]
+    linked_save_beats = builder.coalesce_events(linked_save_beat)
+    assert len(linked_save_beats) == 1, "Related save, damage, and effect rows did not form one beat"
+    linked_save_text = builder.beat_sentence(linked_save_beats[0])
+    assert contains_sentence(
+        linked_save_text,
+        "Wizard1",
+        "Burning Hands",
+        "Goblin",
+        "fire damage",
+    ), "Coalesced save beat lost actor, action, target, or damage type"
+    assert any(
+        term in linked_save_text.casefold()
+        for term in ("fails to withstand", "overcomes", "cannot resist", "fails to resist")
+    ), "Coalesced save beat lost the authoritative failed-save outcome"
+    assert "DC 14" not in linked_save_text and "11" not in linked_save_text, (
+        "Save mechanics leaked into coalesced prose"
+    )
+
+    linked_healing_beat = [
+        parse_combat_event({
+            "id": 120,
+            "round": 4,
+            "actor": "Paladin1",
+            "action_type": "Action",
+            "details": " | Fighter1 |  | Lay on Hands | Result not reported",
+        }),
+        parse_combat_event({
+            "id": 121,
+            "round": 4,
+            "actor": "Paladin1",
+            "action_type": "Healing",
+            "details": "5 | Fighter1 | Target HP 8/10 | Lay on Hands | 5 healing applied",
+            "amount": 5,
+        }),
+    ]
+    linked_healing_beats = builder.coalesce_events(linked_healing_beat)
+    assert len(linked_healing_beats) == 1, "Related action and healing rows did not form one beat"
+    linked_healing_text = builder.beat_sentence(linked_healing_beats[0])
+    assert contains_sentence(
+        linked_healing_text,
+        "Paladin1",
+        "Lay on Hands",
+        "Fighter1",
+    ), "Coalesced healing beat lost actor, action, or target"
+    assert linked_healing_text.count("Lay on Hands") == 1, "Healing action was repeated"
+
+    contributed_attack = [
+        parse_combat_event({
+            "id": 130,
+            "round": 4,
+            "actor": "Ranger1",
+            "action_type": "Attack",
+            "details": "21 | Kobold | Against AC 14 | Longbow | Hit (21 vs AC 14)",
+            "result_code": "hit",
+        }),
+        parse_combat_event({
+            "id": 131,
+            "round": 4,
+            "actor": "Ranger1",
+            "action_type": "Damage",
+            "details": (
+                "12 | Kobold | Target HP 0/7 | Longbow with Hunter's Mark | "
+                "7 damage applied"
+            ),
+            "damage_types": "piercing, force",
+            "amount": 7,
+        }),
+    ]
+    contributed_beats = builder.coalesce_events(contributed_attack)
+    assert len(contributed_beats) == 1, (
+        "A named damage contributor separated the resolution from its attack"
+    )
+    contributed_text = builder.beat_sentence(contributed_beats[0])
+    assert contains_sentence(
+        contributed_text,
+        "Ranger1",
+        "Longbow",
+        "Hunter's Mark",
+        "Kobold",
+        "piercing and force damage",
+    ), "Coalesced attack lost its named damage contributor or damage types"
+    assert "with Longbow with" not in contributed_text, (
+        "Named damage contributor produced a repetitive action construction"
+    )
 
     attributed_temporary_hp = CombatNarrativeBuilder().event_sentence(parse_combat_event({
         "id": 101,
@@ -138,17 +370,20 @@ try:
         "damage_types": "",
         "amount": None,
     }))
-    assert attributed_temporary_hp == (
-        "Pallor's Inspiring Leader bolsters Fighter1 with temporary vitality, "
-        "granting an additional buffer against harm."
+    assert contains_sentence(
+        attributed_temporary_hp,
+        "Pallor",
+        "Inspiring Leader",
+        "Fighter1",
+        "temporary vitality",
     ), "A confirmed temporary-HP source was not carried into the narrative"
 
     severity_cases = (
-        (20, 80, "causes limited harm"),
-        (30, 60, "lands with telling force"),
-        (40, 40, "hits hard"),
-        (30, 10, "is devastating"),
-        (10, 0, "overwhelms Goblin's remaining endurance"),
+        (20, 80, ("limited harm", "light enough")),
+        (30, 60, ("telling force", "weakens")),
+        (40, 40, ("hits hard", "badly weakened")),
+        (30, 10, ("devastating", "nearly exhausts")),
+        (10, 0, ("overwhelms", "exhausts")),
     )
     for case_id, (applied, remaining, expected) in enumerate(severity_cases, start=1):
         severity = CombatNarrativeBuilder().event_sentence(parse_combat_event({
@@ -163,7 +398,7 @@ try:
             "damage_types": "slashing",
             "amount": applied,
         }))
-        assert expected in severity, f"Damage severity boundary failed: {severity}"
+        assert any(phrase in severity for phrase in expected), f"Damage severity boundary failed: {severity}"
         assert not re.search(r"\d", severity), f"Damage severity exposed quantities: {severity}"
 
     page = CombatNarrativePage(repo)

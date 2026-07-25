@@ -1,0 +1,335 @@
+{
+  "schema_version": 1,
+  "content_version": "2026.07.25",
+  "default_style": "heroic_military",
+  "constraints": {
+    "allowed_placeholders": [
+      "actor",
+      "actor_possessive",
+      "target",
+      "target_possessive",
+      "action",
+      "action_text",
+      "damage_text",
+      "detail",
+      "cause",
+      "outcome"
+    ],
+    "forbidden_literal_terms": [
+      "Lectern",
+      "Fantasy Grounds",
+      "nameless hand",
+      "murderous precision",
+      "from the dark"
+    ]
+  },
+  "styles": {
+    "heroic_military": {
+      "label": "Heroic Military Chronicle",
+      "description": "Direct, grounded battlefield prose with restrained heroic weight.",
+      "sections": {
+        "round_opening": {
+          "encounter_start": [
+            "The encounter began, and the first exchange followed.",
+            "The battle was joined, and the first exchange began."
+          ],
+          "before_first": [
+            "Before the first round, the struggle had already begun to take shape.",
+            "Before the first round, the opening moves were already under way."
+          ],
+          "first": [
+            "The first exchange came hard and fast.",
+            "The opening exchange began in earnest."
+          ],
+          "later": [
+            "The struggle tightened.",
+            "The struggle sharpened.",
+            "The fighting continued.",
+            "The battle pressed into another bitter exchange.",
+            "The combatants met again in the hard work of battle.",
+            "The fight carried into another exchange.",
+            "The line held as the next exchange began.",
+            "Neither side yielded as the battle moved on.",
+            "The contest entered another hard-fought exchange.",
+            "The field remained contested when the combatants met again."
+          ]
+        },
+        "beat": {
+          "attack_damage": [
+            "{actor} brings {action} against {target}, lands a hit, and deals {damage_text}.",
+            "{actor_possessive} {action} finds its mark against {target}, delivering {damage_text}.",
+            "{actor} catches {target} with {action}; the solid hit delivers {damage_text}.",
+            "{actor} commits {action} against {target}, lands a solid hit, and follows through with {damage_text}.",
+            "{actor} presses the attack with {action}, finds its mark against {target}, and deals {damage_text}.",
+            "{actor} turns an opening against {target} into a solid hit with {action}, dealing {damage_text}.",
+            "{actor} meets {target} with {action}; the attack lands a hit and carries {damage_text}.",
+            "{actor} brings {action} to bear on {target}, finds its mark, and inflicts {damage_text}."
+          ],
+          "critical_damage": [
+            "{actor} finds a decisive opening against {target} with {action}; the critical hit delivers {damage_text}.",
+            "{actor_possessive} {action} finds its mark with exceptional force against {target}, dealing {damage_text} on a critical hit.",
+            "{actor} commits fully with {action} and lands a critical hit on {target}, delivering {damage_text}.",
+            "{actor} catches {target} exposed and turns {action} into a critical hit that deals {damage_text}.",
+            "{actor} breaks through {target_possessive} defense with {action}; the critical hit carries {damage_text}.",
+            "{actor} seizes the opening with {action}, lands a critical hit against {target}, and inflicts {damage_text}."
+          ],
+          "save_success": [
+            "{target} withstands {actor_possessive} {action}, and the attempted effect fails to take hold.",
+            "{target} holds firm against {actor_possessive} {action} and escapes its effect.",
+            "{actor} brings {action} against {target}, but {target} successfully resists it.",
+            "{target} rallies against {actor_possessive} {action} and turns aside its effect."
+          ],
+          "save_failure": [
+            "{target} fails to withstand {actor_possessive} {action}, and the effect takes hold.",
+            "{actor_possessive} {action} overcomes {target_possessive} resistance and takes effect.",
+            "{target} cannot resist {actor_possessive} {action}, and its effect takes hold.",
+            "{actor} brings {action} against {target}, who fails to resist it."
+          ],
+          "save_success_damage": [
+            "{target} withstands the worst of {actor_possessive} {action}, though {damage_text} still breaks through.",
+            "{target} successfully resists part of {actor_possessive} {action}, but still suffers {damage_text}.",
+            "{actor_possessive} {action} meets firm resistance from {target}, yet still delivers {damage_text}.",
+            "{target} holds against {actor_possessive} {action} and limits its effect, though {damage_text} follows."
+          ],
+          "save_failure_damage": [
+            "{target} fails to withstand {actor_possessive} {action}, and the effect delivers {damage_text}.",
+            "{actor_possessive} {action} overcomes {target_possessive} resistance and deals {damage_text}.",
+            "{target} cannot resist {actor_possessive} {action}, which follows through with {damage_text}.",
+            "{actor} brings {action} against {target}; the failed resistance leaves {target} exposed to {damage_text}."
+          ]
+        },
+        "attack": {
+          "critical": [
+            "{actor} presses {target}{action_text}, finds an opening, and lands a critical hit.",
+            "{actor} catches {target}{action_text} exposed and turns the opening into a critical hit.",
+            "{actor} commits to the attack against {target}{action_text} and lands a critical hit.",
+            "{actor} breaks through {target_possessive} defense{action_text} with a critical hit.",
+            "{actor} seizes a decisive opening against {target}{action_text} and lands a critical hit."
+          ],
+          "hit": [
+            "{actor} attacks {target}{action_text}, and the attack finds its mark.",
+            "{actor} closes the exchange against {target}{action_text} and lands a solid hit.",
+            "{actor} presses {target}{action_text} and lands a hit.",
+            "{actor} catches {target}{action_text} with a clean hit.",
+            "{actor} finds an opening against {target}{action_text}, and the attack connects.",
+            "{actor} commits to the attack against {target}{action_text} and finds the mark."
+          ],
+          "miss": [
+            "{actor} strikes at {target}{action_text}, but the attack misses.",
+            "{actor} attacks {target}{action_text}, but fails to find the mark.",
+            "{actor} tests {target}{action_text}, but the attack does not connect.",
+            "{actor} presses {target}{action_text}, but cannot land the blow.",
+            "{actor} commits to the attack against {target}{action_text}, but the attempt goes wide.",
+            "{actor} seeks an opening against {target}{action_text}, but finds none."
+          ],
+          "default": [
+            "{actor} attacks {target}{action_text}.",
+            "{actor} presses the attack against {target}{action_text}.",
+            "{actor} moves against {target}{action_text}.",
+            "{actor} brings the attack to {target}{action_text}."
+          ]
+        },
+        "damage": {
+          "known_action": [
+            "{actor_possessive} {action} finds {target}, dealing {damage_text}.",
+            "{actor_possessive} {action} strikes {target} for {damage_text}.",
+            "{target} takes {damage_text} from {actor_possessive} {action}."
+          ],
+          "known_actor": [
+            "{actor} strikes {target}, dealing {damage_text}.",
+            "{actor} deals {damage_text} to {target}."
+          ],
+          "unattributed": [
+            "{target} takes {damage_text} from an unidentified source.",
+            "An unidentified source deals {damage_text} to {target}."
+          ],
+          "zero_known_action": [
+            "{actor_possessive} {action} has no damaging effect on {target}.",
+            "{target} emerges unharmed from {actor_possessive} {action}."
+          ],
+          "zero_known_actor": [
+            "{actor} fails to deal {damage_text} to {target}.",
+            "{target} takes no {damage_text} from {actor}."
+          ],
+          "zero_unattributed": [
+            "{target} takes no {damage_text} from the unidentified source.",
+            "The unidentified source fails to harm {target} with {damage_text}."
+          ]
+        },
+        "damage_consequence": {
+          "down": [
+            "The assault overwhelms {target_possessive} remaining endurance and brings {target} down.",
+            "The damage exhausts {target_possessive} remaining endurance, bringing {target} down."
+          ],
+          "minor": [
+            "The strike causes limited harm, and {target} stays firmly in the fight.",
+            "The damage is light enough for {target} to remain firmly in the fight."
+          ],
+          "moderate": [
+            "The strike lands with telling force, but {target} remains in the fight.",
+            "The damage weakens {target}, though {target} remains battle-ready."
+          ],
+          "heavy": [
+            "The blow hits hard, leaving {target} hard pressed.",
+            "The damage leaves {target} badly weakened but still fighting."
+          ],
+          "devastating": [
+            "The blow is devastating, leaving {target} barely able to continue.",
+            "The damage nearly exhausts {target_possessive} endurance, but {target} remains in the fight."
+          ]
+        },
+        "healing": {
+          "known_unmeasured": [
+            "{cause} helps {target} recover and remain in the battle.",
+            "{cause} restores enough of {target_possessive} strength to keep fighting."
+          ],
+          "unknown_unmeasured": [
+            "{target} recovers enough strength to remain in the battle.",
+            "{target} regains enough strength to continue fighting."
+          ],
+          "known_full": [
+            "{cause} eases {target_possessive} wounds and restores {target} to fighting form.",
+            "{cause} restores {target}, returning {target} to fighting form."
+          ],
+          "unknown_full": [
+            "{target} recovers and returns to fighting form.",
+            "{target} rallies and returns to fighting form."
+          ],
+          "known_major": [
+            "{cause} calls {target} back into the fight, restoring much of the strength lost in battle.",
+            "{cause} makes {target_possessive} wounds far less severe and restores much of the strength lost in battle."
+          ],
+          "unknown_major": [
+            "{target} rallies and recovers much of the strength lost in battle.",
+            "{target} recovers strongly and returns to the battle with renewed endurance."
+          ],
+          "known_moderate": [
+            "{cause} makes {target_possessive} wounds less severe, allowing them to keep fighting.",
+            "{cause} eases {target_possessive} wounds and restores enough strength to continue."
+          ],
+          "unknown_moderate": [
+            "{target_possessive} wounds ease, allowing {target} to keep fighting.",
+            "{target} recovers enough strength to remain in the fight."
+          ],
+          "known_minor": [
+            "{cause} steadies {target} and returns some fighting strength.",
+            "{cause} eases part of {target_possessive} hurt and helps {target} continue."
+          ],
+          "unknown_minor": [
+            "{target} steadies and recovers some fighting strength.",
+            "{target} regains a measure of strength and continues."
+          ]
+        },
+        "temporary_vitality": {
+          "gain_known": [
+            "{actor_possessive} {action} bolsters {target} with temporary vitality, granting an additional buffer against harm.",
+            "{actor_possessive} {action} reinforces {target} with temporary vitality for the fighting ahead."
+          ],
+          "gain_unknown": [
+            "{target} is bolstered by temporary vitality, gaining an additional buffer against harm.",
+            "Temporary vitality reinforces {target} against the next harm."
+          ],
+          "damage_spent": [
+            "{target_possessive} temporary vitality bears the brunt of the impact and is spent.",
+            "The impact consumes {target_possessive} remaining temporary vitality."
+          ],
+          "damage_remaining": [
+            "{target_possessive} temporary vitality absorbs the impact, leaving {target_possessive} normal endurance untouched.",
+            "Temporary vitality shields {target} from the impact and remains in place."
+          ],
+          "spent": [
+            "{target_possessive} temporary vitality is spent.",
+            "The last of {target_possessive} temporary vitality is exhausted."
+          ],
+          "reduced": [
+            "{target_possessive} temporary vitality is weakened but remains in place.",
+            "Part of {target_possessive} temporary vitality is lost, though some remains."
+          ]
+        },
+        "adjustment": {
+          "resistance_known": [
+            "{target_possessive} resistance turns aside part of {actor_possessive} {action}'s force.",
+            "{target_possessive} resistance blunts {actor_possessive} {action}, reducing its effect."
+          ],
+          "resistance_unknown": [
+            "{target_possessive} resistance turns aside part of the damage.",
+            "{target_possessive} resistance blunts the damage."
+          ],
+          "vulnerability_known": [
+            "{actor_possessive} {action} finds {target_possessive} vulnerability, magnifying the effect.",
+            "{target_possessive} vulnerability makes {actor_possessive} {action} more effective."
+          ],
+          "vulnerability_unknown": [
+            "{target_possessive} vulnerability magnifies the effect.",
+            "The damage becomes more severe through {target_possessive} vulnerability."
+          ],
+          "negated": [
+            "The effect is negated, leaving {target} unharmed.",
+            "The effect fails to harm {target}."
+          ],
+          "reduced": [
+            "The damage is blunted, limiting its impact.",
+            "Part of the damage is turned aside."
+          ]
+        },
+        "generic": {
+          "manual": [
+            "An unattributed combat event occurs: {detail}.",
+            "The battle record preserves an unattributed event: {detail}."
+          ],
+          "note": [
+            "The combat record notes: {detail}.",
+            "The record adds this account: {detail}."
+          ],
+          "action_result": [
+            "{actor} uses {action}{action_text}. {detail}.",
+            "{actor} brings {action} to bear{action_text}. {detail}.",
+            "{actor} calls on {action}{action_text}. {detail}.",
+            "{actor} commits {action}{action_text}. {detail}.",
+            "{actor} puts {action} into play{action_text}. {detail}."
+          ],
+          "action": [
+            "{actor} uses {action}{action_text}.",
+            "{actor} brings {action} to bear{action_text}.",
+            "{actor} calls on {action}{action_text}.",
+            "{actor} commits {action}{action_text}.",
+            "{actor} puts {action} into play{action_text}.",
+            "{actor} turns to {action}{action_text}."
+          ],
+          "action_effect": [
+            "{actor} brings {action} to bear on {target}, and the effect takes hold.",
+            "{actor} calls on {action} for {target}, putting its effect into place.",
+            "{actor} uses {action} on {target}, and its effect settles over the target.",
+            "{actor} commits {action} to {target}, establishing its effect."
+          ],
+          "effect_targeted": [
+            "{target} is affected: {detail}.",
+            "The effect reaches {target}: {detail}."
+          ],
+          "effect_untargeted": [
+            "{detail}.",
+            "The recorded effect is clear: {detail}."
+          ]
+        },
+        "outcome": {
+          "victory": [
+            "The encounter ends in victory.",
+            "The battle closes in victory."
+          ],
+          "defeat": [
+            "The encounter ends in defeat.",
+            "The battle closes in defeat."
+          ],
+          "other": [
+            "The encounter ends with this result: {outcome}.",
+            "The final result is recorded: {outcome}."
+          ],
+          "unknown": [
+            "The encounter ends.",
+            "The fighting comes to an end."
+          ]
+        }
+      }
+    }
+  }
+}
