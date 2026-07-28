@@ -4,7 +4,7 @@
 
 **Version:** 3.0.0 — Workflow and Import Refinement
 **Milestone:** 3.0.0 (in progress)
-**Database schema:** v9
+**Database schema:** v10
 
 Lectern is a single evolving Python/PySide6 Windows desktop codebase for D&D 5E campaign planning, combat tracking, and campaign analysis. This package is a clean, Git-ready source baseline.
 
@@ -60,6 +60,20 @@ git push -u origin main
 ```
 
 The `.gitignore` excludes virtual environments, databases, logs, backups, caches, and generated build output.
+
+## Product and Agent Documentation
+
+The current product status, feature backlog, durable decisions, and delivery
+constraints are maintained in [`docs/lectern-prd.md`](docs/lectern-prd.md).
+
+Future agents should begin with:
+
+1. [`docs/agents/README.md`](docs/agents/README.md) for domain ownership.
+2. [`docs/contracts/active/`](docs/contracts/active/) for authorized work.
+3. [`docs/contracts/templates/agent-contract-template.md`](docs/contracts/templates/agent-contract-template.md)
+   when creating a new task contract.
+4. [`docs/evidence/README.md`](docs/evidence/README.md) for sanitized acceptance
+   evidence rules.
 
 ## Current Milestone
 
