@@ -517,11 +517,27 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
         result_code = "save_success"
     elif event_type == "save" and result_text == "failure":
         result_code = "save_failure"
+    elif (
+        event_type == "action"
+        and str(metadata.get("roll_type") or "").casefold() == "concentration"
+        and result_text == "success"
+    ):
+        result_code = "concentration_success"
+    elif (
+        event_type == "action"
+        and str(metadata.get("roll_type") or "").casefold() == "concentration"
+        and result_text == "failure"
+    ):
+        result_code = "concentration_failure"
     else:
         result_code = ""
     is_damage_roll = event_type == "action" and "damage" in (
         f"{metadata.get('roll_type', '')} {description}"
     ).lower()
+    is_concentration = (
+        event_type == "action"
+        and str(metadata.get("roll_type") or "").casefold() == "concentration"
+    )
     component_cap = None
     if event_type == "damage" and isinstance(event.get("amount"), (int, float)) and not isinstance(event.get("amount"), bool):
         component_cap = max(0, int(event["amount"]))
@@ -535,7 +551,12 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
             f"{action_name or 'Damage'} with "
             + ", ".join(damage_contributors)
         )
-    action_type = "Damage Roll" if is_damage_roll else ACTION_TYPES[event_type]
+    if is_damage_roll:
+        action_type = "Damage Roll"
+    elif is_concentration:
+        action_type = "Concentration Check"
+    else:
+        action_type = ACTION_TYPES[event_type]
     lifecycle = str(metadata.get("lifecycle") or "")
     if lifecycle == "encounter_start":
         action_type = "Encounter Start"
@@ -690,6 +711,28 @@ def format_event_log(event: dict[str, Any]) -> FormattedLogEvent:
             or modifier is None
             or not bool(save_ability)
             or not bool(originating_action)
+            or result_text not in {"success", "failure"}
+        )
+    elif is_concentration:
+        concentration_dc = metadata.get("concentration_dc")
+        defense = (
+            f"Against DC {concentration_dc}"
+            if concentration_dc is not None
+            else "Concentration DC not reported"
+        )
+        outcome = result or "Outcome not reported"
+        details = " | ".join((
+            roll_text,
+            actor_name,
+            defense,
+            originating_action or action_name or "Concentration",
+            outcome,
+        ))
+        incomplete = (
+            incomplete
+            or roll_total is None
+            or raw_roll is None
+            or modifier is None
             or result_text not in {"success", "failure"}
         )
     elif roll_total is not None:

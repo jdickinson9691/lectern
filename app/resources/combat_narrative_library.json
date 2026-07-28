@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "content_version": "2026.07.25",
+  "content_version": "2026.07.28",
   "default_style": "heroic_military",
   "constraints": {
     "allowed_placeholders": [
@@ -59,7 +59,7 @@
             "{actor} brings {action} against {target}, lands a hit, and deals {damage_text}.",
             "{actor_possessive} {action} finds its mark against {target}, delivering {damage_text}.",
             "{actor} catches {target} with {action}; the solid hit delivers {damage_text}.",
-            "{actor} commits {action} against {target}, lands a solid hit, and follows through with {damage_text}.",
+            "{actor} strikes with {action} against {target}, lands a solid hit, and follows through with {damage_text}.",
             "{actor} presses the attack with {action}, finds its mark against {target}, and deals {damage_text}.",
             "{actor} turns an opening against {target} into a solid hit with {action}, dealing {damage_text}.",
             "{actor} meets {target} with {action}; the attack lands a hit and carries {damage_text}.",
@@ -68,7 +68,7 @@
           "critical_damage": [
             "{actor} finds a decisive opening against {target} with {action}; the critical hit delivers {damage_text}.",
             "{actor_possessive} {action} finds its mark with exceptional force against {target}, dealing {damage_text} on a critical hit.",
-            "{actor} commits fully with {action} and lands a critical hit on {target}, delivering {damage_text}.",
+            "{actor} strikes decisively with {action} and lands a critical hit on {target}, delivering {damage_text}.",
             "{actor} catches {target} exposed and turns {action} into a critical hit that deals {damage_text}.",
             "{actor} breaks through {target_possessive} defense with {action}; the critical hit carries {damage_text}.",
             "{actor} seizes the opening with {action}, lands a critical hit against {target}, and inflicts {damage_text}."
@@ -102,7 +102,7 @@
           "critical": [
             "{actor} presses {target}{action_text}, finds an opening, and lands a critical hit.",
             "{actor} catches {target}{action_text} exposed and turns the opening into a critical hit.",
-            "{actor} commits to the attack against {target}{action_text} and lands a critical hit.",
+            "{actor} presses the attack against {target}{action_text} and lands a critical hit.",
             "{actor} breaks through {target_possessive} defense{action_text} with a critical hit.",
             "{actor} seizes a decisive opening against {target}{action_text} and lands a critical hit."
           ],
@@ -112,14 +112,14 @@
             "{actor} presses {target}{action_text} and lands a hit.",
             "{actor} catches {target}{action_text} with a clean hit.",
             "{actor} finds an opening against {target}{action_text}, and the attack connects.",
-            "{actor} commits to the attack against {target}{action_text} and finds the mark."
+            "{actor} takes the opening against {target}{action_text}, and the attack connects."
           ],
           "miss": [
             "{actor} strikes at {target}{action_text}, but the attack misses.",
             "{actor} attacks {target}{action_text}, but fails to find the mark.",
-            "{actor} tests {target}{action_text}, but the attack does not connect.",
+            "{actor} strikes at {target}{action_text}, but the attack does not connect.",
             "{actor} presses {target}{action_text}, but cannot land the blow.",
-            "{actor} commits to the attack against {target}{action_text}, but the attempt goes wide.",
+            "{actor} takes the opening against {target}{action_text}, but the attempt goes wide.",
             "{actor} seeks an opening against {target}{action_text}, but finds none."
           ],
           "default": [
@@ -272,6 +272,82 @@
             "Part of the damage is turned aside."
           ]
         },
+        "effect": {
+          "condition_added_known": [
+            "{actor_possessive} {action} leaves {target} {detail}.",
+            "{actor} brings {action} to bear, leaving {target} {detail}."
+          ],
+          "condition_added_unknown": [
+            "{target} falls {detail}.",
+            "{target} is left {detail}."
+          ],
+          "condition_removed": [
+            "{target} is no longer {detail}.",
+            "{target} recovers from being {detail}."
+          ],
+          "defense_known": [
+            "{actor_possessive} {action} strengthens {target_possessive} defenses.",
+            "{actor} invokes {action}, reinforcing {target_possessive} defenses."
+          ],
+          "defense_unknown": [
+            "{target_possessive} defenses are strengthened.",
+            "{target} gains stronger protection against attack."
+          ],
+          "boon_known": [
+            "{actor_possessive} {action} bolsters {target} for the fighting ahead.",
+            "{actor} calls on {action}, sharpening {target_possessive} combat readiness."
+          ],
+          "boon_unknown": [
+            "{target} is bolstered for the fighting ahead.",
+            "{target_possessive} combat readiness is strengthened."
+          ],
+          "readied": [
+            "{actor} readies {action} for the next opening.",
+            "{actor} prepares {action} for the coming strike."
+          ],
+          "expended": [
+            "{actor_possessive} {action} is spent in the exchange.",
+            "{actor} expends {action} as the attack unfolds."
+          ],
+          "mark_known": [
+            "{actor} places {action} upon {target}, singling the foe out for pursuit.",
+            "{actor_possessive} {action} settles upon {target}, fixing the foe as the chosen quarry."
+          ],
+          "mark_unknown": [
+            "{target} is singled out by {action}.",
+            "{action} settles upon {target}."
+          ],
+          "ended_known": [
+            "{actor_possessive} {action} ends on {target}.",
+            "{target} is released from {actor_possessive} {action}."
+          ],
+          "ended_unknown": [
+            "The effect on {target} comes to an end.",
+            "{target} is released from the lingering effect."
+          ],
+          "generic_known": [
+            "{actor_possessive} {action} takes hold on {target}.",
+            "{actor} establishes {action} upon {target}."
+          ],
+          "generic_unknown": [
+            "A confirmed effect takes hold on {target}.",
+            "{target} comes under a battlefield effect."
+          ]
+        },
+        "concentration": {
+          "success": [
+            "{actor} holds concentration despite the blow.",
+            "{actor} keeps firm control of the ongoing magic."
+          ],
+          "failure": [
+            "{actor_possessive} concentration breaks under the impact.",
+            "{actor} loses control of the ongoing magic."
+          ],
+          "unknown": [
+            "{actor} makes a concentration check as the battle presses in.",
+            "{actor_possessive} concentration is tested by the impact."
+          ]
+        },
         "generic": {
           "manual": [
             "An unattributed combat event occurs: {detail}.",
@@ -285,14 +361,14 @@
             "{actor} uses {action}{action_text}. {detail}.",
             "{actor} brings {action} to bear{action_text}. {detail}.",
             "{actor} calls on {action}{action_text}. {detail}.",
-            "{actor} commits {action}{action_text}. {detail}.",
+            "{actor} employs {action}{action_text}. {detail}.",
             "{actor} puts {action} into play{action_text}. {detail}."
           ],
           "action": [
             "{actor} uses {action}{action_text}.",
             "{actor} brings {action} to bear{action_text}.",
             "{actor} calls on {action}{action_text}.",
-            "{actor} commits {action}{action_text}.",
+            "{actor} employs {action}{action_text}.",
             "{actor} puts {action} into play{action_text}.",
             "{actor} turns to {action}{action_text}."
           ],

@@ -32,7 +32,7 @@ try:
     extension_manifest = (
         ROOT / "integrations" / "fantasy_grounds" / "extension" / "LecternSync" / "extension.xml"
     ).read_text(encoding="utf-8")
-    assert 'local EXTENSION_VERSION = "1.4.9"' in extension_source and "<version>1.4.9</version>" in extension_manifest, "Extension version metadata is inconsistent"
+    assert 'local EXTENSION_VERSION = "1.4.10"' in extension_source and "<version>1.4.10</version>" in extension_manifest, "Extension version metadata is inconsistent"
     assert 'if vValue == JSON_EMPTY_OBJECT then return "{}" end' in extension_source, "Empty event metadata is not encoded as a JSON object"
     assert 'Comm.registerSlashHandler("lectern-start", startEncounter' in extension_source, "Explicit encounter start command is missing"
     assert 'Comm.registerSlashHandler("lectern-end", endEncounter' in extension_source, "Explicit encounter end command is missing"
@@ -83,6 +83,9 @@ try:
     assert '"effect_added"' in extension_source and '"effect_removed"' in extension_source, "Effect lifecycle events are not journaled"
     assert 'effectSourceParticipant' in extension_source and 'source_attribution = sSourceAttribution' in extension_source, "Effect sources are not retained"
     assert 'originating_effect_action' in extension_source and 'originating_action = sActionName' in extension_source, "Effect source/action provenance is not retained"
+    assert 'effectActionName(rAction, sEffectText)' in extension_source and 'DB.getParent(node)' in extension_source, "Effect actions are not resolved from their authoritative power nodes"
+    assert 'if s:find("concentration", 1, true) then return "concentration" end' in extension_source, "Concentration rolls are not classified explicitly"
+    assert 'tTarget = tActor' in extension_source and 'sActionName = "Concentration"' in extension_source, "Concentration rolls can still inherit an unrelated selected target"
     assert 'string.lower(sSourceName):find("^combattracker%.list%.")' in extension_source, "Combat Tracker paths stored in effect source_name are not resolved as source references"
     assert 'DB.addHandler("combattracker.list.*.effects", "onChildAdded"' in extension_source, "Effect additions are not observed"
     assert 'DB.addHandler("combattracker.list.*.effects", "onChildDeleted"' in extension_source, "Effect removals are not observed"
@@ -138,6 +141,27 @@ try:
     })
     assert failed_save.result_code == "save_failure", "Failed save is not normalized"
     assert "Bane | Charisma save: Failure" in failed_save.details, "Failed save lost its originating action"
+
+    concentration = format_event_log({
+        "type": "action",
+        "round": 1,
+        "actor": {"source_key": "5E:character:ranger1", "name": "Ranger1"},
+        "target": {"source_key": "5E:character:ranger1", "name": "Ranger1"},
+        "amount": None,
+        "description": "[CONCENTRATION]",
+        "metadata": {
+            "action_name": "Concentration",
+            "originating_action": "Concentration",
+            "roll_type": "concentration",
+            "roll_total": 22,
+            "raw_roll": 20,
+            "modifier": 2,
+            "result": None,
+        },
+    })
+    assert concentration.action_type == "Concentration Check"
+    assert "Ranger1 | Concentration DC not reported | Concentration" in concentration.details
+    assert "Berserker" not in concentration.details, "Concentration inherited an unrelated selected target"
 
     sneak_attack_damage = format_event_log({
         "type": "damage",

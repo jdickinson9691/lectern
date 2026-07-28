@@ -29,6 +29,8 @@ class NarrativeLibrary:
         "healing",
         "temporary_vitality",
         "adjustment",
+        "effect",
+        "concentration",
         "generic",
         "outcome",
     }
@@ -86,6 +88,24 @@ class NarrativeLibrary:
             "negated",
             "reduced",
         },
+        "effect": {
+            "condition_added_known",
+            "condition_added_unknown",
+            "condition_removed",
+            "defense_known",
+            "defense_unknown",
+            "boon_known",
+            "boon_unknown",
+            "readied",
+            "expended",
+            "mark_known",
+            "mark_unknown",
+            "ended_known",
+            "ended_unknown",
+            "generic_known",
+            "generic_unknown",
+        },
+        "concentration": {"success", "failure", "unknown"},
         "generic": {
             "manual",
             "note",
@@ -300,6 +320,8 @@ def parse_combat_event(row) -> dict[str, object]:
         category = "manual"
     elif "healing" in action_type.casefold() or "healing applied" in combined:
         category = "healing"
+    elif action_type.casefold() == "concentration check":
+        category = "concentration"
     elif "damage" in action_type.casefold() or "damage applied" in combined:
         category = "damage"
     else:
@@ -537,7 +559,20 @@ class CombatNarrativeBuilder:
             candidate_action = str(candidate["action"]).strip().casefold()
             if actor != candidate_actor or target != candidate_target:
                 continue
+            if (
+                str(event["type"]).casefold() == "effect"
+                and str(candidate["type"]).casefold() == "effect"
+                and action in {"effect", "effect state"}
+                and candidate_action in {"effect", "effect state"}
+            ):
+                continue
             if cls.actions_related(action, candidate_action):
+                return True
+            if (
+                str(event["type"]).casefold() == "effect"
+                and action in {"effect", "effect state"}
+                and str(candidate["type"]).casefold() != "effect"
+            ):
                 return True
         return False
 
@@ -571,6 +606,18 @@ class CombatNarrativeBuilder:
             event for event in events if str(event["type"]).casefold() == "effect"
         ]
         effects_consumed = False
+        linked_action = ""
+        for candidate in (damage, save, attack):
+            if candidate:
+                candidate_action = str(candidate.get("action") or "").strip()
+                if candidate_action and candidate_action.casefold() not in {
+                    "action",
+                    "action not reported",
+                    "damage",
+                    "effect",
+                }:
+                    linked_action = candidate_action
+                    break
 
         if healing:
             base = self.event_sentence(healing)
@@ -620,7 +667,11 @@ class CombatNarrativeBuilder:
                 base = ""
 
         effect_sentences = [] if effects_consumed else [
-            self.effect_sentence(effect, _clean_record_text(effect["target"]))
+            self.effect_sentence(
+                effect,
+                _clean_record_text(effect["target"]),
+                linked_action,
+            )
             for effect in effects
         ]
         return " ".join(
@@ -940,6 +991,22 @@ class CombatNarrativeBuilder:
         if action_type == "effect":
             return self.effect_sentence(event, target)
 
+        if action_type == "concentration check":
+            outcome = str(event.get("result_code") or "").casefold()
+            if outcome == "concentration_success":
+                key = "success"
+            elif outcome == "concentration_failure":
+                key = "failure"
+            else:
+                key = "unknown"
+            return self.event_phrase(
+                "concentration",
+                key,
+                event,
+                actor=actor,
+                actor_possessive=_possessive(actor),
+            )
+
         target_text = f" against {target}" if target else ""
         detail = result or _clean_record_text(event["details"])
         if source_actor:
@@ -1204,6 +1271,7 @@ class CombatNarrativeBuilder:
         self,
         event: Mapping[str, object],
         target: str,
+        linked_action: str = "",
     ) -> str:
         detail = _clean_record_text(event["result"] or event["details"])
         temporary = re.search(
@@ -1252,21 +1320,108 @@ class CombatNarrativeBuilder:
                 target=subject,
                 target_possessive=_possessive(subject),
             )
-        if target:
-            return self.event_phrase(
-                "generic",
-                "effect_targeted",
-                event,
-                target=target,
-                target_possessive=_possessive(target),
-                detail=detail,
-            )
-        return self.event_phrase(
-            "generic",
-            "effect_untargeted",
-            event,
-            detail=detail,
+        raw_action = _clean_record_text(event["action"])
+        raw_lower = detail.casefold()
+        if re.search(r"\bift\s*:\s*custom\s*\(", raw_lower):
+            return ""
+
+        state_source = f"{event.get('defense', '')} {detail}".casefold()
+        removed = "effect ended" in state_source or "effect removed" in state_source
+        label = self.effect_label(detail)
+        actor = _clean_record_text(event["actor"])
+        known_actor = (
+            actor
+            and not self.is_source_actor(actor)
+            and "manual / unattributed" not in actor.casefold()
         )
+        action = linked_action.strip() or raw_action.strip()
+        if action.casefold() in {"", "effect", "effect state"}:
+            action = label
+
+        subject = target or "The target"
+        values = {
+            "actor": actor,
+            "actor_possessive": _possessive(actor) if actor else "",
+            "target": subject,
+            "target_possessive": _possessive(subject),
+            "action": action,
+            "detail": label.casefold(),
+        }
+        conditions = {
+            "blinded",
+            "charmed",
+            "frightened",
+            "grappled",
+            "incapacitated",
+            "invisible",
+            "paralyzed",
+            "poisoned",
+            "prone",
+            "restrained",
+            "stunned",
+            "unconscious",
+        }
+        label_lower = label.casefold()
+        if label_lower in conditions:
+            if removed:
+                key = "condition_removed"
+            elif known_actor and action and action.casefold() != label_lower:
+                key = "condition_added_known"
+            else:
+                key = "condition_added_unknown"
+            return self.event_phrase("effect", key, event, **values)
+
+        if "hunter's mark" in label_lower or "hunter’s mark" in label_lower:
+            if removed:
+                key = "ended_known" if known_actor else "ended_unknown"
+            else:
+                key = "mark_known" if known_actor else "mark_unknown"
+            values["action"] = "Hunter's Mark"
+            return self.event_phrase("effect", key, event, **values)
+
+        if "sneak attack" in label_lower:
+            key = "expended" if removed else "readied"
+            values["action"] = "Sneak Attack"
+            return self.event_phrase("effect", key, event, **values)
+
+        if re.search(r"\bac\s*:", raw_lower):
+            key = "defense_known" if known_actor and action else "defense_unknown"
+            return self.event_phrase("effect", key, event, **values)
+
+        if (
+            "bardic inspiration" in label_lower
+            or "innate sorcery" in label_lower
+            or re.search(r"\b(?:adv(?:atk)?|savedc|atk|save)\s*:", raw_lower)
+        ):
+            if removed:
+                key = "ended_known" if known_actor and action else "ended_unknown"
+            else:
+                key = "boon_known" if known_actor and action else "boon_unknown"
+            return self.event_phrase("effect", key, event, **values)
+
+        if removed:
+            key = "ended_known" if known_actor and action else "ended_unknown"
+        else:
+            key = "generic_known" if known_actor and action else "generic_unknown"
+        return self.event_phrase("effect", key, event, **values)
+
+    @staticmethod
+    def effect_label(detail: str) -> str:
+        text = re.sub(
+            r"^Effect\s+(?:added to|ended on|removed from)\s+[^:]+:\s*",
+            "",
+            str(detail or "").strip(),
+            flags=re.IGNORECASE,
+        )
+        custom = re.search(r"\bCUSTOM\s*\(([^)]+)\)", text, re.IGNORECASE)
+        if custom:
+            return custom.group(1).strip()
+        first = text.split(";", 1)[0].strip()
+        first = re.sub(r"\s*\([^)]*rolls?[^)]*\)\s*", "", first, flags=re.IGNORECASE)
+        first = re.sub(r"\s+Die$", "", first, flags=re.IGNORECASE)
+        if re.match(r"^(?:AC|ATK|SAVE|SAVEDC|DMG|IFT)\s*:", first, re.IGNORECASE):
+            return ""
+        return first or "effect"
 
     def outcome_sentence(self, outcome: str) -> str:
         clean = _clean_record_text(outcome)

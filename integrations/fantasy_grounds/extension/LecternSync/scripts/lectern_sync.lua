@@ -1,7 +1,7 @@
--- Lectern Sync 1.4.9
+-- Lectern Sync 1.4.10
 -- One-way Fantasy Grounds Unity 5E export. This script never writes FG database nodes.
 
-local EXTENSION_VERSION = "1.4.9"
+local EXTENSION_VERSION = "1.4.10"
 local SCHEMA_VERSION = 1
 local bExporting = false
 local tCachedSnapshot = nil
@@ -595,7 +595,45 @@ local function effectTextsMatch(sLeft, sRight)
       sCanonicalRight:sub(1, #sCanonicalLeft) == sCanonicalLeft)
 end
 
-local function contributorNameFromEffect(sEffectKey, sLabel)
+local contributorNameFromEffect
+
+local function isMeaningfulEffectActionName(sValue)
+  local s = tostring(sValue or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  local sLower = s:lower()
+  if s == "" or sLower == "effect" or sLower == "action" then return false end
+  if sLower:find("^ac%s*:") or sLower:find("^atk%s*:") or
+    sLower:find("^save%s*:") or sLower:find("^savedc%s*:") or
+    sLower:find("^dmg%s*:") or sLower:find("^ift%s*:") then
+    return false
+  end
+  return true
+end
+
+local function effectActionName(rAction, sEffectText)
+  for _, sField in ipairs({ "sLabel", "label", "sActionName", "name" }) do
+    local sCandidate = rAction and rAction[sField]
+    if isMeaningfulEffectActionName(sCandidate) then
+      return tostring(sCandidate)
+    end
+  end
+
+  local sSource = tostring(
+    rAction and (rAction.sSource or rAction.source or rAction.node) or ""
+  )
+  local node = sSource ~= "" and DB.findNode(sSource) or nil
+  for _ = 1, 5 do
+    if not node then break end
+    local sName = nodeText(node, "name", nodeText(node, "label", ""))
+    if isMeaningfulEffectActionName(sName) then return sName end
+    node = DB.getParent(node)
+  end
+
+  local sLabel = contributorNameFromEffect("", sEffectText)
+  if isMeaningfulEffectActionName(sLabel) then return sLabel end
+  return "Effect"
+end
+
+contributorNameFromEffect = function(sEffectKey, sLabel)
   local sMappedName = tContributorNamesByEffectKey[sEffectKey]
   if sMappedName and sMappedName ~= "" then return sMappedName end
   local sCustomName = tostring(sLabel or ""):match("[Cc][Uu][Ss][Tt][Oo][Mm]%(([^%)]+)%)")
@@ -614,9 +652,9 @@ local function rememberOriginatingEffectAction(rActor, rAction, rRoll)
     fPreviousActionPostGetEffect(rActor, rAction, rRoll)
   end
   if not Session.IsHost or not rAction then return end
-  local sActionName = tostring(rAction.label or "")
   local sEffectText = tostring(rAction.sName or "")
-  if sActionName == "" or sEffectText == "" then return end
+  local sActionName = effectActionName(rAction, sEffectText)
+  if sEffectText == "" then return end
   table.insert(tPendingEffectActions, {
     actor_path = ActorManager and ActorManager.getCTNodeName and
       ActorManager.getCTNodeName(rActor) or "",
@@ -1377,6 +1415,7 @@ end
 
 local function classifyRoll(sRollType, sDescription)
   local s = string.lower(tostring(sRollType or "") .. " " .. tostring(sDescription or ""))
+  if s:find("concentration", 1, true) then return "concentration" end
   if s:find("attack", 1, true) then return "attack" end
   if s:find("damage", 1, true) or s:find("heal", 1, true) then return "action" end
   if s:find("save", 1, true) then return "save" end
@@ -1635,12 +1674,22 @@ local function onDiceLanded(draginfo)
   local sActionName = rollActionName(sDescription)
   local sResult = JSON_NULL
   local sLower = string.lower(sDescription)
-  if sLower:find("[hit]", 1, true) then sResult = "Hit"
+  if sLower:find("[success]", 1, true) then sResult = "Success"
+  elseif sLower:find("[failure]", 1, true) then sResult = "Failure"
+  elseif sLower:find("[hit]", 1, true) then sResult = "Hit"
   elseif sLower:find("[miss]", 1, true) then sResult = "Miss" end
-  local sEventType = classifyRoll(sRollType, sDescription)
+  local sRollCategory = classifyRoll(sRollType, sDescription)
+  if sRollCategory == "concentration" then
+    tTarget = tActor
+    tTargetCombatant = tActorCombatant
+    tTargets = {}
+    sActionName = "Concentration"
+  end
+  local sEventType = sRollCategory == "concentration" and "action" or sRollCategory
   if sEventType == "attack" and bHaveAuthoritativeAttackHook then return end
   if sEventType == "save" and bHaveAuthoritativeSaveHook then return end
-  local nTargetAC = tTargetCombatant and tonumber(tTargetCombatant.armor_class) or nil
+  local nTargetAC = sRollCategory ~= "concentration" and
+    tTargetCombatant and tonumber(tTargetCombatant.armor_class) or nil
   if sEventType == "attack" and sResult == JSON_NULL and nTotal and nTargetAC then
     sResult = nTotal >= nTargetAC and "Hit" or "Miss"
   end
@@ -1651,7 +1700,7 @@ local function onDiceLanded(draginfo)
   local tContext = {
     actor = tActor, target = tTarget, action_name = sActionName,
     action_kind = sLower:find("damage", 1, true) and "damage" or
-      (sLower:find("heal", 1, true) and "healing" or sEventType),
+      (sLower:find("heal", 1, true) and "healing" or sRollCategory),
     raw_roll = nRawRoll or JSON_NULL, modifier = nModifier,
     roll_total = nTotal or JSON_NULL, result = sResult,
     damage_types = tDamageTypes, damage_components = tDamageComponents,
@@ -1661,7 +1710,11 @@ local function onDiceLanded(draginfo)
   for _, tTargetRecord in ipairs(tTargets) do table.insert(tTargetParticipants, tTargetRecord.participant) end
   rememberRollContext(tContext, tTargetParticipants)
   appendEvent(sEventType, tActor, tTarget, nil, sDescription,
-    { action_name = sActionName, roll_type = sRollType,
+    { action_name = sActionName,
+      originating_action = sRollCategory == "concentration" and
+        "Concentration" or JSON_NULL,
+      roll_type = sRollCategory == "concentration" and
+        "concentration" or sRollType,
       raw_roll = nRawRoll or JSON_NULL, modifier = nModifier,
       roll_total = nTotal or JSON_NULL, target_ac = nTargetAC or JSON_NULL,
       result = sResult, damage_types = tDamageTypes,

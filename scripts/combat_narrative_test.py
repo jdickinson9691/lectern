@@ -378,6 +378,212 @@ try:
         "temporary vitality",
     ), "A confirmed temporary-HP source was not carried into the narrative"
 
+    test5_rows = [
+        {
+            "id": 301,
+            "round": 1,
+            "actor": "Warlock1",
+            "action_type": "Effect",
+            "details": (
+                " | Warlock1 | Effect added | Armor of Shadows | "
+                "Effect added to Warlock1: AC: 3; [D: 8 hours]"
+            ),
+        },
+        {
+            "id": 302,
+            "round": 1,
+            "actor": "Rogue1",
+            "action_type": "Effect",
+            "details": (
+                " | Rogue1 | Effect added | Effect | "
+                "Effect added to Rogue1: Sneak Attack; DMG: 1d6"
+            ),
+        },
+        {
+            "id": 303,
+            "round": 1,
+            "actor": "Rogue1",
+            "action_type": "Effect",
+            "details": (
+                " | Rogue1 | Effect ended | Effect | "
+                "Effect ended on Rogue1: Sneak Attack; DMG: 1d6"
+            ),
+        },
+        {
+            "id": 304,
+            "round": 1,
+            "actor": "Sorcerer1",
+            "action_type": "Effect",
+            "details": (
+                " | Sorcerer1 | Effect added | Effect | "
+                "Effect added to Sorcerer1: Innate Sorcery; SAVEDC: 1; ADVATK"
+            ),
+        },
+        {
+            "id": 305,
+            "round": 1,
+            "actor": "Sorcerer1",
+            "action_type": "Attack",
+            "details": (
+                "19 | Berserker | Against AC 13 | Ray of Sickness | "
+                "Hit (19 vs AC 13)"
+            ),
+            "result_code": "hit",
+        },
+        {
+            "id": 306,
+            "round": 1,
+            "actor": "Sorcerer1",
+            "action_type": "Damage",
+            "details": (
+                "11 | Berserker | Target HP 56/67 | Ray of Sickness | "
+                "11 damage applied"
+            ),
+            "damage_types": "poison",
+            "amount": 11,
+        },
+        {
+            "id": 307,
+            "round": 1,
+            "actor": "Sorcerer1",
+            "action_type": "Effect",
+            "details": (
+                " | Berserker | Effect added | Effect | "
+                "Effect added to Berserker: Poisoned"
+            ),
+        },
+        {
+            "id": 308,
+            "round": 1,
+            "actor": "Bard1",
+            "action_type": "Effect",
+            "details": (
+                " | Warlock1 | Effect added | Effect | "
+                "Effect added to Warlock1: Bardic Inspiration Die "
+                "(Attack, Save, Check rolls); [D: 1 hour]"
+            ),
+        },
+        {
+            "id": 309,
+            "round": 1,
+            "actor": "Ranger1",
+            "action_type": "Effect",
+            "details": (
+                " | Berserker | Effect added | Effect | "
+                "Effect added to Berserker: Hunter's Mark; (C); [D: 1 hour]"
+            ),
+        },
+        {
+            "id": 310,
+            "round": 1,
+            "actor": "Ranger1",
+            "action_type": "Effect",
+            "details": (
+                " | Ranger1 | Effect added | Effect | "
+                "Effect added to Ranger1: IFT: CUSTOM(Hunter's Mark); "
+                "DMG: 1d6 force; (C); [D: 1 hour]"
+            ),
+        },
+        {
+            "id": 311,
+            "round": 1,
+            "actor": "Ranger1",
+            "action_type": "Damage",
+            "details": (
+                "9 | Berserker | Target HP 47/67 | Longbow | "
+                "9 damage applied from 9 rolled"
+            ),
+            "damage_types": "piercing",
+            "amount": 9,
+        },
+        {
+            "id": 312,
+            "round": 1,
+            "actor": "Ranger1",
+            "action_type": "Damage",
+            "details": (
+                "9 | Ranger1 | Target HP 3/12 | Longbow | "
+                "9 damage applied from 9 rolled"
+            ),
+            "damage_types": "piercing",
+            "amount": 9,
+        },
+        {
+            "id": 313,
+            "round": 1,
+            "actor": "Ranger1",
+            "action_type": "Concentration Check",
+            "details": (
+                "22 (dice 20; modifiers +2) | Ranger1 | "
+                "Concentration DC not reported | Concentration | Outcome not reported"
+            ),
+        },
+    ]
+    test5_narrative = builder.build(test5_rows, "Test5", "unresolved")
+    assert contains_sentence(
+        test5_narrative,
+        "Warlock1",
+        "Armor of Shadows",
+        "defenses",
+    ), "Armor of Shadows was reduced to raw AC syntax"
+    assert contains_sentence(
+        test5_narrative,
+        "Rogue1",
+        "Sneak Attack",
+        "readies",
+    ) or contains_sentence(
+        test5_narrative,
+        "Rogue1",
+        "Sneak Attack",
+        "prepares",
+    ), "Sneak Attack activation was not narrated as a readied ability"
+    assert contains_sentence(
+        test5_narrative,
+        "Sorcerer1",
+        "Innate Sorcery",
+    ), "Innate Sorcery lost its authoritative name"
+    assert contains_sentence(
+        test5_narrative,
+        "Ray of Sickness",
+        "Berserker",
+        "poisoned",
+    ), "Ray of Sickness was not coalesced with its Poisoned condition"
+    assert contains_sentence(
+        test5_narrative,
+        "Bard1",
+        "Bardic Inspiration",
+        "Warlock1",
+    ), "Bardic Inspiration source or target was lost"
+    assert test5_narrative.count("Hunter's Mark") == 1, (
+        "Hunter's Mark's helper effect was narrated as a second event"
+    )
+    assert contains_sentence(
+        test5_narrative,
+        "Ranger1",
+        "Longbow",
+        "Ranger1",
+        "piercing damage",
+    ), "The authoritative Test5 self-targeted damage was concealed"
+    assert contains_sentence(
+        test5_narrative,
+        "Ranger1",
+        "concentration",
+    ), "The Test5 concentration check disappeared from the narrative"
+    assert not re.search(
+        r"\b(?:SAVEDC|ADVATK|DMG|IFT|AC)\s*:|Effect (?:added|ended)",
+        test5_narrative,
+        re.IGNORECASE,
+    ), f"Raw effect mechanics leaked into the Test5 narrative:\n{test5_narrative}"
+    test5_numeric_prose = re.sub(r"## Round \d+", "## Round", test5_narrative)
+    test5_numeric_prose = re.sub(
+        r"\b(?:Warlock|Rogue|Sorcerer|Bard|Ranger)\d+\b",
+        "Combatant",
+        test5_numeric_prose,
+    )
+    assert not re.search(r"\d", test5_numeric_prose), (
+        f"Mechanical numbers leaked into the Test5 narrative:\n{test5_narrative}"
+    )
+
     severity_cases = (
         (20, 80, ("limited harm", "light enough")),
         (30, 60, ("telling force", "weakens")),
