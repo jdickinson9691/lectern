@@ -19,3 +19,4 @@ that links back to the completed one.
 | [`FG-LINK-001`](fg-link-001-prepared-live-matching.md) | Fantasy Grounds Integration | 2026-07-28 | Name-gated prepared/live matching and safe stale-link reconciliation |
 | [`FG-CONC-001`](fg-conc-001-concentration-attribution.md) | Fantasy Grounds Integration | 2026-07-28 | Concentration checks resolve their actual creature or remain unattributed |
 | [`FG-EFFECT-001`](fg-effect-001-armor-of-shadows-provenance.md) | Fantasy Grounds Integration | 2026-07-28 | Named powers retain authoritative provenance across effect application |
+| [`REL-PACK-001`](rel-pack-001-fantasy-grounds-corrections.md) | Data, Reliability, and Release | 2026-07-28 | Reviewed, versioned, tested, packaged, committed, and authorized for push |

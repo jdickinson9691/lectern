@@ -1,13 +1,14 @@
 # Contract: Package Fantasy Grounds correction sequence
 
 Contract ID: `REL-PACK-001`
-Status: Active
+Status: Complete
 Owning domain: Data, Reliability, and Release
 Assigned agent: Data, Reliability, and Release Agent
 Consulting domains: Fantasy Grounds Integration, Combat Narrative
 Execution order: After `FG-LINK-001`, `FG-CONC-001`, and `FG-EFFECT-001`
 Created: 2026-07-28
 Last updated: 2026-07-28
+Completed: 2026-07-28
 
 ## Objective
 
@@ -108,9 +109,24 @@ contracts. Feature semantics remain owned by their completed contracts.
 
 ## Completion record
 
-- Result:
-- Verification evidence:
-- Commit(s):
+- Result: Complete. The reviewed correction sequence was versioned as Lectern
+  Sync 1.4.11 and packaged with Lectern 3.0.0.
+- Verification evidence: All fifteen automated regression scripts passed.
+  PyInstaller 6.21.0 built the application, the extension archive contains the
+  1.4.11 manifest and source, the packaged application completed an isolated
+  offscreen startup check, and Inno Setup 6.7.3 compiled the installer.
+- Commit(s): `858175b` contains the corrections, version synchronization, tests,
+  contracts, documentation, and rebuilt tracked installer. A following
+  documentation commit records final artifact evidence and contract closure.
 - Artifact(s) and hash:
-- Remaining risks:
-- PRD/Changelog updates:
+  - `dist/Lectern/Lectern.exe` — SHA-256
+    `D88315FFED2E5DD4014654C992BEB877F44DB3CACC925D998719F5CB177CA425`
+  - `dist/Lectern/FantasyGrounds/LecternSync.ext` — SHA-256
+    `DDA995C239AA40C912C45F9084E3855D17F4FFF835C7D9F502868355210F1536`
+  - `release/Lectern_v3_0_0_Setup.exe` — SHA-256
+    `F1BD85F6A1C3AE3B2C855A276D15C24AA7FD9FA85AD2144FED0516365C3B7B0B`
+- Remaining risks: Live Fantasy Grounds installation and verification remain
+  deferred. The installer was compiled and inspected but was not installed
+  because extension installation was outside this contract.
+- PRD/Changelog updates: `docs/lectern-prd.md`, `CHANGELOG.md`,
+  `docs/VERIFICATION_REPORT.md`, and the contract indexes.

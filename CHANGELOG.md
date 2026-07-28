@@ -1,7 +1,8 @@
 # Changelog
 
-- Prepared Lectern Sync 1.4.11 with the completed prepared/live association,
-  concentration-attribution, and originating-effect provenance corrections.
+- Built Lectern Sync 1.4.11 and the Lectern 3.0.0 Windows installer with the
+  completed prepared/live association, concentration-attribution, and
+  originating-effect provenance corrections.
 
 - Corrected Fantasy Grounds effect provenance ordering. Lectern Sync now queues
   the authoritative originating power before Fantasy Grounds applies its

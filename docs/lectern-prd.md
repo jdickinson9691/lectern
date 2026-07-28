@@ -1,8 +1,8 @@
 # Lectern Product Requirements and Development Status
 
 Last updated: July 28, 2026
-Repository baseline: `main` at `8222231` plus the uncommitted FG-LINK-001,
-FG-CONC-001, and FG-EFFECT-001 implementations recorded below
+Repository baseline: implementation and installer commit `858175b`, with the
+REL-PACK-001 completion record applied afterward
 Document status: Current product and agent handoff authority
 Filename: `lectern-prd.md`
 
@@ -47,16 +47,16 @@ using a versioned phrase library. It does not use an external LLM or API.
 | Item | Current value | Notes |
 |---|---|---|
 | Product version | 3.0.0 | Release name: Workflow and Import Refinement |
-| Release status | In progress; not release-clear | Manual acceptance and three Test6 defects remain |
+| Release status | In progress; not release-clear | Automated blockers are corrected; live FG verification and broader manual acceptance remain |
 | Planned milestone | 3.1 design and staged implementation | Some originally proposed 3.1 work has already been implemented without changing product version |
 | Database schema | v10 | Local campaign ownership, archive state, and persistent parties |
 | Fantasy Grounds snapshot contract | v1 | One-way import only |
-| Lectern Sync extension | 1.4.11 | Packaging authorized by REL-PACK-001 |
+| Lectern Sync extension | 1.4.11 | Packaged in the current installer |
 | Combat Narrative library schema | v1 | Current content version: `2026.07.28.1` |
 | Supported Python | 3.13 | Python 3.14 is not approved for packaging |
 | Supported desktop platform | Windows 10/11 | PySide6 desktop application |
-| Baseline commit | `2149dc7` | Test5 self-target narrative correction |
-| Current installer | `release/Lectern_v3_0_0_Setup.exe` | SHA-256 `5554F8044D885909E97FCA9AF16FE618256540D5EB2FF900D6B3FBE5E3158378` |
+| Baseline commit | `858175b` | FG-LINK-001, FG-CONC-001, FG-EFFECT-001, and rebuilt installer |
+| Current installer | `release/Lectern_v3_0_0_Setup.exe` | SHA-256 `F1BD85F6A1C3AE3B2C855A276D15C24AA7FD9FA85AD2144FED0516365C3B7B0B` |
 
 The root [`README.md`](../README.md) still reports database schema v9 and some
 older documents report prior extension or commit versions. Those values are
@@ -654,9 +654,9 @@ also passed before commit `2149dc7` and the subsequent installer build:
 - portrait workflow;
 - seeded-database smoke test.
 
-The current narrative installer was built and verified with narrative library
-content version `2026.07.28.1` and Lectern Sync 1.4.10. REL-PACK-001 is
-rebuilding the installer with Lectern Sync 1.4.11.
+The current installer was built and verified with narrative library content
+version `2026.07.28.1` and Lectern Sync 1.4.11. The packaged application
+started successfully in an isolated offscreen check.
 
 The original automated tests did not catch the three live Test6 defects because:
 
@@ -675,12 +675,11 @@ Grounds verification remains deferred.
 
 ### Priority 0 — Release blockers
 
-1. Define and authorize a packaging contract for the completed FG-LINK-001,
-   FG-CONC-001, and FG-EFFECT-001 corrections.
-2. Rebuild the extension, application, and installer under that authority.
-3. Use **Import Now** after installing the corrected build to clear the
+1. Install the corrected build when the owner is ready to resume live Fantasy
+   Grounds verification.
+2. Use **Import Now** after installing it to clear the
    incorrect Test6↔Test5 link without changing its journal.
-4. Resume only the smallest necessary live verification when the owner ends the
+3. Resume only the smallest necessary live verification when the owner ends the
    testing pause.
 
 ### Priority 1 — Product completion
@@ -836,8 +835,8 @@ building, combat logging, campaign analytics, character PDF import, portraits,
 CSV transfer, data safety, one-way Fantasy Grounds synchronization, and offline
 Combat Narrative are implemented.
 
-The three evidence-backed Test6 corrections are implemented and await an
-explicit packaging contract for the extension, application, and installer.
-Further live testing is paused. Broader 3.1 work—especially two-way Fantasy Grounds
+The three evidence-backed Test6 corrections are implemented, packaged, and
+automated-verified. Further live testing is paused. Broader 3.1
+work—especially two-way Fantasy Grounds
 integration—must remain a separate product-design decision rather than being
 inferred from the existing one-way handoff.
