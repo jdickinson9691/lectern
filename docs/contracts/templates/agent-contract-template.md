@@ -3,7 +3,9 @@
 Contract ID: `<DOMAIN-NNN>`
 Status: Draft
 Owning domain: `<one domain from docs/agents/README.md>`
+Assigned agent: `<domain agent or unassigned>`
 Consulting domains: `<none or named domains>`
+Execution order: `<independent, sequence position, or prerequisite>`
 Created: `<YYYY-MM-DD>`
 Last updated: `<YYYY-MM-DD>`
 

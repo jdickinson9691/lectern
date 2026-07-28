@@ -81,6 +81,22 @@ After the handoff folder has been created once, Lectern does not need to start f
 
 Fantasy Grounds dice actions, authoritative saving throws, applied damage and healing, turn changes, temporary HP changes, and Combat Tracker effect additions/removals are appended automatically to the synchronized encounter's turn log. Applied healing preserves the healer and originating spell/ability for dice rolls and fixed values such as Lay on Hands; manual HP edits remain unattributed. Saving throws preserve the originating caster and spell/ability, creature making the save, save ability, actual DC, final total, and success/failure. Effect events preserve the effect label, target, duration, and Fantasy Grounds source reference or name when available. An effect that disappears is recorded as ended without guessing whether it expired, was consumed, lost concentration, or was manually removed. A damage roll is logged as an action; it becomes `Damage` only when wounds are actually applied in the Combat Tracker.
 
+Concentration checks are attributed first from the roll's Fantasy Grounds
+database node and then, when that node is unavailable, from the authoritative
+target of the immediately preceding applied damage. If neither source resolves
+the creature, Lectern leaves the actor unreported rather than assigning the
+check to the active attacker. The DC and success/failure are shown only when
+Fantasy Grounds explicitly includes them. Previously imported events with an
+incorrect actor are not rewritten by inference; confirm the correction with a
+new export when live testing resumes.
+
+Named powers that apply Combat Tracker effects retain their originating action
+separately from the mechanical effect label. For example, Fantasy Grounds may
+apply `AC: 3`, while Lectern records the authoritative originating action as
+Armor of Shadows. Lectern does not infer a spell or ability name from the
+mechanical label when Fantasy Grounds does not supply one. Older events that
+captured only a generic effect remain generic after reprocessing.
+
 Lectern Sync 1.4.9 imports equipped weapons and armor from 5E character inventories, records named damage contributors plus authoritative healing, saving throws, and damage types resolved by the ruleset, and journals effect lifecycle changes. Each authoritative save is recorded once. Damage beyond remaining HP is labeled as overkill rather than resistance or reduction; mitigation, vulnerability, temporary-HP absorption, and actual HP damage remain separate. Eligible damage effects such as Sneak Attack, Hunter's Mark, and Divine Smite are attached to the resolved weapon or spell action using their Fantasy Grounds effect evidence, including one-roll effects consumed immediately before resolution. Effect source paths resolve to combatant names, while the originating spell or ability remains distinct from the mechanical effect label. Mixed damage remains component-aware, every target of a multi-target action retains its roll attribution or save outcome, and expanded Combat Dashboard rows preserve rolled and applied values after resistance, immunity, vulnerability, wards, and similar adjustments. Applied component totals never exceed the target's actual HP loss. Manual wound and healing edits remain unattributed.
 
 When the encounter ends, record the GM-confirmed result in Fantasy Grounds chat:
@@ -142,6 +158,18 @@ Use a dedicated test campaign and sanitized/open content. Never commit exports c
 - Run `/lectern-export` in Fantasy Grounds.
 - Review Lectern's Error Logs and Fantasy Grounds logs.
 - If Fantasy Grounds reports that the export failed, reselect the campaign folder in Lectern before running `/lectern-export`.
+
+### A live session shows the wrong prepared counterpart
+
+Prepared and live encounters link only when their normalized encounter names
+are compatible. Roster overlap is used to disambiguate name-compatible
+candidates and never links differently named encounters by itself.
+
+After installing a Lectern update that corrects encounter matching, click
+**Import Now** with the current snapshot. Lectern can remove or replace a stale
+counterpart association even when that snapshot sequence was already imported.
+This reconciliation does not change the prepared roster, live Combat Tracker
+roster, or combat event journal.
 
 ### An imported module record disappeared
 

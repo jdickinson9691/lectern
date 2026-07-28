@@ -11,3 +11,11 @@ Move a contract here only after:
 
 Do not rewrite a completed contract to describe later work. Create a new contract
 that links back to the completed one.
+
+## Completed contracts
+
+| Contract | Owning domain | Completed | Result |
+|---|---|---|---|
+| [`FG-LINK-001`](fg-link-001-prepared-live-matching.md) | Fantasy Grounds Integration | 2026-07-28 | Name-gated prepared/live matching and safe stale-link reconciliation |
+| [`FG-CONC-001`](fg-conc-001-concentration-attribution.md) | Fantasy Grounds Integration | 2026-07-28 | Concentration checks resolve their actual creature or remain unattributed |
+| [`FG-EFFECT-001`](fg-effect-001-armor-of-shadows-provenance.md) | Fantasy Grounds Integration | 2026-07-28 | Named powers retain authoritative provenance across effect application |

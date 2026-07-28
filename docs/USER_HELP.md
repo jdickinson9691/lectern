@@ -186,7 +186,16 @@ Encounter Builder creates and prepares local encounters and displays imported Fa
 | Fantasy Grounds Prepared encounter | A Fantasy Grounds encounter/battle record | Review the planned roster before combat | No |
 | Fantasy Grounds Live combat session | `/lectern-start` plus the Combat Tracker | Review synchronized initiative, HP, turns, and journal data | No |
 
-A prepared encounter and its live session can be linked when their name and roster produce one unambiguous match. Lectern names the counterpart in the selector. If several prepared encounters match equally well, Lectern leaves them unlinked rather than guessing.
+A prepared encounter and its live session can be linked when their normalized
+encounter names are compatible and their rosters produce one unambiguous match.
+Roster similarity alone never links differently named encounters. Lectern names
+the counterpart in the selector. If several name-compatible prepared encounters
+match equally well, Lectern leaves them unlinked rather than guessing.
+
+After installing a version with updated encounter-matching rules, selecting
+**Import Now** can reconcile an existing stale prepared/live link from the
+current snapshot even when its sequence was already imported. This changes only
+the counterpart association; the combat journal remains intact.
 
 ### Build a local encounter
 
@@ -258,6 +267,12 @@ Combat Narrative retells the selected encounter as chronological, round-by-round
 - Confirmed events are written as action, immediate effect, and combat consequence: healing supports recovery, resistance or vulnerability explains adjusted damage, and temporary hit points provide an additional buffer against damage.
 - Mechanical quantities are omitted from the story. Damage severity is described by comparing the applied effect with the target's endurance immediately before it; healing and temporary hit points use qualitative recovery and protection language. Numbered round headings and digits that are part of combatant names remain unchanged.
 - Narrative transitions may connect recorded events, but the recap does not invent spells, wards, injuries, deaths, motives, or causes that are absent from the Combat Session Log.
+- Concentration checks use the creature identified by Fantasy Grounds or the
+  target of the immediately preceding applied damage. If neither is available,
+  the actor, DC, or outcome remains unreported rather than being guessed.
+- Named Fantasy Grounds powers are kept separate from their mechanical effect
+  text when the source action is reported. A generic effect remains generic;
+  Lectern does not guess a spell or ability from text such as `AC: 3`.
 - Narrative language comes from Lectern's versioned offline phrase library. Phrase selection is deterministic, validated, and performed entirely on this computer; no combat or campaign data is sent to an external AI provider.
 - Turn-start and turn-end markers are omitted from the story.
 - Source-application names, initialization noise, unresolved placeholders, and duplicate roll/damage rows are omitted so the result reads as a battle story rather than an import transcript.

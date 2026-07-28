@@ -1111,10 +1111,39 @@ class FantasyGroundsSyncService:
                 source_id, previous_sequence = self._upsert_source(conn, source, handoff_path)
                 if sequence <= previous_sequence:
                     repaired = self._repair_character_equipment(conn, source_id, payload["characters"])
-                    if repaired:
+                    live_encounter_id = None
+                    association_changed = False
+                    if sequence == previous_sequence:
+                        prepared_encounter_ids: dict[str, int] = {}
+                        for record in payload["encounters"]:
+                            encounter_id = self._find_link(
+                                conn, source_id, record["source_key"], "encounter"
+                            )
+                            if encounter_id and conn.execute(
+                                "SELECT 1 FROM encounters WHERE id=?", (encounter_id,)
+                            ).fetchone():
+                                prepared_encounter_ids[record["source_key"]] = encounter_id
+                        live_source_key = self._live_combat_source_key(payload["combat"])
+                        live_encounter_id = self._find_link(
+                            conn, source_id, live_source_key, "encounter"
+                        )
+                        association_changed = self._refresh_prepared_encounter_link(
+                            conn, source_id, payload["encounters"], payload["combat"],
+                            prepared_encounter_ids, live_encounter_id,
+                        )
+                    if repaired or association_changed:
+                        repairs = []
+                        if repaired:
+                            repairs.append(
+                                f"restored SRD-matched equipment for {repaired} "
+                                f"character{'s' if repaired != 1 else ''}"
+                            )
+                        if association_changed:
+                            repairs.append("corrected prepared/live encounter association")
                         return SyncResult(
                             True, sequence, source["campaign_name"], counts,
-                            f"Snapshot already applied; restored SRD-matched equipment for {repaired} character{'s' if repaired != 1 else ''}",
+                            f"Snapshot already applied; {'; '.join(repairs)}",
+                            live_encounter_id,
                         )
                     return SyncResult(False, sequence, source["campaign_name"], counts, "Snapshot already applied")
                 conn.execute("UPDATE external_records SET is_stale=1 WHERE source_id=?", (source_id,))
@@ -1135,18 +1164,10 @@ class FantasyGroundsSyncService:
                 live_encounter_id = self._upsert_live_combat(
                     conn, source_id, campaign_id, source["campaign_name"], payload["combat"], sequence
                 )
-                prepared_source_key = self._match_prepared_encounter(payload["encounters"], payload["combat"])
-                if live_encounter_id is not None:
-                    live_source_key = self._live_combat_source_key(payload["combat"])
-                    conn.execute(
-                        "DELETE FROM external_entity_links WHERE source_id=? AND source_key=? AND entity_type='prepared_encounter'",
-                        (source_id, live_source_key),
-                    )
-                    if prepared_source_key in prepared_encounter_ids:
-                        self._link(
-                            conn, source_id, live_source_key, "prepared_encounter",
-                            prepared_encounter_ids[prepared_source_key],
-                        )
+                self._refresh_prepared_encounter_link(
+                    conn, source_id, payload["encounters"], payload["combat"],
+                    prepared_encounter_ids, live_encounter_id,
+                )
                 self._import_events(conn, source_id, campaign_id, source["campaign_name"], payload.get("events", []), sequence)
                 conn.execute(
                     "UPDATE external_sources SET last_sequence=?, last_sync_at=?, last_error='' WHERE id=?",
@@ -1434,38 +1455,97 @@ class FantasyGroundsSyncService:
         text = re.sub(r"\s+(?:#?\d+)\s*$", "", str(value or "").strip().casefold())
         return " ".join(re.findall(r"[a-z0-9]+", text))
 
+    @staticmethod
+    def _match_encounter_name(value: Any) -> str:
+        """Normalize encounter identity while preserving meaningful numbers."""
+        tokens = re.findall(r"[a-z0-9]+", str(value or "").strip().casefold())
+        suffixes = (
+            ("fantasy", "grounds", "live", "combat"),
+            ("fantasy", "grounds", "live", "session"),
+            ("live", "combat"),
+            ("live", "session"),
+            ("fantasy", "grounds"),
+            ("prepared",),
+        )
+        changed = True
+        while changed and tokens:
+            changed = False
+            for suffix in suffixes:
+                if len(tokens) > len(suffix) and tuple(tokens[-len(suffix):]) == suffix:
+                    del tokens[-len(suffix):]
+                    changed = True
+                    break
+        return " ".join(tokens)
+
     def _match_prepared_encounter(
         self, encounters: list[dict[str, Any]], combat: dict[str, Any]
     ) -> str | None:
         """Return one unambiguous prepared encounter source key for live combat."""
         if not encounters:
             return None
+        session_name = self._match_encounter_name(combat.get("session_name"))
+        if not session_name:
+            return None
         live_names = {
             self._match_name(item.get("name")) for item in combat.get("combatants", [])
             if self._match_name(item.get("name"))
         }
-        session_name = self._match_name(combat.get("session_name"))
-        scored: list[tuple[tuple[int, int, float], str]] = []
+        scored: list[tuple[tuple[int, float], str]] = []
         for record in encounters:
-            prepared_name = self._match_name(record.get("name"))
+            prepared_name = self._match_encounter_name(record.get("name"))
+            if not prepared_name or session_name != prepared_name:
+                continue
             participant_names = {
                 self._match_name(item.get("name")) for item in record.get("participants", [])
                 if self._match_name(item.get("name"))
             }
             overlap = len(live_names & participant_names)
-            name_match = int(bool(
-                session_name and prepared_name
-                and (session_name == prepared_name or session_name.startswith(prepared_name + " "))
-            ))
             overlap_ratio = overlap / max(1, len(participant_names | live_names))
-            if name_match or overlap:
-                scored.append(((name_match, overlap, overlap_ratio), str(record["source_key"])))
+            scored.append(((overlap, overlap_ratio), str(record["source_key"])))
         if not scored:
             return None
         scored.sort(reverse=True)
         if len(scored) > 1 and scored[0][0] == scored[1][0]:
             return None
         return scored[0][1]
+
+    def _refresh_prepared_encounter_link(
+        self,
+        conn,
+        source_id: int,
+        encounters: list[dict[str, Any]],
+        combat: dict[str, Any],
+        prepared_encounter_ids: dict[str, int],
+        live_encounter_id: int | None,
+    ) -> bool:
+        """Reconcile one live-to-prepared link without changing either encounter."""
+        if live_encounter_id is None:
+            return False
+        live_source_key = self._live_combat_source_key(combat)
+        prepared_source_key = self._match_prepared_encounter(encounters, combat)
+        desired_id = prepared_encounter_ids.get(prepared_source_key or "")
+        current = conn.execute(
+            """
+            SELECT entity_id FROM external_entity_links
+            WHERE source_id=? AND source_key=? AND entity_type='prepared_encounter'
+            """,
+            (source_id, live_source_key),
+        ).fetchone()
+        current_id = int(current["entity_id"]) if current else None
+        if current_id == desired_id:
+            return False
+        conn.execute(
+            """
+            DELETE FROM external_entity_links
+            WHERE source_id=? AND source_key=? AND entity_type='prepared_encounter'
+            """,
+            (source_id, live_source_key),
+        )
+        if desired_id is not None:
+            self._link(
+                conn, source_id, live_source_key, "prepared_encounter", desired_id
+            )
+        return True
 
     def _upsert_live_combat(self, conn, source_id: int, campaign_id: int, campaign_name: str, combat: dict[str, Any], sequence: int) -> int | None:
         session_state = combat.get("session_state")

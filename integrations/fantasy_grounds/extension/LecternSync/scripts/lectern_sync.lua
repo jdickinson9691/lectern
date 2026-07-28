@@ -1,7 +1,7 @@
--- Lectern Sync 1.4.10
+-- Lectern Sync 1.4.11
 -- One-way Fantasy Grounds Unity 5E export. This script never writes FG database nodes.
 
-local EXTENSION_VERSION = "1.4.10"
+local EXTENSION_VERSION = "1.4.11"
 local SCHEMA_VERSION = 1
 local bExporting = false
 local tCachedSnapshot = nil
@@ -22,6 +22,7 @@ local bHaveCombatBaseline = false
 local bLastCombatActive = false
 local tLastRollContext = nil
 local tRollContextsByTarget = {}
+local tRecentDamageTarget = nil
 local bHaveAuthoritativeAttackHook = false
 local bHaveAuthoritativeDamageHook = false
 local bHaveAuthoritativeSaveHook = false
@@ -648,22 +649,29 @@ contributorNameFromEffect = function(sEffectKey, sLabel)
 end
 
 local function rememberOriginatingEffectAction(rActor, rAction, rRoll)
+  if Session.IsHost and rAction then
+    local sEffectText = tostring(rAction.sName or "")
+    local sActionName = effectActionName(rAction, sEffectText)
+    if sEffectText ~= "" then
+      -- Fantasy Grounds can apply the Combat Tracker effect while the
+      -- previous post-roll handler runs. Queue the authoritative power first
+      -- so onEffectAdd can bind it to the new effect node.
+      table.insert(tPendingEffectActions, {
+        actor_path = ActorManager and ActorManager.getCTNodeName and
+          ActorManager.getCTNodeName(rActor) or "",
+        action_name = sActionName,
+        effect_text = normalizedEffectText(sEffectText),
+        raw_effect_text = sEffectText,
+        captured_at = os and os.time and os.time() or 0,
+      })
+      while #tPendingEffectActions > 12 do
+        table.remove(tPendingEffectActions, 1)
+      end
+    end
+  end
   if fPreviousActionPostGetEffect then
     fPreviousActionPostGetEffect(rActor, rAction, rRoll)
   end
-  if not Session.IsHost or not rAction then return end
-  local sEffectText = tostring(rAction.sName or "")
-  local sActionName = effectActionName(rAction, sEffectText)
-  if sEffectText == "" then return end
-  table.insert(tPendingEffectActions, {
-    actor_path = ActorManager and ActorManager.getCTNodeName and
-      ActorManager.getCTNodeName(rActor) or "",
-    action_name = sActionName,
-    effect_text = normalizedEffectText(sEffectText),
-    raw_effect_text = sEffectText,
-    captured_at = os and os.time and os.time() or 0,
-  })
-  while #tPendingEffectActions > 12 do table.remove(tPendingEffectActions, 1) end
 end
 
 local function authoritativeEffectAdded(rTarget, nodeEffect)
@@ -944,9 +952,29 @@ local function consumeRollContext(tTarget, sKind)
   if next(tRollContextsByTarget) == nil then tLastRollContext = nil end
 end
 
+local function rememberRecentDamageTarget(tEntry)
+  if not tEntry or not tEntry.source_key or tEntry.source_key == JSON_NULL then return end
+  tRecentDamageTarget = {
+    source_key = tEntry.source_key,
+    captured_at = os and os.time and os.time() or 0,
+  }
+end
+
+local function recentDamageTargetCombatant(tCombat)
+  if not tRecentDamageTarget then return nil end
+  if tRecentDamageTarget.captured_at and tRecentDamageTarget.captured_at > 0 and
+    os and os.time and os.difftime and
+    os.difftime(os.time(), tRecentDamageTarget.captured_at) > 10 then
+    tRecentDamageTarget = nil
+    return nil
+  end
+  return combatantByKey(tCombat, tRecentDamageTarget.source_key)
+end
+
 local function clearRollContexts()
   tLastRollContext = nil
   tRollContextsByTarget = {}
+  tRecentDamageTarget = nil
   tPendingDamageContributorsByTarget = {}
 end
 
@@ -1182,6 +1210,7 @@ local function updateCombatBaseline(tCombat, bRecordEvents)
       local nDelta = nWounds - tPrevious.wounds
       if nDelta > 0 then
         local tTarget = eventParticipant(tEntry.source_key, tEntry.name)
+        rememberRecentDamageTarget(tEntry)
         local tContext = contextForAppliedChange(tTarget, "damage")
         local nRolled = tonumber(tContext.roll_total)
         local nAdjustment = nRolled and (nDelta - nRolled) or nil
@@ -1423,6 +1452,13 @@ local function classifyRoll(sRollType, sDescription)
   return "action"
 end
 
+local function reportedDCFromDescription(sDescription)
+  local sText = tostring(sDescription or "")
+  local sDC = sText:match("%[[^%]]-[Vv][Ss]%s+[Dd][Cc]%s*(%d+)[^%]]*%]") or
+    sText:match("%[[Dd][Cc]%s*(%d+)[^%]]*%]")
+  return tonumber(sDC)
+end
+
 local function authoritativeAttackResolved(rSource, rTarget, rRoll)
   if not Session.IsHost or not rRoll then return end
   local tCombat = combatState()
@@ -1541,6 +1577,7 @@ local function authoritativeDamageResolved(rSource, rTarget, rRoll)
   local nOverkill = math.max(0, tonumber(rRoll.nOverflow) or 0)
   local sActionName = rollActionName(rRoll.sDesc or "Damage")
   local tDamageContributors = consumeDamageContributors(rSource, rTarget, sActionName)
+  if nApplied > 0 then rememberRecentDamageTarget(tTargetEntry) end
   local bAppliedEventFound = false
   local nUpdated = 0
   for nIndex = #aEventJournal, math.max(1, #aEventJournal - 5), -1 do
@@ -1666,8 +1703,12 @@ local function onDiceLanded(draginfo)
   local nTotal = nRawRoll and (nRawRoll + nModifier) or nil
   local tCombat = combatState()
   local node = diceValue(draginfo, "getDatabaseNode", nil)
-  local tActorCombatant = combatantForNode(node, tCombat) or combatantByKey(tCombat, tCombat.active_source_key)
+  local tNodeActorCombatant = combatantForNode(node, tCombat)
+  local tActorCombatant = tNodeActorCombatant or
+    combatantByKey(tCombat, tCombat.active_source_key)
   local tActor = participantForCombatant(tActorCombatant)
+  local sActorAttribution = tNodeActorCombatant and
+    "database_node" or "active_combatant_fallback"
   local tTargets = targetsForCombatant(tActorCombatant, tCombat)
   local tTarget = #tTargets > 0 and tTargets[1].participant or JSON_NULL
   local tTargetCombatant = #tTargets > 0 and tTargets[1].combatant or nil
@@ -1680,6 +1721,15 @@ local function onDiceLanded(draginfo)
   elseif sLower:find("[miss]", 1, true) then sResult = "Miss" end
   local sRollCategory = classifyRoll(sRollType, sDescription)
   if sRollCategory == "concentration" then
+    if not tNodeActorCombatant then
+      tActorCombatant = recentDamageTargetCombatant(tCombat)
+      if tActorCombatant then
+        sActorAttribution = "recent_damage_target"
+      else
+        sActorAttribution = "unresolved"
+      end
+      tActor = participantForCombatant(tActorCombatant)
+    end
     tTarget = tActor
     tTargetCombatant = tActorCombatant
     tTargets = {}
@@ -1693,6 +1743,8 @@ local function onDiceLanded(draginfo)
   if sEventType == "attack" and sResult == JSON_NULL and nTotal and nTargetAC then
     sResult = nTotal >= nTargetAC and "Hit" or "Miss"
   end
+  local nConcentrationDC = sRollCategory == "concentration" and
+    reportedDCFromDescription(sDescription) or nil
   local tDamageTypes, tDamageComponents = {}, {}
   if sLower:find("damage", 1, true) then
     tDamageTypes, tDamageComponents = damageDataFromDescription(sDescription)
@@ -1717,6 +1769,10 @@ local function onDiceLanded(draginfo)
         "concentration" or sRollType,
       raw_roll = nRawRoll or JSON_NULL, modifier = nModifier,
       roll_total = nTotal or JSON_NULL, target_ac = nTargetAC or JSON_NULL,
+      concentration_dc = nConcentrationDC or JSON_NULL,
+      concentration_resolution = sRollCategory == "concentration" and
+        sResult ~= JSON_NULL and string.lower(sResult) or JSON_NULL,
+      actor_attribution = sActorAttribution,
       result = sResult, damage_types = tDamageTypes,
       damage_components = tDamageComponents }, tCombat)
   exportCombatUpdate()

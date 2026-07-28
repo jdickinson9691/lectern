@@ -1,5 +1,28 @@
 # Changelog
 
+- Prepared Lectern Sync 1.4.11 with the completed prepared/live association,
+  concentration-attribution, and originating-effect provenance corrections.
+
+- Corrected Fantasy Grounds effect provenance ordering. Lectern Sync now queues
+  the authoritative originating power before Fantasy Grounds applies its
+  mechanical Combat Tracker effect, allowing effects such as `AC: 3` to retain
+  `Armor of Shadows` without hard-coded D&D name inference. Effects without
+  authoritative action metadata remain generic.
+
+- Corrected Fantasy Grounds concentration-check attribution. When the roll's
+  database node does not identify its creature, Lectern Sync now uses the
+  authoritative target of the immediately preceding applied damage; if neither
+  source is available, the actor remains unresolved instead of falling back to
+  the active attacker. Concentration DC and success/failure are retained only
+  when Fantasy Grounds explicitly reports them.
+
+- Corrected Fantasy Grounds prepared/live encounter association so compatible
+  normalized encounter names are required before roster overlap can select a
+  counterpart. Encounter identity now preserves meaningful trailing numbers,
+  preventing reused rosters such as Test5 and Test6 from linking. Re-importing
+  the current snapshot safely reconciles an existing stale link without
+  replacing combatants or changing the imported event journal.
+
 - Corrected Combat Narrative self-target phrasing so authoritative self-targeted attacks remain visible without opponent-facing constructions such as “meets themselves.” Innate Sorcery and Bardic Inspiration now use normalized ability names and complete grammatical boon sentences.
 
 - Added Lectern Sync 1.4.10 Test5 corrections. Effect applications now resolve their originating power, spell, or ability from the authoritative action node when Fantasy Grounds labels the roll generically, while concentration rolls are recorded as self-referential concentration checks instead of inheriting the actor's selected target. Combat Narrative now translates conditions, defensive effects, class features, inspiration, marks, and one-roll effects into grounded D&D prose without exposing raw effect syntax or mechanical quantities.

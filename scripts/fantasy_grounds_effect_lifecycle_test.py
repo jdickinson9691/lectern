@@ -26,6 +26,14 @@ def effect_event(
     lifecycle: str,
     state: str,
     description: str,
+    *,
+    actor_name: str = "Fantasy Grounds Test Hero",
+    target_name: str = "Test Creature",
+    action_name: str = "Bardic Inspiration Die",
+    effect_name: str = "Bardic Inspiration Die",
+    effect_key: str = "combattracker.list.id-00001.effects.id-00001",
+    duration: int = 10,
+    source_attribution: str = "effect_source_reference",
 ) -> dict:
     return {
         "event_id": f"test-effect-session:{sequence}",
@@ -36,27 +44,27 @@ def effect_event(
         "type": "effect",
         "actor": {
             "source_key": "5E:character:test-hero",
-            "name": "Fantasy Grounds Test Hero",
+            "name": actor_name,
         },
         "target": {
             "source_key": "5E:ct:id-00001",
-            "name": "Test Creature",
+            "name": target_name,
         },
         "amount": None,
         "description": description,
         "metadata": {
-            "action_name": "Bardic Inspiration Die",
-            "originating_action": "Bardic Inspiration Die",
-            "effect_name": "Bardic Inspiration Die",
-            "effect_key": "combattracker.list.id-00001.effects.id-00001",
+            "action_name": action_name,
+            "originating_action": action_name,
+            "effect_name": effect_name,
+            "effect_key": effect_key,
             "effect_state": state,
             "lifecycle": lifecycle,
-            "duration": 10,
+            "duration": duration,
             "apply": "roll",
             "is_active": True,
-            "source_name": "Fantasy Grounds Test Hero",
+            "source_name": actor_name,
             "source_reference": "combattracker.list.id-00002",
-            "source_attribution": "effect_source_reference",
+            "source_attribution": source_attribution,
         },
     }
 
@@ -71,7 +79,7 @@ try:
         ).read_text(encoding="utf-8")
     )
     payload["source"]["extension_version"] = "1.4.9"
-    payload["sequence"] = 2
+    payload["sequence"] = 4
     payload["combat"].update(
         {
             "session_key": "test-effect-session",
@@ -94,6 +102,32 @@ try:
             "removed",
             "Effect ended on Test Creature: Bardic Inspiration Die",
         ),
+        effect_event(
+            3,
+            "effect_added",
+            "added",
+            "Effect added to Warlock1: AC: 3; [D: 8 hours]",
+            actor_name="Warlock1",
+            target_name="Warlock1",
+            action_name="Armor of Shadows",
+            effect_name="AC: 3",
+            effect_key="combattracker.list.warlock.effects.armor",
+            duration=8,
+            source_attribution="originating_effect_action",
+        ),
+        effect_event(
+            4,
+            "effect_added",
+            "added",
+            "Effect added to Unknown Mage: AC: 3; [D: 8 hours]",
+            actor_name="Unknown Mage",
+            target_name="Unknown Mage",
+            action_name="Effect",
+            effect_name="AC: 3",
+            effect_key="combattracker.list.unknown.effects.armor",
+            duration=8,
+            source_attribution="active_self",
+        ),
     ]
 
     validate_snapshot(payload)
@@ -114,7 +148,7 @@ try:
     snapshot = temp_dir / "snapshot.json"
     snapshot.write_text(json.dumps(payload), encoding="utf-8")
     result = FantasyGroundsSyncService(db).import_snapshot(snapshot)
-    assert result.applied and result.counts["events"] == 2
+    assert result.applied and result.counts["events"] == 4
 
     with connect(db) as conn:
         rows = conn.execute(
@@ -128,13 +162,30 @@ try:
         assert [row["actor"] for row in rows] == [
             "Fantasy Grounds Test Hero",
             "Fantasy Grounds Test Hero",
+            "Warlock1",
+            "Unknown Mage",
         ]
-        assert [row["action_type"] for row in rows] == ["Effect", "Effect"]
+        assert [row["action_type"] for row in rows] == [
+            "Effect",
+            "Effect",
+            "Effect",
+            "Effect",
+        ]
         raw_added = json.loads(rows[0]["raw_json"])
         raw_removed = json.loads(rows[1]["raw_json"])
         assert raw_added["metadata"]["lifecycle"] == "effect_added"
         assert raw_removed["metadata"]["lifecycle"] == "effect_removed"
         assert raw_added["metadata"]["source_attribution"] == "effect_source_reference"
+        armor_row = rows[2]
+        generic_row = rows[3]
+        assert armor_row["actor"] == "Warlock1"
+        assert " | Warlock1 | Effect added | Armor of Shadows | " in armor_row["details"]
+        assert (
+            json.loads(armor_row["raw_json"])["metadata"]["originating_action"]
+            == "Armor of Shadows"
+        )
+        assert "Armor of Shadows" not in generic_row["details"]
+        assert " | Unknown Mage | Effect added | Effect | " in generic_row["details"]
 
     print("Fantasy Grounds effect lifecycle test passed.")
 finally:

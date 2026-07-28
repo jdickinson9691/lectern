@@ -32,7 +32,7 @@ try:
     extension_manifest = (
         ROOT / "integrations" / "fantasy_grounds" / "extension" / "LecternSync" / "extension.xml"
     ).read_text(encoding="utf-8")
-    assert 'local EXTENSION_VERSION = "1.4.10"' in extension_source and "<version>1.4.10</version>" in extension_manifest, "Extension version metadata is inconsistent"
+    assert 'local EXTENSION_VERSION = "1.4.11"' in extension_source and "<version>1.4.11</version>" in extension_manifest, "Extension version metadata is inconsistent"
     assert 'if vValue == JSON_EMPTY_OBJECT then return "{}" end' in extension_source, "Empty event metadata is not encoded as a JSON object"
     assert 'Comm.registerSlashHandler("lectern-start", startEncounter' in extension_source, "Explicit encounter start command is missing"
     assert 'Comm.registerSlashHandler("lectern-end", endEncounter' in extension_source, "Explicit encounter end command is missing"
@@ -49,7 +49,7 @@ try:
     assert 'DB.addHandler("combattracker.list.*.wounds", "onUpdate"' in extension_source, "Combat Tracker wound changes are not observed"
     assert 'targetsForCombatant(tActorCombatant, tCombat)' in extension_source, "Selected Combat Tracker targets are not captured"
     assert 'tRollContextsByTarget[tTarget.source_key] = tCopy' in extension_source, "Multi-target roll context is not retained per target"
-    assert 'combatantForNode(node, tCombat) or combatantByKey' in extension_source, "Roll actors do not use source or active Combat Tracker context"
+    assert 'local tNodeActorCombatant = combatantForNode(node, tCombat)' in extension_source and 'combatantByKey(tCombat, tCombat.active_source_key)' in extension_source, "Roll actors do not use source or active Combat Tracker context"
     assert 'actor = tActor, target = tTarget, action_name = sActionName' in extension_source, "Roll context is not retained for applied results"
     assert 's:gsub("[\\r\\n]+", " ")' in extension_source, "Roll cleanup must preserve the letter r"
     assert 'diceValue(draginfo, "getNumberData", 0)' in extension_source, "Fantasy Grounds entity and effect modifiers are not captured"
@@ -84,8 +84,26 @@ try:
     assert 'effectSourceParticipant' in extension_source and 'source_attribution = sSourceAttribution' in extension_source, "Effect sources are not retained"
     assert 'originating_effect_action' in extension_source and 'originating_action = sActionName' in extension_source, "Effect source/action provenance is not retained"
     assert 'effectActionName(rAction, sEffectText)' in extension_source and 'DB.getParent(node)' in extension_source, "Effect actions are not resolved from their authoritative power nodes"
+    effect_capture_start = extension_source.index(
+        "local function rememberOriginatingEffectAction"
+    )
+    effect_capture_end = extension_source.index(
+        "local function authoritativeEffectAdded", effect_capture_start
+    )
+    effect_capture_source = extension_source[effect_capture_start:effect_capture_end]
+    assert effect_capture_source.index(
+        "table.insert(tPendingEffectActions"
+    ) < effect_capture_source.index(
+        "fPreviousActionPostGetEffect(rActor, rAction, rRoll)"
+    ), (
+        "Authoritative effect provenance is queued after Fantasy Grounds applies "
+        "the effect, so Armor of Shadows can be exported only as AC: 3"
+    )
     assert 'if s:find("concentration", 1, true) then return "concentration" end' in extension_source, "Concentration rolls are not classified explicitly"
     assert 'tTarget = tActor' in extension_source and 'sActionName = "Concentration"' in extension_source, "Concentration rolls can still inherit an unrelated selected target"
+    assert 'local tRecentDamageTarget = nil' in extension_source and 'recentDamageTargetCombatant(tCombat)' in extension_source, "Recent authoritative damage targets are not retained for concentration attribution"
+    assert 'if not tNodeActorCombatant then' in extension_source and 'sActorAttribution = "recent_damage_target"' in extension_source, "Unresolved concentration dice nodes still fall back to the active attacker"
+    assert 'concentration_dc = nConcentrationDC or JSON_NULL' in extension_source and 'actor_attribution = sActorAttribution' in extension_source, "Concentration DC or actor-attribution evidence is not exported"
     assert 'string.lower(sSourceName):find("^combattracker%.list%.")' in extension_source, "Combat Tracker paths stored in effect source_name are not resolved as source references"
     assert 'DB.addHandler("combattracker.list.*.effects", "onChildAdded"' in extension_source, "Effect additions are not observed"
     assert 'DB.addHandler("combattracker.list.*.effects", "onChildDeleted"' in extension_source, "Effect removals are not observed"
@@ -267,6 +285,7 @@ try:
     repo.upsert_player({"name": "Fantasy Grounds Test Hero", "class_name": "Local Class", "level": 1, "max_hp": 5})
     fixture_path = ROOT / "docs" / "contracts" / "fantasy_grounds_snapshot_v1.example.json"
     payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    payload["combat"]["session_name"] = "Test Encounter - Live Combat"
     complete_damage_event = copy.deepcopy(payload["events"][1])
     payload["events"][1]["actor"] = None
     payload["events"][1]["metadata"].pop("action_name")
@@ -294,10 +313,20 @@ try:
 
     service = FantasyGroundsSyncService(db)
     ambiguous_encounter = copy.deepcopy(payload["encounters"][0])
-    ambiguous_encounter.update({"source_key": "5E:battle:ambiguous", "name": "Another Encounter"})
+    ambiguous_encounter.update({"source_key": "5E:battle:ambiguous"})
     assert service._match_prepared_encounter(
         [payload["encounters"][0], ambiguous_encounter], payload["combat"]
     ) is None, "Equally matching prepared encounters should not be guessed"
+    reused_roster = copy.deepcopy(payload["combat"])
+    reused_roster["session_name"] = "Test6"
+    differently_named_prepared = copy.deepcopy(payload["encounters"][0])
+    differently_named_prepared["name"] = "Test5"
+    assert service._match_prepared_encounter(
+        [differently_named_prepared], reused_roster
+    ) is None, "A reused roster linked differently named Test5 and Test6 encounters"
+    assert service._match_prepared_encounter(
+        payload["encounters"], payload["combat"]
+    ) == payload["encounters"][0]["source_key"], "Compatible prepared/live names did not link"
     configured = service.configure_folder(handoff)
     assert configured == handoff.resolve(), "Existing lectern-sync folder was not retained"
     result = service.import_configured_snapshot()
@@ -511,10 +540,28 @@ try:
         assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE details LIKE '%4 damage applied from 9 rolled (5 prevented by resistance or damage reduction)%'").fetchone()[0] == 1, "Mitigated damage was not explained"
         assert conn.execute("SELECT COUNT(*) FROM turn_log WHERE actor='Manual / Unattributed'").fetchone()[0] == 1, "Manual damage inherited a stale actor"
         assert conn.execute("SELECT damage_types FROM turn_log WHERE actor='Manual / Unattributed'").fetchone()[0] == "unknown", "Manual damage type was guessed"
-        explicit_encounter = conn.execute("SELECT id,status FROM encounters WHERE name='Explicit Test Combat'").fetchone()
+        explicit_encounter = conn.execute("SELECT id,name,status FROM encounters WHERE name='Explicit Test Combat'").fetchone()
         assert explicit_encounter and explicit_encounter["status"] == "active", "Explicit session name or open state was not imported"
         assert new_session_result.preferred_encounter_id == explicit_encounter["id"], "New live session was not preferred after import"
-        assert repo.encounter_sync_context(explicit_encounter["id"])["counterpart_id"] == prepared["id"], "New live session was not associated with its prepared encounter"
+        assert repo.encounter_sync_context(explicit_encounter["id"])["counterpart_id"] is None, "Differently named live session was associated by roster alone"
+        assert "←" not in repo.encounter_display_name(explicit_encounter), "Unlinked live session displayed an incorrect prepared counterpart"
+        source_id = int(conn.execute("SELECT id FROM external_sources").fetchone()[0])
+        live_source_key = service._live_combat_source_key(new_session["combat"])
+        conn.execute(
+            """
+            INSERT INTO external_entity_links(source_id,source_key,entity_type,entity_id)
+            VALUES(?,?,?,?)
+            ON CONFLICT(source_id,source_key,entity_type) DO UPDATE SET entity_id=excluded.entity_id
+            """,
+            (source_id, live_source_key, "prepared_encounter", prepared["id"]),
+        )
+        event_count_before_link_repair = int(conn.execute("SELECT COUNT(*) FROM external_events").fetchone()[0])
+
+    link_repair = service.import_configured_snapshot()
+    assert link_repair.applied and "corrected prepared/live encounter association" in link_repair.message, "Same-sequence import did not report repaired encounter association"
+    assert repo.encounter_sync_context(explicit_encounter["id"])["counterpart_id"] is None, "Same-sequence import did not remove the stale prepared/live link"
+    with connect(db) as conn:
+        assert int(conn.execute("SELECT COUNT(*) FROM external_events").fetchone()[0]) == event_count_before_link_repair, "Encounter-link repair changed the combat journal"
 
     closed_session = copy.deepcopy(new_session)
     closed_session["sequence"] = 5

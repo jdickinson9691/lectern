@@ -610,6 +610,89 @@ try:
         f"Mechanical numbers leaked into the Test5 narrative:\n{test5_narrative}"
     )
 
+    concentration_narrative = builder.build(
+        [
+            {
+                "id": 320,
+                "round": 2,
+                "actor": "Bandit",
+                "action_type": "Damage",
+                "details": (
+                    "3 | Ranger1 | Target HP 9/12 | Scimitar | "
+                    "3 damage applied from 3 rolled"
+                ),
+                "damage_types": "slashing",
+                "amount": 3,
+            },
+            {
+                "id": 321,
+                "round": 2,
+                "actor": "Ranger1",
+                "action_type": "Concentration Check",
+                "details": (
+                    "13 (dice 13; modifiers +0) | Ranger1 | Against DC 10 | "
+                    "Concentration | Success"
+                ),
+                "result_code": "concentration_success",
+            },
+        ],
+        "Concentration Attribution",
+        "unresolved",
+    )
+    assert (
+        "Ranger1 holds concentration"
+        in concentration_narrative
+        or "Ranger1 keeps firm control"
+        in concentration_narrative
+    ), "The damaged spellcaster was not credited with the successful concentration check"
+    assert (
+        "Bandit holds concentration" not in concentration_narrative
+        and "Bandit keeps firm control" not in concentration_narrative
+    ), "The attacker was incorrectly credited with the concentration check"
+
+    armor_of_shadows_narrative = builder.build(
+        [
+            {
+                "id": 322,
+                "round": 2,
+                "actor": "Warlock1",
+                "action_type": "Effect",
+                "details": (
+                    " | Warlock1 | Effect added | Armor of Shadows | "
+                    "Effect added to Warlock1: AC: 3; [D: 8 hours]"
+                ),
+            }
+        ],
+        "Armor of Shadows Provenance",
+        "unresolved",
+    )
+    assert "Armor of Shadows" in armor_of_shadows_narrative, (
+        "The authoritative originating invocation disappeared from the narrative"
+    )
+    assert not re.search(r"\bAC\s*:\s*3\b|\b8 hours\b", armor_of_shadows_narrative), (
+        "Raw Armor of Shadows mechanics leaked into the narrative"
+    )
+
+    generic_defense_narrative = builder.build(
+        [
+            {
+                "id": 323,
+                "round": 2,
+                "actor": "Unknown Mage",
+                "action_type": "Effect",
+                "details": (
+                    " | Unknown Mage | Effect added | Effect | "
+                    "Effect added to Unknown Mage: AC: 3; [D: 8 hours]"
+                ),
+            }
+        ],
+        "Generic Defense",
+        "unresolved",
+    )
+    assert "Armor of Shadows" not in generic_defense_narrative, (
+        "A generic armor-class effect was incorrectly named Armor of Shadows"
+    )
+
     severity_cases = (
         (20, 80, ("limited harm", "light enough")),
         (30, 60, ("telling force", "weakens")),
