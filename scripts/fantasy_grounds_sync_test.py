@@ -32,7 +32,7 @@ try:
     extension_manifest = (
         ROOT / "integrations" / "fantasy_grounds" / "extension" / "LecternSync" / "extension.xml"
     ).read_text(encoding="utf-8")
-    assert 'local EXTENSION_VERSION = "1.4.11"' in extension_source and "<version>1.4.11</version>" in extension_manifest, "Extension version metadata is inconsistent"
+    assert 'local EXTENSION_VERSION = "1.4.12"' in extension_source and "<version>1.4.12</version>" in extension_manifest, "Extension version metadata is inconsistent"
     assert 'if vValue == JSON_EMPTY_OBJECT then return "{}" end' in extension_source, "Empty event metadata is not encoded as a JSON object"
     assert 'Comm.registerSlashHandler("lectern-start", startEncounter' in extension_source, "Explicit encounter start command is missing"
     assert 'Comm.registerSlashHandler("lectern-end", endEncounter' in extension_source, "Explicit encounter end command is missing"
@@ -83,7 +83,21 @@ try:
     assert '"effect_added"' in extension_source and '"effect_removed"' in extension_source, "Effect lifecycle events are not journaled"
     assert 'effectSourceParticipant' in extension_source and 'source_attribution = sSourceAttribution' in extension_source, "Effect sources are not retained"
     assert 'originating_effect_action' in extension_source and 'originating_action = sActionName' in extension_source, "Effect source/action provenance is not retained"
-    assert 'effectActionName(rAction, sEffectText)' in extension_source and 'DB.getParent(node)' in extension_source, "Effect actions are not resolved from their authoritative power nodes"
+    assert 'effectActionName(rAction, sEffectText, nodePower)' in extension_source and 'DB.getParent(node)' in extension_source, "Effect actions are not resolved from their authoritative power nodes"
+    assert 'fPreviousPowerPerformAction = PowerManager.performAction' in extension_source and 'PowerManager.performAction = authoritativePowerPerformAction' in extension_source, "The live 5E power-action entry point is not captured"
+    assert 'queueOriginatingEffectAction(rActor, rAction, nodePower)' in extension_source and 'nodePower and DB.getPath(nodePower)' in extension_source, "Live power provenance is not correlated with its authoritative power node"
+    power_capture_start = extension_source.index(
+        "local function authoritativePowerPerformAction"
+    )
+    power_capture_end = extension_source.index(
+        "local function authoritativeEffectAdded", power_capture_start
+    )
+    power_capture_source = extension_source[power_capture_start:power_capture_end]
+    assert power_capture_source.index(
+        "queueOriginatingEffectAction(rActor, rAction, nodePower)"
+    ) < power_capture_source.index(
+        "fPreviousPowerPerformAction(draginfo, rActor, rAction, nodePower)"
+    ), "Live power provenance is captured after Fantasy Grounds applies the effect"
     effect_capture_start = extension_source.index(
         "local function rememberOriginatingEffectAction"
     )
@@ -92,7 +106,7 @@ try:
     )
     effect_capture_source = extension_source[effect_capture_start:effect_capture_end]
     assert effect_capture_source.index(
-        "table.insert(tPendingEffectActions"
+        "queueOriginatingEffectAction(rActor, rAction, nil)"
     ) < effect_capture_source.index(
         "fPreviousActionPostGetEffect(rActor, rAction, rRoll)"
     ), (

@@ -1,7 +1,7 @@
--- Lectern Sync 1.4.11
+-- Lectern Sync 1.4.12
 -- One-way Fantasy Grounds Unity 5E export. This script never writes FG database nodes.
 
-local EXTENSION_VERSION = "1.4.11"
+local EXTENSION_VERSION = "1.4.12"
 local SCHEMA_VERSION = 1
 local bExporting = false
 local tCachedSnapshot = nil
@@ -29,6 +29,7 @@ local bHaveAuthoritativeSaveHook = false
 local fPreviousHealthPostApply = nil
 local fPreviousActionPostGetEffect = nil
 local fPreviousActionPreModDamage = nil
+local fPreviousPowerPerformAction = nil
 local tPendingEffectActions = {}
 local tContributorNamesByEffectKey = {}
 local tEffectOriginsByEffectKey = {}
@@ -610,12 +611,25 @@ local function isMeaningfulEffectActionName(sValue)
   return true
 end
 
-local function effectActionName(rAction, sEffectText)
+local function effectActionName(rAction, sEffectText, nodePower)
   for _, sField in ipairs({ "sLabel", "label", "sActionName", "name" }) do
     local sCandidate = rAction and rAction[sField]
     if isMeaningfulEffectActionName(sCandidate) then
       return tostring(sCandidate)
     end
+  end
+
+  if nodePower then
+    local sPowerName = nodeText(nodePower, "name", nodeText(nodePower, "label", ""))
+    if isMeaningfulEffectActionName(sPowerName) then return sPowerName end
+  end
+
+  local nodeAction = rAction and rAction.nodeAction or nil
+  for _ = 1, 5 do
+    if not nodeAction then break end
+    local sName = nodeText(nodeAction, "name", nodeText(nodeAction, "label", ""))
+    if isMeaningfulEffectActionName(sName) then return sName end
+    nodeAction = DB.getParent(nodeAction)
   end
 
   local sSource = tostring(
@@ -648,30 +662,67 @@ contributorNameFromEffect = function(sEffectKey, sLabel)
   return sFirst
 end
 
-local function rememberOriginatingEffectAction(rActor, rAction, rRoll)
-  if Session.IsHost and rAction then
-    local sEffectText = tostring(rAction.sName or "")
-    local sActionName = effectActionName(rAction, sEffectText)
-    if sEffectText ~= "" then
-      -- Fantasy Grounds can apply the Combat Tracker effect while the
-      -- previous post-roll handler runs. Queue the authoritative power first
-      -- so onEffectAdd can bind it to the new effect node.
-      table.insert(tPendingEffectActions, {
-        actor_path = ActorManager and ActorManager.getCTNodeName and
-          ActorManager.getCTNodeName(rActor) or "",
-        action_name = sActionName,
-        effect_text = normalizedEffectText(sEffectText),
-        raw_effect_text = sEffectText,
-        captured_at = os and os.time and os.time() or 0,
-      })
-      while #tPendingEffectActions > 12 do
-        table.remove(tPendingEffectActions, 1)
-      end
-    end
+local function queueOriginatingEffectAction(rActor, rAction, nodePower)
+  if not Session.IsHost or not rAction then return end
+  local sEffectText = tostring(rAction.sName or "")
+  if sEffectText == "" then return end
+
+  local sActorPath = ActorManager and ActorManager.getCTNodeName and
+    ActorManager.getCTNodeName(rActor) or ""
+  local sTargetPath = ""
+  local sTargeting = tostring(rAction.sTargeting or ""):lower()
+  if sTargeting == "self" or sTargeting == "toself" then
+    sTargetPath = sActorPath
   end
+  local sActionPath = rAction.nodeAction and DB.getPath(rAction.nodeAction) or ""
+  local sPowerPath = nodePower and DB.getPath(nodePower) or ""
+  local sActionName = effectActionName(rAction, sEffectText, nodePower)
+  local nCapturedAt = os and os.time and os.time() or 0
+
+  local tLatest = tPendingEffectActions[#tPendingEffectActions]
+  if tLatest and tLatest.actor_path == sActorPath and
+    tLatest.action_path == sActionPath and
+    tLatest.power_path == sPowerPath and
+    tLatest.effect_text == normalizedEffectText(sEffectText) and
+    tLatest.captured_at == nCapturedAt then
+    return
+  end
+
+  table.insert(tPendingEffectActions, {
+    actor_path = sActorPath,
+    target_path = sTargetPath,
+    action_path = sActionPath,
+    power_path = sPowerPath,
+    action_name = sActionName,
+    effect_text = normalizedEffectText(sEffectText),
+    raw_effect_text = sEffectText,
+    captured_event_sequence = nEventSequence,
+    captured_at = nCapturedAt,
+  })
+  while #tPendingEffectActions > 12 do
+    table.remove(tPendingEffectActions, 1)
+  end
+end
+
+local function rememberOriginatingEffectAction(rActor, rAction, rRoll)
+  queueOriginatingEffectAction(rActor, rAction, nil)
   if fPreviousActionPostGetEffect then
     fPreviousActionPostGetEffect(rActor, rAction, rRoll)
   end
+end
+
+local function authoritativePowerPerformAction(draginfo, rActor, rAction, nodePower)
+  -- The 5E power path calls ActionEffect.getRoll directly; unlike damage and
+  -- healing, that CoreRPG function does not invoke onActionPostGetRoll.
+  -- Capture the authoritative power node before Fantasy Grounds applies the
+  -- effect, while keeping the mechanical effect text separate.
+  if rAction and tostring(rAction.type or ""):lower() == "effect" then
+    queueOriginatingEffectAction(rActor, rAction, nodePower)
+  end
+  if fPreviousPowerPerformAction then
+    return fPreviousPowerPerformAction(draginfo, rActor, rAction, nodePower)
+  end
+  return false
 end
 
 local function authoritativeEffectAdded(rTarget, nodeEffect)
@@ -697,10 +748,19 @@ local function authoritativeEffectAdded(rTarget, nodeEffect)
     end
     local bSameActor = tPending.actor_path == "" or
       tPending.actor_path == sSourcePath or tPending.actor_path == sTargetPath
-    if bRecent and bSameActor and effectTextsMatch(tPending.effect_text, sEffectText) then
+    local bSameTarget = tPending.target_path == "" or
+      tPending.target_path == sTargetPath
+    local nSequenceDistance = nEventSequence -
+      tonumber(tPending.captured_event_sequence or nEventSequence)
+    local bNearSequence = nSequenceDistance >= 0 and nSequenceDistance <= 4
+    if bRecent and bSameActor and bSameTarget and bNearSequence and
+      effectTextsMatch(tPending.effect_text, sEffectText) then
       tContributorNamesByEffectKey[sEffectKey] = tPending.action_name
       tEffectOriginsByEffectKey[sEffectKey] = {
         actor_path = tPending.actor_path,
+        target_path = tPending.target_path,
+        action_path = tPending.action_path,
+        power_path = tPending.power_path,
         action_name = tPending.action_name,
         captured_at = tPending.captured_at,
       }
@@ -1917,6 +1977,11 @@ function onInit()
     bHaveAuthoritativeDamageHook = true
     bHaveAuthoritativeSaveHook = true
   end
+  if PowerManager and type(PowerManager.performAction) == "function" and
+    PowerManager.performAction ~= authoritativePowerPerformAction then
+    fPreviousPowerPerformAction = PowerManager.performAction
+    PowerManager.performAction = authoritativePowerPerformAction
+  end
   if GameManager and type(GameManager.getMultiKeyFunction) == "function" and
     type(GameManager.setMultiKeyFunction) == "function" then
     fPreviousActionPostGetEffect =
@@ -1972,6 +2037,10 @@ function onClose()
   end
   if GameManager and type(GameManager.removeEventFunction) == "function" then
     GameManager.removeEventFunction("onEffectAdd", authoritativeEffectAdded)
+  end
+  if PowerManager and
+    PowerManager.performAction == authoritativePowerPerformAction then
+    PowerManager.performAction = fPreviousPowerPerformAction
   end
   if GameManager and type(GameManager.getMultiKeyFunction) == "function" and
     type(GameManager.setMultiKeyFunction) == "function" then

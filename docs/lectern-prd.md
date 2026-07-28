@@ -47,11 +47,11 @@ using a versioned phrase library. It does not use an external LLM or API.
 | Item | Current value | Notes |
 |---|---|---|
 | Product version | 3.0.0 | Release name: Workflow and Import Refinement |
-| Release status | In progress; not release-clear | Automated blockers are corrected; live FG verification and broader manual acceptance remain |
+| Release status | In progress; not release-clear | FG-EFFECT-002 is corrected, packaged, and automated-verified; fresh installed live acceptance and broader manual acceptance remain |
 | Planned milestone | 3.1 design and staged implementation | Some originally proposed 3.1 work has already been implemented without changing product version |
 | Database schema | v10 | Local campaign ownership, archive state, and persistent parties |
 | Fantasy Grounds snapshot contract | v1 | One-way import only |
-| Lectern Sync extension | 1.4.11 | Packaged in the current installer |
+| Lectern Sync extension | 1.4.12 | Packaged in the current installer |
 | Combat Narrative library schema | v1 | Current content version: `2026.07.28.1` |
 | Supported Python | 3.13 | Python 3.14 is not approved for packaging |
 | Supported desktop platform | Windows 10/11 | PySide6 desktop application |
@@ -215,8 +215,8 @@ Clarification:
 
 Known defects:
 
-- Concentration attribution can be wrong before import; see **FG-CONC-001**.
 - Generic effect actions can lose the originating ability; see
+  **FG-EFFECT-002**. This supersedes the live-unverified conclusion of
   **FG-EFFECT-001**.
 - Prepared encounters show zero journal events by design, but the UI does not
   yet provide a strong enough transition to the linked live journal.
@@ -224,7 +224,7 @@ Known defects:
 ### 5.7 Combat Narrative
 
 **Status:** Implemented and extensively automated-verified; live acceptance is
-partial and blocked by two upstream capture defects.
+partial and blocked by one upstream capture defect.
 
 Implemented:
 
@@ -256,14 +256,16 @@ Latest live Test6 passes:
 - Correct self-target sentence: Bard1 was struck by Bard1's own Dagger.
 - Correct unresolved outcome.
 
-Corrected Test6 blockers:
+Test6 and Test7 verification status:
 
-- **FG-EFFECT-001:** Corrected and automated-verified on July 28, 2026. Named
-  powers are queued before Fantasy Grounds applies their mechanical effect, so
-  `AC: 3` can retain the authoritative Armor of Shadows provenance.
 - **FG-CONC-001:** Corrected and automated-verified on July 28, 2026. A
   concentration check now uses its roll database node, then the authoritative
   target of immediately preceding damage, and otherwise remains unattributed.
+  Test7 live verification correctly attributed the check to Ranger1.
+- **FG-EFFECT-001:** Automated verification completed, but fresh Test7 Armor
+  evidence still imported Armor of Shadows as generic `Effect`. The live defect
+  was reopened as **FG-EFFECT-002**. Its source correction now captures the
+  actual 5E power-action entry point; fresh packaged live confirmation remains.
 
 Historical-data rule:
 
@@ -466,8 +468,8 @@ Known maintenance issue:
 
 ### 5.16 Fantasy Grounds synchronization
 
-**Status:** Broad one-way integration implemented; not release-clear because of
-three Test6 blockers.
+**Status:** Broad one-way integration implemented; not release-clear because
+FG-EFFECT-002 remains open after fresh live verification.
 
 Supported boundary:
 
@@ -511,7 +513,8 @@ Release-blocking defects:
 
 #### FG-EFFECT-001 — Generic originating action for Armor of Shadows
 
-**Status:** Corrected and automated-verified on July 28, 2026.
+**Status:** Automated-complete on July 28, 2026; fresh live acceptance failed
+and is superseded by FG-EFFECT-002.
 
 Test6 sequence 8 originally recorded:
 
@@ -532,13 +535,44 @@ effect with no authoritative action metadata remains generic.
 
 No spell or ability name is inferred from `AC: 3`, and snapshot contract v1
 already carries the required fields. Historical Test6 data remains unchanged
-because its raw event lacks the provenance. Live verification with a fresh
-export remains deferred. See
+because its raw event lacks the provenance. However, the fresh isolated Test7
+Armor session still exported the action as generic `Effect`, proving this
+callback-order fixture did not reproduce the actual named-power announcement
+path. See
 [`FG-EFFECT-001`](contracts/completed/fg-effect-001-armor-of-shadows-provenance.md).
+
+#### FG-EFFECT-002 — Live named-power announcement not correlated
+
+**Status:** Active; automated correction and packaging complete on July 28,
+2026, with fresh installed live acceptance pending.
+
+In the isolated `Test7 Armor` session, Fantasy Grounds displayed Warlock1 using
+Armor of Shadows immediately before applying `AC: 3; [D: 8 hours]` to
+Warlock1. Lectern imported the correct actor, target, mechanical effect, and
+duration, but both the action and originating action remained generic
+`Effect`. Combat Narrative could therefore describe stronger protection but
+could not authoritatively name Armor of Shadows.
+
+Inspection of the installed 5E and CoreRPG rule sources confirmed the live path:
+`PowerManager.performAction` calls `ActionEffect.getRoll` directly for effect
+powers, and that effect-roll path does not invoke the
+`onActionPostGetRoll/effect` hook used by FG-EFFECT-001.
+
+The repository correction wraps the authoritative 5E power-action entry point
+and captures the named power before Fantasy Grounds applies the effect.
+Correlation is bounded by actor, known self-target, action and power paths,
+mechanical effect text, event sequence, and time. It does not infer a name from
+`AC: 3`, duration, class, spell list, or D&D rules. The focused live-path
+regression and all sixteen repository regression scripts pass. A fresh
+owner-coordinated Fantasy Grounds confirmation against the newly packaged
+extension is still required. See
+[`FG-EFFECT-002`](contracts/active/fg-effect-002-live-power-provenance.md) and
+the
+[`Test7 Armor evidence`](evidence/fantasy-grounds/fg-effect-002-test7-armor.md).
 
 #### FG-CONC-001 — Concentration uses the active attacker
 
-**Status:** Corrected and automated-verified on July 28, 2026.
+**Status:** Corrected, automated-verified, and live-verified on July 28, 2026.
 
 The live-shaped regression reproduces Test6: Bandit damages Ranger1 and the
 subsequent concentration roll has no resolvable database node. Lectern Sync now
@@ -550,28 +584,32 @@ explicitly. Import and narrative regressions confirm that Ranger1, not Bandit,
 is credited in the corrected sequence.
 
 Historical Test6 data is not rewritten because the stored raw event already
-contains the wrong actor. Live verification with a fresh export remains
-deferred. See
+contains the wrong actor. Test7 live evidence imported Ranger1 as actor and
+target with the authoritative total; Fantasy Grounds did not report a DC or
+success/failure, so Lectern correctly left those fields unresolved. See
 [`FG-CONC-001`](contracts/completed/fg-conc-001-concentration-attribution.md).
 
 #### FG-LINK-001 — Roster-only prepared/live association
 
-**Status:** Corrected and automated-verified on July 28, 2026.
+**Status:** Corrected, automated-verified, and live-verified on July 28, 2026.
 
 The matcher now requires compatible normalized encounter names before roster
 overlap can select an unambiguous prepared counterpart. Encounter-name
 normalization preserves meaningful numbers. A same-sequence import reconciles
-an existing stale association without changing imported events. The current
-runtime Test6 association is not modified directly; after a build containing
-this correction is installed, **Import Now** provides the safe remediation.
+an existing stale association without changing imported events. After
+installation and import, Test6 displayed as `Test6 · Live combat` without a
+Test5 association and retained its journal.
 
 Completed contract:
 [`FG-LINK-001`](contracts/completed/fg-link-001-prepared-live-matching.md).
 
-Deferred decision:
+Live-testing decision:
 
-- Further live Fantasy Grounds testing is tabled by the product owner as of
-  July 28, 2026. Do not start Test7 until the owner resumes testing.
+- Limited Test7 verification resumed on July 28, 2026.
+- Further live action must be tied to an explicitly executed contract and
+  coordinated with the owner.
+- FG-EFFECT-002 requires one fresh live confirmation after its automated
+  correction passes.
 
 Reference:
 [`FANTASY_GROUNDS_RUN_TOGETHER.md`](FANTASY_GROUNDS_RUN_TOGETHER.md).
@@ -634,9 +672,9 @@ Open maintenance question:
 
 ## 6. Current verification state
 
-All fifteen automated regression scripts passed on July 28, 2026 for the
-FG-LINK-001, FG-CONC-001, and FG-EFFECT-001 corrections. The prior baseline
-also passed before commit `2149dc7` and the subsequent installer build:
+All sixteen automated regression scripts passed on July 28, 2026 after the
+FG-EFFECT-002 source correction. The suite includes a dedicated live-path
+provenance regression in addition to the prior fifteen checks:
 
 - adaptive layout;
 - campaign dashboard statistics;
@@ -645,6 +683,7 @@ also passed before commit `2149dc7` and the subsequent installer build:
 - Encounter Builder;
 - Fantasy Grounds damage contributors;
 - Fantasy Grounds effect lifecycle;
+- Fantasy Grounds live effect provenance;
 - Fantasy Grounds healing attribution;
 - Fantasy Grounds historical reprocessing;
 - Fantasy Grounds authoritative saves;
@@ -655,32 +694,34 @@ also passed before commit `2149dc7` and the subsequent installer build:
 - seeded-database smoke test.
 
 The current installer was built and verified with narrative library content
-version `2026.07.28.1` and Lectern Sync 1.4.11. The packaged application
+version `2026.07.28.1` and Lectern Sync 1.4.12. The packaged application
 started successfully in an isolated offscreen check.
 
 The original automated tests did not catch the three live Test6 defects because:
 
 - effect provenance assertions validated intended source structure but not the
   Fantasy Grounds ordering where the feature announcement follows application;
-  this gap is now covered by FG-EFFECT-001;
+  FG-EFFECT-001 added a regression, but Test7 Armor proved it still does not
+  reproduce the live named-power path;
 - the concentration fixture supplied the correct actor rather than exercising
   the live database-node fallback; this gap is now covered by FG-CONC-001;
 - prepared/live tests did not cover a differently named session with a uniquely
   overlapping roster. This gap is now covered by FG-LINK-001.
 
-All three Test6 defect shapes now have automated regressions. Live Fantasy
-Grounds verification remains deferred.
+Automation is green for the actual 5E power-action capture path. Test7 live
+verification passed FG-LINK-001 and FG-CONC-001 and supplied the failing
+evidence for FG-EFFECT-002. A new package and owner-coordinated live session are
+still required to clear its final acceptance criterion.
 
 ## 7. Release blockers and prioritized backlog
 
 ### Priority 0 — Release blockers
 
-1. Install the corrected build when the owner is ready to resume live Fantasy
-   Grounds verification.
-2. Use **Import Now** after installing it to clear the
-   incorrect Test6↔Test5 link without changing its journal.
-3. Resume only the smallest necessary live verification when the owner ends the
-   testing pause.
+1. Install the current package and start one isolated owner-coordinated
+   session.
+2. Apply Armor of Shadows, import the session, and confirm the Action column and
+   Combat Narrative name the power while retaining the mechanical effect.
+3. Close FG-EFFECT-002 only after that live evidence passes.
 
 ### Priority 1 — Product completion
 
@@ -718,7 +759,7 @@ These decisions remain binding until the product owner changes them:
 9. Live Combat Tracker HP, initiative, effects, targeting, and turn order remain
    Fantasy Grounds-owned unless a separately approved future milestone changes
    that boundary.
-10. Further live Fantasy Grounds testing is currently deferred.
+10. Live Fantasy Grounds testing is owner-coordinated and contract-scoped.
 
 ## 9. Data ownership matrix
 
@@ -757,7 +798,7 @@ Every future agent working on Lectern must:
 5. Never invent missing combat provenance or use D&D knowledge to overwrite
    contradictory source evidence.
 6. Add a regression that reproduces each corrected bug.
-7. Run the focused test and the full fifteen-script suite for changes affecting
+7. Run the focused test and the full sixteen-script suite for changes affecting
    shared combat, data, or UI behavior.
 8. Do not bump product version, database schema, snapshot contract, or extension
    version unless the requested change requires it and the owner approves it.
@@ -766,8 +807,8 @@ Every future agent working on Lectern must:
 10. When asked for an installer, build the application and extension first,
     compile the Inno Setup installer, validate its bundled versions, and report
     the installer hash.
-11. Do not resume live Fantasy Grounds testing while the current testing pause
-    is in effect.
+11. Run live Fantasy Grounds testing only when an active contract requires it
+    and the owner coordinates the session.
 12. Update this PRD whenever a feature changes status, a bug is discovered or
     resolved, or a durable product decision is made.
 
@@ -794,11 +835,15 @@ live-testing permissions are never implied.
 The initial contract sequence covered the three Test6 blockers:
 
 - [`FG-CONC-001`](contracts/completed/fg-conc-001-concentration-attribution.md)
-  is implemented and automated-verified; live verification remains deferred.
+  is implemented, automated-verified, and live-verified.
 - [`FG-EFFECT-001`](contracts/completed/fg-effect-001-armor-of-shadows-provenance.md)
-  is implemented and automated-verified; live verification remains deferred.
+  is implemented and automated-verified, but its live conclusion is superseded
+  by [`FG-EFFECT-002`](contracts/active/fg-effect-002-live-power-provenance.md).
 - [`FG-LINK-001`](contracts/completed/fg-link-001-prepared-live-matching.md) is
-  implemented and automated-verified; live verification remains deferred.
+  implemented, automated-verified, and live-verified.
+
+`FG-EFFECT-002` is active. Its source correction, automated verification, and
+REL-PACK-002 package are complete, but installed live acceptance is pending.
 
 Sanitized contract and release evidence belongs under
 [`docs/evidence/`](evidence/README.md).
@@ -835,8 +880,10 @@ building, combat logging, campaign analytics, character PDF import, portraits,
 CSV transfer, data safety, one-way Fantasy Grounds synchronization, and offline
 Combat Narrative are implemented.
 
-The three evidence-backed Test6 corrections are implemented, packaged, and
-automated-verified. Further live testing is paused. Broader 3.1
+FG-LINK-001 and FG-CONC-001 are implemented, packaged, automated-verified, and
+live-verified. FG-EFFECT-002 is corrected, packaged, and automated-verified
+after Test7 Armor exposed the live-path gap; a fresh installed live confirmation
+remains release-blocking. Broader 3.1
 work—especially two-way Fantasy Grounds
 integration—must remain a separate product-design decision rather than being
 inferred from the existing one-way handoff.

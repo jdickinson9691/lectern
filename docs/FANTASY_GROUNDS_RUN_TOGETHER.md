@@ -97,6 +97,11 @@ Armor of Shadows. Lectern does not infer a spell or ability name from the
 mechanical label when Fantasy Grounds does not supply one. Older events that
 captured only a generic effect remain generic after reprocessing.
 
+The `FG-EFFECT-002` correction captures that provenance from the actual 5E
+`PowerManager.performAction` path before the effect is applied. Lectern Sync
+1.4.12 contains the correction and has passed automated and packaged-startup
+verification. It still requires a fresh installed live acceptance check.
+
 Lectern Sync 1.4.9 imports equipped weapons and armor from 5E character inventories, records named damage contributors plus authoritative healing, saving throws, and damage types resolved by the ruleset, and journals effect lifecycle changes. Each authoritative save is recorded once. Damage beyond remaining HP is labeled as overkill rather than resistance or reduction; mitigation, vulnerability, temporary-HP absorption, and actual HP damage remain separate. Eligible damage effects such as Sneak Attack, Hunter's Mark, and Divine Smite are attached to the resolved weapon or spell action using their Fantasy Grounds effect evidence, including one-roll effects consumed immediately before resolution. Effect source paths resolve to combatant names, while the originating spell or ability remains distinct from the mechanical effect label. Mixed damage remains component-aware, every target of a multi-target action retains its roll attribution or save outcome, and expanded Combat Dashboard rows preserve rolled and applied values after resistance, immunity, vulnerability, wards, and similar adjustments. Applied component totals never exceed the target's actual HP loss. Manual wound and healing edits remain unattributed.
 
 When the encounter ends, record the GM-confirmed result in Fantasy Grounds chat:
@@ -136,6 +141,13 @@ The reset command clears the extension's closed session and accumulated event jo
 After changing `integrations/fantasy_grounds/extension/LecternSync`, rerun the installation script. It replaces only the installed `LecternSync` development folder. Return to the Fantasy Grounds launcher and reload the campaign.
 
 Use a dedicated test campaign and sanitized/open content. Never commit exports containing commercial Fantasy Grounds module text.
+
+For the pending `FG-EFFECT-002` live check, install the current package
+containing Lectern Sync 1.4.12. Then start a uniquely named isolated session,
+apply Armor of Shadows to Warlock1, end the session, and import it.
+Confirm the Combat Dashboard Action column and Combat Narrative both name
+Armor of Shadows, actor and target remain Warlock1, the mechanical effect
+remains separate, and no AC or duration numbers appear in the narrative.
 
 ## Troubleshooting
 

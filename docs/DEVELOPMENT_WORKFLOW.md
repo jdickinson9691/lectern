@@ -18,6 +18,7 @@ This folder is the canonical evolving source tree for Lectern: **Lüdinn Enterta
    `.venv\Scripts\python.exe scripts\smoke_test.py`
    `.venv\Scripts\python.exe scripts\encounter_builder_test.py`
    `.venv\Scripts\python.exe scripts\fantasy_grounds_sync_test.py`
+   `.venv\Scripts\python.exe scripts\fantasy_grounds_live_effect_provenance_test.py`
    `.venv\Scripts\python.exe scripts\fantasy_grounds_reprocessing_test.py`
    `.venv\Scripts\python.exe scripts\campaign_dashboard_stats_test.py`
 

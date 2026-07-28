@@ -1,5 +1,24 @@
 # Changelog
 
+- Packaged the FG-EFFECT-002 correction as Lectern Sync 1.4.12 with the current
+  Lectern 3.0.0 application and Windows installer. All sixteen regressions,
+  extension archive inspection, and isolated packaged startup passed. Installed
+  live Armor of Shadows acceptance remains pending.
+
+- Corrected `FG-EFFECT-002` in source by capturing named effect-power
+  provenance at the actual 5E `PowerManager.performAction` entry point before
+  Fantasy Grounds applies the effect. Correlation retains authoritative actor,
+  known self-target, action and power paths, mechanical effect, event sequence,
+  and bounded timing without rules-based inference. Added a focused live-path
+  regression; all sixteen repository regression scripts pass. Fresh packaged
+  live acceptance remains pending.
+
+- Reopened live Fantasy Grounds effect provenance as `FG-EFFECT-002`. A fresh
+  isolated Test7 Armor session on Lectern Sync 1.4.11 still exported
+  Armor of Shadows as generic `Effect / AC: 3`, proving the automated
+  FG-EFFECT-001 callback-order fixture did not reproduce the live named-power
+  announcement path.
+
 - Built Lectern Sync 1.4.11 and the Lectern 3.0.0 Windows installer with the
   completed prepared/live association, concentration-attribution, and
   originating-effect provenance corrections.

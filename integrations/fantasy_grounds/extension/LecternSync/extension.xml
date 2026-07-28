@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <root version="4.0" release="1">
-  <announcement text="Lectern Sync 1.4.11 - corrected encounter links, concentration attribution, and effect provenance" />
+  <announcement text="Lectern Sync 1.4.12 - live named-power effect provenance" />
   <properties>
     <name>Lectern Sync</name>
-    <version>1.4.11</version>
+    <version>1.4.12</version>
     <author>Lectern</author>
     <description>One-way Fantasy Grounds Unity 5E catalog and durable combat-session export with authoritative per-target saves, effect origins, named damage contributors, healing attribution, and explicit overkill and mitigation evidence for Lectern.</description>
     <ruleset>
