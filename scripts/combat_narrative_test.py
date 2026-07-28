@@ -500,6 +500,17 @@ try:
             "id": 312,
             "round": 1,
             "actor": "Ranger1",
+            "action_type": "Attack",
+            "details": (
+                "16 | Ranger1 | Against AC 16 | Longbow | "
+                "Hit (16 vs AC 16)"
+            ),
+            "result_code": "hit",
+        },
+        {
+            "id": 313,
+            "round": 1,
+            "actor": "Ranger1",
             "action_type": "Damage",
             "details": (
                 "9 | Ranger1 | Target HP 3/12 | Longbow | "
@@ -509,7 +520,7 @@ try:
             "amount": 9,
         },
         {
-            "id": 313,
+            "id": 314,
             "round": 1,
             "actor": "Ranger1",
             "action_type": "Concentration Check",
@@ -542,6 +553,12 @@ try:
         "Sorcerer1",
         "Innate Sorcery",
     ), "Innate Sorcery lost its authoritative name"
+    assert (
+        "Sorcerer1 invokes Innate Sorcery, bolstering Sorcerer1"
+        in test5_narrative
+        or "Sorcerer1 calls on Innate Sorcery, sharpening Sorcerer1's"
+        in test5_narrative
+    ), "Innate Sorcery was not rendered as a complete grammatical sentence"
     assert contains_sentence(
         test5_narrative,
         "Ray of Sickness",
@@ -564,6 +581,15 @@ try:
         "Ranger1",
         "piercing damage",
     ), "The authoritative Test5 self-targeted damage was concealed"
+    assert "Ranger1 meets Ranger1" not in test5_narrative, (
+        "A self-targeted attack used ordinary opponent-facing language"
+    )
+    assert (
+        "Ranger1's Longbow strikes Ranger1"
+        in test5_narrative
+        or "Ranger1 is struck by Ranger1's own Longbow"
+        in test5_narrative
+    ), "The self-targeted Longbow damage was not narrated neutrally"
     assert contains_sentence(
         test5_narrative,
         "Ranger1",

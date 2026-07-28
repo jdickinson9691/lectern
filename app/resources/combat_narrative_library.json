@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "content_version": "2026.07.28",
+  "content_version": "2026.07.28.1",
   "default_style": "heroic_military",
   "constraints": {
     "allowed_placeholders": [
@@ -72,6 +72,14 @@
             "{actor} catches {target} exposed and turns {action} into a critical hit that deals {damage_text}.",
             "{actor} breaks through {target_possessive} defense with {action}; the critical hit carries {damage_text}.",
             "{actor} seizes the opening with {action}, lands a critical hit against {target}, and inflicts {damage_text}."
+          ],
+          "self_attack_damage": [
+            "{actor_possessive} {action} strikes {target}, delivering {damage_text}.",
+            "{actor} is struck by {actor_possessive} own {action}, suffering {damage_text}."
+          ],
+          "self_critical_damage": [
+            "{actor_possessive} {action} strikes {target} with critical force, delivering {damage_text}.",
+            "{actor} is struck by {actor_possessive} own {action}; the critical hit carries {damage_text}."
           ],
           "save_success": [
             "{target} withstands {actor_possessive} {action}, and the attempted effect fails to take hold.",
@@ -294,7 +302,7 @@
             "{target} gains stronger protection against attack."
           ],
           "boon_known": [
-            "{actor_possessive} {action} bolsters {target} for the fighting ahead.",
+            "{actor} invokes {action}, bolstering {target} for the fighting ahead.",
             "{actor} calls on {action}, sharpening {target_possessive} combat readiness."
           ],
           "boon_unknown": [

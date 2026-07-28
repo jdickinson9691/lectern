@@ -39,6 +39,8 @@ class NarrativeLibrary:
         "beat": {
             "attack_damage",
             "critical_damage",
+            "self_attack_damage",
+            "self_critical_damage",
             "save_success",
             "save_failure",
             "save_success_damage",
@@ -690,7 +692,19 @@ class CombatNarrativeBuilder:
         )
         damage_type = self.damage_label(damage)
         damage_text = f"{damage_type} damage" if damage_type else "damage"
-        key = "critical_damage" if str(attack["category"]) == "critical" else "attack_damage"
+        self_targeted = bool(actor and target and actor.casefold() == target.casefold())
+        if self_targeted:
+            key = (
+                "self_critical_damage"
+                if str(attack["category"]) == "critical"
+                else "self_attack_damage"
+            )
+        else:
+            key = (
+                "critical_damage"
+                if str(attack["category"]) == "critical"
+                else "attack_damage"
+            )
         base = self.event_phrase(
             "beat",
             key,
@@ -1393,6 +1407,10 @@ class CombatNarrativeBuilder:
             or "innate sorcery" in label_lower
             or re.search(r"\b(?:adv(?:atk)?|savedc|atk|save)\s*:", raw_lower)
         ):
+            if "bardic inspiration" in label_lower:
+                values["action"] = "Bardic Inspiration"
+            elif "innate sorcery" in label_lower:
+                values["action"] = "Innate Sorcery"
             if removed:
                 key = "ended_known" if known_actor and action else "ended_unknown"
             else:

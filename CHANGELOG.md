@@ -1,5 +1,7 @@
 # Changelog
 
+- Corrected Combat Narrative self-target phrasing so authoritative self-targeted attacks remain visible without opponent-facing constructions such as “meets themselves.” Innate Sorcery and Bardic Inspiration now use normalized ability names and complete grammatical boon sentences.
+
 - Added Lectern Sync 1.4.10 Test5 corrections. Effect applications now resolve their originating power, spell, or ability from the authoritative action node when Fantasy Grounds labels the roll generically, while concentration rolls are recorded as self-referential concentration checks instead of inheriting the actor's selected target. Combat Narrative now translates conditions, defensive effects, class features, inspiration, marks, and one-roll effects into grounded D&D prose without exposing raw effect syntax or mechanical quantities.
 
 - Added Lectern Sync 1.4.9 corrections from the Test4 live acceptance journal. Generic dice capture no longer creates duplicate provisional rows when the authoritative 5E save hook is active. Combat Tracker paths written into an effect's `source_name` field now resolve to the named source combatant, originating effect actions such as Mage Armor are retained separately from their mechanical labels, and consumed one-roll damage effects such as Divine Smite remain available long enough to be attached once to their resolved damage.
