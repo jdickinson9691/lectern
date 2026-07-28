@@ -1,13 +1,14 @@
 # Contract: Package FG-EFFECT-002 correction
 
 Contract ID: `REL-PACK-002`
-Status: Active
+Status: Complete
 Owning domain: Data, Reliability, and Release
 Assigned agent: Data, Reliability, and Release Agent
 Consulting domains: Fantasy Grounds Integration, Combat Narrative
 Execution order: After automated implementation of `FG-EFFECT-002`
 Created: 2026-07-28
 Last updated: 2026-07-28
+Completed: 2026-07-28
 
 ## Objective
 
@@ -111,15 +112,32 @@ Fantasy Grounds acceptance criterion.
 ## Dependencies and coordination
 
 Depends on the active
-[`FG-EFFECT-002`](fg-effect-002-live-power-provenance.md) contract's completed
+[`FG-EFFECT-002`](../active/fg-effect-002-live-power-provenance.md) contract's completed
 source correction and automated verification. Feature semantics remain owned
 by FG-EFFECT-002.
 
 ## Completion record
 
-- Result:
-- Verification evidence:
-- Commit(s):
+- Result: Complete. The reviewed FG-EFFECT-002 source correction was versioned
+  as Lectern Sync 1.4.12 and packaged with Lectern 3.0.0.
+- Verification evidence: All sixteen repository regressions passed.
+  PyInstaller 6.21.0 built the application, the extension archive contains the
+  1.4.12 manifest, matching source version, and live power hook, the packaged
+  application completed an isolated offscreen first-run startup check, and
+  Inno Setup 6.7.3 compiled the installer.
+- Commit(s): `385e7c3` contains the correction, tests, version synchronization,
+  documentation, and rebuilt tracked installer. A following documentation
+  commit records final package evidence and contract closure.
 - Artifact(s) and hash:
-- Remaining risks:
-- PRD/Changelog updates:
+  - `dist/Lectern/Lectern.exe` — SHA-256
+    `F8621D53A1F6E6EC3E1FD61E706F9DD5429F5FD8E0635DB7E239B8C0068465A7`
+  - `dist/Lectern/FantasyGrounds/LecternSync.ext` — SHA-256
+    `92344FC40316C7E079D5A4BDE0A36C5DF1C0FF13E890AB8C30E51DBB2A22705D`
+  - `release/Lectern_v3_0_0_Setup.exe` — SHA-256
+    `60BF19156AE434B28E1E29CA43CF2798DBABE01DBF53C2B0D5845C129E8FA730`
+- Remaining risks: Installation and the fresh live Armor of Shadows
+  verification remain owned by active contract FG-EFFECT-002. Packaging did
+  not establish live acceptance.
+- PRD/Changelog updates: The PRD, changelog, verification report, integration
+  guide, contract indexes, and evidence record identify Lectern Sync 1.4.12 and
+  the outstanding live gate.

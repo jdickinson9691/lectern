@@ -843,7 +843,8 @@ The initial contract sequence covered the three Test6 blockers:
   implemented, automated-verified, and live-verified.
 
 `FG-EFFECT-002` is active. Its source correction, automated verification, and
-REL-PACK-002 package are complete, but installed live acceptance is pending.
+[`REL-PACK-002`](contracts/completed/rel-pack-002-fg-effect-002.md) package are
+complete, but installed live acceptance is pending.
 
 Sanitized contract and release evidence belongs under
 [`docs/evidence/`](evidence/README.md).
