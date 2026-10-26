@@ -3,6 +3,7 @@ import json
 import re
 from pathlib import Path
 from .schema import connect
+from .campaign_identity import campaign_monster, ensure_campaign_link, has_ashen_campaign
 
 ABILITY_FIELDS = ['str', 'dex', 'con', 'int', 'wis', 'cha']
 DND5E_DAMAGE_TYPES = (
@@ -33,7 +34,7 @@ class Repository:
         with connect(self.db_path) as conn:
             return int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
 
-    def upsert_player(self, data: dict):
+    def upsert_player(self, data: dict, *, actor: str = 'lectern'):
         portrait_provided = 'portrait_path' in data
         payload = {col: data.get(col) for col in PLAYER_COLUMNS}
         # Backward-compatible defaults for older callers/tests.
@@ -68,8 +69,12 @@ class Repository:
             VALUES({placeholders})
             ON CONFLICT(name) DO UPDATE SET {updates}
             """, payload)
+            row_id = int(conn.execute('SELECT id FROM players WHERE name=?', (payload['name'],)).fetchone()[0])
+            if has_ashen_campaign(conn):
+                ensure_campaign_link(conn, 'players', row_id, payload['name'], actor=actor)
+            return row_id
 
-    def upsert_monster(self, data: dict):
+    def upsert_monster(self, data: dict, *, actor: str = 'lectern'):
         with connect(self.db_path) as conn:
             conn.execute("""
             INSERT INTO monsters(name,size,type,alignment,armor_class,hit_points,speed,challenge_rating,xp,str_score,dex_score,con_score,int_score,wis_score,cha_score,source,notes)
@@ -79,6 +84,10 @@ class Repository:
             str_score=excluded.str_score,dex_score=excluded.dex_score,con_score=excluded.con_score,int_score=excluded.int_score,
             wis_score=excluded.wis_score,cha_score=excluded.cha_score,source=excluded.source,notes=excluded.notes
             """, data)
+            row_id = int(conn.execute('SELECT id FROM monsters WHERE name=?', (data['name'],)).fetchone()[0])
+            if has_ashen_campaign(conn) and campaign_monster(conn, row_id, data.get('source')):
+                ensure_campaign_link(conn, 'monsters', row_id, data['name'], actor=actor)
+            return row_id
 
     def upsert_reference(self, table: str, data: dict):
         fields = list(data.keys())
@@ -153,6 +162,8 @@ class Repository:
                 values,
             )
             new_id = conn.execute("SELECT id FROM players WHERE name=?", (name,)).fetchone()[0]
+            if has_ashen_campaign(conn):
+                ensure_campaign_link(conn, 'players', int(new_id), name)
             return int(new_id)
 
     def list_monsters(self):
@@ -177,6 +188,8 @@ class Repository:
                 "INSERT INTO encounters(name,status,round,active_index,campaign_id) VALUES(?, 'draft', 1, 0, ?)",
                 (unique_name, campaign_id),
             )
+            if has_ashen_campaign(conn):
+                ensure_campaign_link(conn, 'encounters', int(cursor.lastrowid), unique_name)
             return int(cursor.lastrowid)
 
     def list_encounters(self):

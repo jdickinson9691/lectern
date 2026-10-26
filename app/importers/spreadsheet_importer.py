@@ -148,7 +148,7 @@ class SpreadsheetImporter:
                 "current_hp": as_int(get(row, headers, "current hp", "hp"), max_hp),
                 "initiative_mod": as_int(get(row, headers, "initiative mod", "initiative", "dex mod"), 0),
                 "notes": norm(get(row, headers, "notes")),
-            })
+            }, actor='spreadsheet')
             count += 1
         return count
 
@@ -177,7 +177,7 @@ class SpreadsheetImporter:
                 "cha_score": as_int(get(row, headers, "cha", "charisma"), 0),
                 "source": norm(get(row, headers, "source")) or "spreadsheet",
                 "notes": norm(get(row, headers, "notes", "description")),
-            })
+            }, actor='spreadsheet')
             count += 1
         return count
 

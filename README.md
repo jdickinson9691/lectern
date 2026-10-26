@@ -4,7 +4,7 @@
 
 **Version:** 3.0.0 — Workflow and Import Refinement
 **Milestone:** 3.0.0 (in progress)
-**Database schema:** v10
+**Database schema:** v11 (optional Ashen canon layer over v10)
 
 Lectern is a single evolving Python/PySide6 Windows desktop codebase for D&D 5E campaign planning, combat tracking, and campaign analysis. This package is a clean, Git-ready source baseline.
 
@@ -48,18 +48,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Diagnose-Launch.ps1
 .\dist\Lectern\Lectern.exe
 ```
 
-## Git Initialization
+## Source repository
 
-```powershell
-git init
-git add .
-git commit -m "Lectern v3.0.0 baseline"
-git branch -M main
-git remote add origin <YOUR-REPOSITORY-URL>
-git push -u origin main
-```
+This source is maintained at [jdickinson9691/lectern](https://github.com/jdickinson9691/lectern). The `.gitignore` excludes virtual environments, databases, logs, backups, caches, and generated build output. Private Ashen GM material remains outside this public repository.
 
-The `.gitignore` excludes virtual environments, databases, logs, backups, caches, and generated build output.
+## Ashen Company campaign
+
+Use **Start Ashen Company.cmd** for the isolated Ashen database. It enables the campaign canon, draft/review, player export, and Fantasy Grounds Story module workflow without changing ordinary Lectern campaign data. See [Ashen Company on Lectern 3.0](docs/ASHEN_3_0_INTEGRATION.md), the [player guide](docs/campaign/Ashen_Company_Player_Guide.docx), and [class access plan](docs/campaign/CLASS_ACCESS.md). Private GM materials and the live campaign database are kept outside this public repository.
 
 ## Product and Agent Documentation
 

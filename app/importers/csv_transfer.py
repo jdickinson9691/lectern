@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterable
 
 from ..database.schema import connect
+from ..database.campaign_identity import campaign_monster, ensure_campaign_link, has_ashen_campaign
 
 CSV_TABLES = {
     "players": "Players",
@@ -52,17 +53,48 @@ class CsvTransferService:
             rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
         return [row[1] for row in rows]
 
+    def _csv_columns(self, table: str) -> list[str]:
+        columns = self.table_columns(table)
+        if table in {'players', 'monsters'}:
+            with connect(self.db_path) as conn:
+                if has_ashen_campaign(conn):
+                    return columns + ['entity_id']
+        return columns
+
+    def _row_by_entity_id(self, conn, table: str, entity_id: str):
+        if table not in {'players', 'monsters'}:
+            raise ValueError('Canonical IDs are supported for players and monsters only')
+        row = conn.execute(
+            """SELECT lectern_id FROM entity_legacy_links
+               WHERE entity_id=? AND lectern_table=?""", (entity_id, table)
+        ).fetchone()
+        if row is None:
+            raise ValueError(f'Unknown {table} entity ID: {entity_id}')
+        record = conn.execute(f'SELECT * FROM {table} WHERE id=?', (row[0],)).fetchone()
+        if record is None:
+            raise ValueError(f'Entity {entity_id} has no Lectern row')
+        return record
+
     def export_table(self, table: str, output_path: Path) -> int:
         self._validate_table(table)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        columns = self.table_columns(table)
+        columns = self._csv_columns(table)
         with connect(self.db_path) as conn:
-            rows = conn.execute(f"SELECT {','.join(columns)} FROM {table} ORDER BY {self._order_clause(table)}").fetchall()
+            physical = self.table_columns(table)
+            rows = conn.execute(f"SELECT {','.join(physical)} FROM {table} ORDER BY {self._order_clause(table)}").fetchall()
+            entity_ids = {}
+            if table in {'players', 'monsters'}:
+                entity_ids = {row['lectern_id']: row['entity_id'] for row in conn.execute(
+                    'SELECT lectern_id,entity_id FROM entity_legacy_links WHERE lectern_table=?', (table,)
+                )}
         with output_path.open("w", newline="", encoding="utf-8-sig") as f:
             writer = csv.DictWriter(f, fieldnames=columns, extrasaction="ignore")
             writer.writeheader()
             for row in rows:
-                writer.writerow({col: row[col] for col in columns})
+                data = {col: row[col] for col in physical}
+                if table in {'players', 'monsters'}:
+                    data['entity_id'] = entity_ids.get(row['id'], '')
+                writer.writerow(data)
         return len(rows)
 
     def export_all(self, output_dir: Path) -> dict[str, int]:
@@ -85,7 +117,7 @@ class CsvTransferService:
         self._validate_table(table)
         if not csv_path.exists():
             raise FileNotFoundError(csv_path)
-        columns = self.table_columns(table)
+        columns = self._csv_columns(table)
         editable_columns = [c for c in columns if c != "id"]
         preview: list[dict] = []
         seen_keys: set[tuple] = set()
@@ -102,7 +134,8 @@ class CsvTransferService:
             with connect(self.db_path) as conn:
                 for row_number, raw_row in enumerate(reader, start=2):
                     try:
-                        data = {col: self._clean_value(col, raw_row.get(col)) for col in incoming}
+                        data = {col: self._clean_value(col, raw_row.get(col)) for col in incoming if col != 'entity_id'}
+                        entity_id = str(raw_row.get('entity_id') or '').strip() if 'entity_id' in incoming else ''
                         if table == "players":
                             self._normalize_player_row(data)
                         key = self._row_key(table, data)
@@ -113,7 +146,7 @@ class CsvTransferService:
                             preview.append({"row_number": row_number, "status": "Duplicate", "key": self._key_label(table, key), "message": "Duplicate key in import file."})
                             continue
                         seen_keys.add(key)
-                        existing = self._existing_row(conn, table, key)
+                        existing = self._row_by_entity_id(conn, table, entity_id) if entity_id else self._existing_row(conn, table, key)
                         if existing is None:
                             status = "New"
                             message = "Will insert new row."
@@ -151,7 +184,7 @@ class CsvTransferService:
         self._validate_table(table)
         if not csv_path.exists():
             raise FileNotFoundError(csv_path)
-        columns = self.table_columns(table)
+        columns = self._csv_columns(table)
         editable_columns = [c for c in columns if c != "id"]
         count = 0
         with csv_path.open("r", newline="", encoding="utf-8-sig") as f:
@@ -164,22 +197,47 @@ class CsvTransferService:
             if table != "rules_reference" and "name" not in incoming:
                 raise ValueError(f"{table} CSV must include a name column.")
             with connect(self.db_path) as conn:
+                imported_entities: set[str] = set()
                 for raw_row in reader:
-                    data = {col: self._clean_value(col, raw_row.get(col)) for col in incoming}
+                    data = {col: self._clean_value(col, raw_row.get(col)) for col in incoming if col != 'entity_id'}
+                    entity_id = str(raw_row.get('entity_id') or '').strip() if 'entity_id' in incoming else ''
                     if not str(data.get("name") or "").strip():
                         continue
                     if table == "players":
                         self._normalize_player_row(data)
-                    self._upsert(conn, table, data)
+                    existing = self._row_by_entity_id(conn, table, entity_id) if entity_id else None
+                    self._upsert(conn, table, data, row_id=existing['id'] if existing else None)
+                    if table in {'players', 'monsters'} and has_ashen_campaign(conn):
+                        row = conn.execute(f'SELECT id,name FROM {table} WHERE name=?', (data['name'],)).fetchone()
+                        if table == 'players' or campaign_monster(
+                            conn, row['id'], conn.execute('SELECT source FROM monsters WHERE id=?', (row['id'],)).fetchone()[0]
+                        ):
+                            actual_id = ensure_campaign_link(conn, table, row['id'], row['name'], actor='csv')
+                            if entity_id and actual_id != entity_id:
+                                raise ValueError(f'Entity ID mismatch: {entity_id}')
+                            imported_entities.add(actual_id)
                     count += 1
-                conn.execute(
+                cursor = conn.execute(
                     "INSERT INTO import_history(file_path,rows_imported,notes) VALUES(?,?,?)",
                     (str(csv_path), count, f"CSV import into {table}"),
                 )
+                for imported_id in imported_entities:
+                    conn.execute(
+                        """INSERT INTO entity_sources(entity_id,source_type,source_ref,import_history_id)
+                           VALUES(?,'csv',?,?) ON CONFLICT(entity_id,source_type,source_ref)
+                           DO UPDATE SET import_history_id=excluded.import_history_id""",
+                        (imported_id, str(csv_path), cursor.lastrowid),
+                    )
         return count
 
-    def _upsert(self, conn, table: str, data: dict) -> None:
+    def _upsert(self, conn, table: str, data: dict, *, row_id: int | None = None) -> None:
         fields = list(data.keys())
+        if row_id is not None:
+            conn.execute(
+                f"UPDATE {table} SET {','.join(f'{field}=:{field}' for field in fields)} WHERE id=:row_id",
+                {**data, 'row_id': row_id},
+            )
+            return
         placeholders = ",".join(":" + f for f in fields)
         if table == "rules_reference":
             conflict = "category,name"

@@ -14,6 +14,15 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QRect, QSize, QTimer, QUrl
 from PySide6.QtGui import QPainter, QPixmap, QIcon, QImage, QColor, QBrush, QFont, QTextCursor, QDesktopServices
 from ..database.repositories import Repository
+from ..database.schema import connect
+from ..database.campaign_identity import has_ashen_campaign
+from .story_page import StoryPage
+from .story_mission_page import StoryMissionPage
+from .mission_page import MissionPage
+from .world_page import WorldPage
+from .canon_review_page import CanonReviewPage
+from .ashen_export_page import AshenPlayerExportPage
+from ..services.world_agents import NPCAgent, LocationAgent, FactionAgent
 from ..importers.spreadsheet_importer import SpreadsheetImporter
 from ..importers.csv_transfer import CsvTransferService, CSV_TABLES
 from ..importers.character_pdf import CharacterPdfImporter
@@ -2122,6 +2131,8 @@ class HelpPage(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self, db_path: Path):
         super().__init__(); self.db_path=db_path; self.repo=Repository(db_path)
+        with connect(db_path) as conn:
+            self._ashen_enabled = has_ashen_campaign(conn)
         self.setWindowTitle(f"{APP_NAME} - {VERSION}"); self.resize(1400,900); self.setMinimumSize(1100,700)
         app_icon = icon_path()
         if app_icon.exists():
@@ -2155,6 +2166,16 @@ class MainWindow(QMainWindow):
             ("Combat Dashboard", CombatDashboardPage(self.repo)),
             ("Combat Narrative", CombatNarrativePage(self.repo)),
             ("Players", PlayerManagerPage(self.repo, self.refresh_pages)),
+            *([
+            ("Stories", StoryPage(db_path)),
+            ("Story & Mission Drafts", StoryMissionPage(db_path)),
+            ("Missions", MissionPage(db_path)),
+            ("Campaign NPCs", WorldPage(db_path, NPCAgent)),
+            ("Campaign Locations", WorldPage(db_path, LocationAgent)),
+            ("Campaign Factions", WorldPage(db_path, FactionAgent)),
+            ("Canon Review (GM)", CanonReviewPage(db_path)),
+            ("Ashen Player Export", AshenPlayerExportPage(db_path)),
+            ] if self._ashen_enabled else []),
             ("Monster Library", TablePage("Monster Library", self.repo, "monsters")),
             ("Add Monster", MonsterAddPage(self.repo)),
             ("Weapons", TablePage("Weapons", self.repo, "weapons")),
@@ -2170,7 +2191,13 @@ class MainWindow(QMainWindow):
         ]
         for name, page in sections:
             self.add_page(name, page)
-        self.nav.currentRowChanged.connect(self.stack.setCurrentIndex); self.nav.setCurrentRow(0)
+        self.nav.currentRowChanged.connect(self.stack.setCurrentIndex)
+        self.nav.currentRowChanged.connect(self.refresh_selected_campaign_page)
+        self.nav.setCurrentRow(0)
+
+    def refresh_selected_campaign_page(self, index):
+        if 0 <= index < len(self.pages) and isinstance(self.pages[index], (MissionPage, WorldPage, AshenPlayerExportPage)):
+            self.pages[index].refresh()
     def add_page(self, name, widget):
         self.nav.addItem(name)
         self.stack.addWidget(WatermarkedPage(widget, self._watermark_path))

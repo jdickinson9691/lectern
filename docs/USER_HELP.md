@@ -36,6 +36,7 @@ Select a title to jump directly to that section.
 
 ### Integration and data screens
 
+- [Ashen Company canon and player export](#ashen-company-canon-and-player-export)
 - [CSV Import and Export](#csv-import-and-export)
 - [Fantasy Grounds Sync](#fantasy-grounds-sync)
 - [Data Workflow](#data-workflow)
@@ -545,6 +546,16 @@ Review Base, Species, and Feat values. Total is their sum, and Modifier is calcu
 ### The application will not start
 
 Review the application log in Lectern's LocalAppData folder and verify that the latest installer completed successfully.
+
+[Back to Help contents](#help-contents)
+
+## Ashen Company canon and player export
+
+Launch **Start Ashen Company.cmd** from the Lectern source folder to use the isolated Ashen Company database. Its Story, Mission, NPC, Location, Faction, and Canon Review screens separate player descriptions from GM notes. Save drafts with approved sources, resolve conflicts in **Canon Review (GM)**, and approve public text only after review.
+
+Open **Ashen Player Export** to change visibility, review the approved release, and export player JSON or a Fantasy Grounds Story module. In Fantasy Grounds, load the module and open **Story → Group → Ashen Company**. Full CSV exports contain GM data and should not be shared as player handouts. The live Fantasy Grounds Sync extension is a separate inbound flow for characters and combat; it does not publish Ashen lore.
+
+The proposed class and subclass access plan is in `docs/campaign/CLASS_ACCESS.md`. Lectern stores character class names but does not yet enforce campaign locks or unlocks. Confirm each option with the GM before character creation.
 
 [Back to Help contents](#help-contents)
 

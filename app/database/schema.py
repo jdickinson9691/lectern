@@ -240,3 +240,5 @@ def initialize_database(db_path: Path) -> None:
             if col not in turn_log_columns:
                 conn.execute(f'ALTER TABLE turn_log ADD COLUMN {col} {decl}')
         conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('schema_version','10')")
+        from .ashen_upgrade import migrate_ashen_v11
+        migrate_ashen_v11(conn)
