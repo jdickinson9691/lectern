@@ -1,8 +1,8 @@
 # Install / Run From Source on Windows
 
-1. Extract the ZIP into a fresh folder. Example:
+1. Use the maintained development checkout at:
 
-   `C:\Users\jdick\OneDrive\Desktop\CampaignManager_v1_0_verified`
+   `D:\Ludinn\Development\Lectern`
 
 2. Open PowerShell in that extracted folder.
 

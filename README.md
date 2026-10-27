@@ -19,7 +19,7 @@ Python 3.13 is the supported development and packaging interpreter. Python 3.14 
 ## Fresh Setup
 
 ```powershell
-cd "C:\Users\jdick\OneDrive\Desktop\Lectern"
+cd "D:\Ludinn\Development\Lectern"
 powershell -ExecutionPolicy Bypass -File .\scripts\Setup-Development.ps1
 ```
 
@@ -50,6 +50,10 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Diagnose-Launch.ps1
 
 With Inno Setup 6 installed, run `.\build\Build-Installer.ps1` to create the Windows installer under `release/`.
 
+## Development checkout and Git
+
+`D:\Ludinn\Development\Lectern` is the maintained local checkout. Make source changes, run tests, build releases, and push Git commits from this folder. Its `main` branch tracks `origin/main` at the URL below. The older Desktop folder is retained as a historical checkout.
+
 ## Source repository
 
 This source is maintained at [jdickinson9691/lectern](https://github.com/jdickinson9691/lectern). The `.gitignore` excludes virtual environments, databases, logs, backups, caches, and generated build output. Private Ashen GM material remains outside this public repository.
@@ -58,7 +62,7 @@ This source is maintained at [jdickinson9691/lectern](https://github.com/jdickin
 
 Use **Start Ashen Company.cmd** for the isolated Ashen database. It enables the campaign canon, draft/review, player export, and Fantasy Grounds Story module workflow without changing ordinary Lectern campaign data. See [Ashen Company on Lectern 3.0](docs/ASHEN_3_0_INTEGRATION.md), the [player guide](docs/campaign/Ashen_Company_Player_Guide.docx), and [class access plan](docs/campaign/CLASS_ACCESS.md). Private GM materials and the live campaign database are kept outside this public repository.
 
-The 3.0.1 Windows installer adds an **Ashen Company** Start menu shortcut and an optional desktop shortcut. It can install the currently approved player Story module into the Fantasy Grounds `modules` folder alongside Lectern Sync in `extensions`. The bundled module is a release snapshot; use **Ashen Player Export** in Lectern to publish later approvals. The installer does not include the live campaign database or GM guide. The packaged 3.0.1 executable was built and smoke tested with Python 3.12.10; the source project's stated development target remains Python 3.13.
+The 3.0.1 Windows installer adds an **Ashen Company** Start menu shortcut and an optional desktop shortcut. It can install the currently approved player Story module into the Fantasy Grounds `modules` folder alongside Lectern Sync in `extensions`. The bundled module is a release snapshot; use **Ashen Player Export** in Lectern to publish later approvals. The installer does not include the live campaign database or GM guide. The current D: 3.0.1 executable and installer were built and smoke tested with the project's Python 3.13.14 environment.
 
 ## Product and Agent Documentation
 

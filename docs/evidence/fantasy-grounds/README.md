@@ -21,3 +21,7 @@ Recorded packages:
 - [`FG-EFFECT-002 Test7 Armor`](fg-effect-002-test7-armor.md) — isolated live
   evidence that Armor of Shadows was imported as a generic effect, plus the
   automated remediation status and outstanding fresh live check.
+- [`FG-EFFECT-002 Test8 Armor`](fg-effect-002-test8-armor.md) — isolated live
+  evidence that version 1.4.12 captured the linked Mage Armor action but not
+  its owning Armor of Shadows feature, plus the authoritative sibling-power
+  hierarchy used by the next regression.

@@ -12,7 +12,7 @@ Do not use the Fantasy Grounds application installation folder. The extension be
 
 ### 2. Install the extension
 
-The Lectern Windows installer asks for the Fantasy Grounds `extensions` folder and installs `LecternSync.ext` there. The proposed location uses the current Windows account without embedding a developer-specific path. If Fantasy Grounds uses a custom data location, open its launcher, select the folder button, and choose the `extensions` subfolder inside that data folder.
+The Lectern 3.0.1 Windows installer asks for the Fantasy Grounds `extensions` folder and installs Lectern Sync 1.4.13 as `LecternSync.ext` there. It also offers the approved Ashen Company player Story module for the matching `modules` folder. The proposed location uses the current Windows account without embedding a developer-specific path. If Fantasy Grounds uses a custom data location, open its launcher, select the folder button, and choose the `extensions` subfolder inside that data folder.
 
 For a portable or previously installed Lectern release, copy `FantasyGrounds\LecternSync.ext` from the Lectern installation folder into:
 
@@ -98,9 +98,11 @@ mechanical label when Fantasy Grounds does not supply one. Older events that
 captured only a generic effect remain generic after reprocessing.
 
 The `FG-EFFECT-002` correction captures that provenance from the actual 5E
-`PowerManager.performAction` path before the effect is applied. Lectern Sync
-1.4.12 contains the correction and has passed automated and packaged-startup
-verification. It still requires a fresh installed live acceptance check.
+`PowerManager.performAction` path before the effect is applied. Fantasy Grounds
+may store a feature such as Armor of Shadows and its executable Mage Armor
+spell as sibling character-power records. Lectern Sync 1.4.13 resolves the
+unique authoritative feature-to-power relationship without inferring from the
+mechanical effect. It still requires a fresh installed live acceptance check.
 
 Lectern Sync 1.4.9 imports equipped weapons and armor from 5E character inventories, records named damage contributors plus authoritative healing, saving throws, and damage types resolved by the ruleset, and journals effect lifecycle changes. Each authoritative save is recorded once. Damage beyond remaining HP is labeled as overkill rather than resistance or reduction; mitigation, vulnerability, temporary-HP absorption, and actual HP damage remain separate. Eligible damage effects such as Sneak Attack, Hunter's Mark, and Divine Smite are attached to the resolved weapon or spell action using their Fantasy Grounds effect evidence, including one-roll effects consumed immediately before resolution. Effect source paths resolve to combatant names, while the originating spell or ability remains distinct from the mechanical effect label. Mixed damage remains component-aware, every target of a multi-target action retains its roll attribution or save outcome, and expanded Combat Dashboard rows preserve rolled and applied values after resistance, immunity, vulnerability, wards, and similar adjustments. Applied component totals never exceed the target's actual HP loss. Manual wound and healing edits remain unattributed.
 
@@ -143,8 +145,9 @@ After changing `integrations/fantasy_grounds/extension/LecternSync`, rerun the i
 Use a dedicated test campaign and sanitized/open content. Never commit exports containing commercial Fantasy Grounds module text.
 
 For the pending `FG-EFFECT-002` live check, install the current package
-containing Lectern Sync 1.4.12. Then start a uniquely named isolated session,
-apply Armor of Shadows to Warlock1, end the session, and import it.
+containing Lectern Sync 1.4.13. Then start a uniquely named isolated session
+such as `Test9 Armor`, apply Armor of Shadows to Warlock1, end the session, and
+import it.
 Confirm the Combat Dashboard Action column and Combat Narrative both name
 Armor of Shadows, actor and target remain Warlock1, the mechanical effect
 remains separate, and no AC or duration numbers appear in the narrative.

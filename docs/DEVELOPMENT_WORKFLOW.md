@@ -9,9 +9,9 @@ This folder is the canonical evolving source tree for Lectern: **Lüdinn Enterta
 
 ## Daily workflow
 
-1. Extract or open this source tree in a stable folder, for example:
-   `C:\Users\jdick\OneDrive\Desktop\CampaignManager`
-2. Make all future changes inside this same folder.
+1. Open the maintained source tree at `D:\Ludinn\Development\Lectern`.
+2. Make future source changes, commits, builds, and pushes in this folder.
+   Its `main` branch tracks `origin/main`.
 3. Run from source during development:
    `build\RunFromSource.bat`
 4. Run automated checks:
@@ -27,8 +27,12 @@ This folder is the canonical evolving source tree for Lectern: **Lüdinn Enterta
    `scripts\Install-FantasyGroundsExtension.ps1 -FantasyGroundsDataPath "<path>"`
 6. Build only when ready to test the packaged executable and `LecternSync.ext`:
    `build\Build.ps1`
-7. Launch the built app:
+7. Build the full Windows installer when needed:
+   `build\Build-Installer.ps1`
+8. Launch the built app:
    `dist\Lectern\Lectern.exe`
+9. Push reviewed commits from this checkout:
+   `git push origin main`
 
 ## Important rules
 
@@ -39,10 +43,10 @@ This folder is the canonical evolving source tree for Lectern: **Lüdinn Enterta
 
 ## Current baseline
 
-- Application version: 3.0.0 Workflow and Import Refinement (in progress)
+- Application version: 3.0.1 Ashen Company Integration
 - Planning milestone: 3.1 product design
-- Database schema: v10
-- Fantasy Grounds snapshot contract: v1
+- Database schema: v11 (optional Ashen canon layer over v10)
+- Fantasy Grounds snapshot contract: v1; Lectern Sync extension 1.4.13
 - Scope: confirm the 3.0 release boundary, then define one primary 3.1 user
   outcome before implementation.
 - Acceptance evidence: `docs/VERIFICATION_REPORT.md`.

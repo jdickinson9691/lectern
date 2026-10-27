@@ -1,8 +1,8 @@
 # Lectern Product Requirements and Development Status
 
-Last updated: July 28, 2026
-Repository baseline: implementation and installer commit `858175b`, with the
-REL-PACK-001 completion record applied afterward
+Last updated: October 27, 2026
+Repository baseline: Lectern 3.0.1 Ashen integration at `d272261`, with the
+locally preserved Lectern Sync 1.4.13 correction merged on D: `main`
 Document status: Current product and agent handoff authority
 Filename: `lectern-prd.md`
 
@@ -46,21 +46,20 @@ using a versioned phrase library. It does not use an external LLM or API.
 
 | Item | Current value | Notes |
 |---|---|---|
-| Product version | 3.0.0 | Release name: Workflow and Import Refinement |
-| Release status | In progress; not release-clear | FG-EFFECT-002 is corrected, packaged, and automated-verified; fresh installed live acceptance and broader manual acceptance remain |
+| Product version | 3.0.1 | Release name: Ashen Company Integration |
+| Release status | In progress; not release-clear | FG-EFFECT-002 was reopened by Test8; its linked owning-power correction is packaged and automated-verified, with fresh live acceptance pending |
 | Planned milestone | 3.1 design and staged implementation | Some originally proposed 3.1 work has already been implemented without changing product version |
-| Database schema | v10 | Local campaign ownership, archive state, and persistent parties |
+| Database schema | v11 | Optional Ashen canon layer over the existing v10 tables |
 | Fantasy Grounds snapshot contract | v1 | One-way import only |
-| Lectern Sync extension | 1.4.12 | Packaged in the current installer |
+| Lectern Sync extension | 1.4.13 | Packaged and automated-verified; Test9 live acceptance pending |
 | Combat Narrative library schema | v1 | Current content version: `2026.07.28.1` |
 | Supported Python | 3.13 | Python 3.14 is not approved for packaging |
 | Supported desktop platform | Windows 10/11 | PySide6 desktop application |
-| Baseline commit | `858175b` | FG-LINK-001, FG-CONC-001, FG-EFFECT-001, and rebuilt installer |
-| Current installer | `release/Lectern_v3_0_0_Setup.exe` | SHA-256 `F1BD85F6A1C3AE3B2C855A276D15C24AA7FD9FA85AD2144FED0516365C3B7B0B` |
+| Source lineage | `d272261` plus archived D: 1.4.13 work | Combined source is maintained on D: `main` |
+| Current installer | `release/Lectern_v3_0_1_Ashen_Company_Setup.exe` | D: Python 3.13 build; SHA-256 `2BFF5F8DB6A73B369CFCF4718B092542B922561C694CC9B3252808D29C91F190` |
 
-The root [`README.md`](../README.md) still reports database schema v9 and some
-older documents report prior extension or commit versions. Those values are
-stale. Synchronizing existing documentation is an open maintenance task.
+The root [`README.md`](../README.md) reports schema v11 and the optional
+Ashen canon layer. Older milestone documents retain their historical versions.
 
 ## 4. Status vocabulary
 
@@ -264,8 +263,10 @@ Test6 and Test7 verification status:
   Test7 live verification correctly attributed the check to Ranger1.
 - **FG-EFFECT-001:** Automated verification completed, but fresh Test7 Armor
   evidence still imported Armor of Shadows as generic `Effect`. The live defect
-  was reopened as **FG-EFFECT-002**. Its source correction now captures the
-  actual 5E power-action entry point; fresh packaged live confirmation remains.
+  was reopened as **FG-EFFECT-002**. Version 1.4.12 captured the executable
+  `Mage Armor` power, while Test8 proved the owning `Armor of Shadows` feature
+  still required an authoritative linked-power correction. Version 1.4.13
+  covers that sibling hierarchy; fresh packaged live confirmation remains.
 
 Historical-data rule:
 
@@ -543,8 +544,9 @@ path. See
 
 #### FG-EFFECT-002 — Live named-power announcement not correlated
 
-**Status:** Active; automated correction and packaging complete on July 28,
-2026, with fresh installed live acceptance pending.
+**Status:** Active; Test8 reopened exact owning-feature attribution on July 28,
+2026. The 1.4.13 hierarchy correction is packaged and automated-verified, with
+fresh installed Test9 acceptance pending.
 
 In the isolated `Test7 Armor` session, Fantasy Grounds displayed Warlock1 using
 Armor of Shadows immediately before applying `AC: 3; [D: 8 hours]` to
@@ -558,17 +560,22 @@ Inspection of the installed 5E and CoreRPG rule sources confirmed the live path:
 powers, and that effect-roll path does not invoke the
 `onActionPostGetRoll/effect` hook used by FG-EFFECT-001.
 
-The repository correction wraps the authoritative 5E power-action entry point
-and captures the named power before Fantasy Grounds applies the effect.
-Correlation is bounded by actor, known self-target, action and power paths,
-mechanical effect text, event sequence, and time. It does not infer a name from
-`AC: 3`, duration, class, spell list, or D&D rules. The focused live-path
-regression and all sixteen repository regression scripts pass. A fresh
-owner-coordinated Fantasy Grounds confirmation against the newly packaged
-extension is still required. See
+The first repository correction wraps the authoritative 5E power-action entry
+point and captures the executable power before Fantasy Grounds applies the
+effect. Test8 showed that this preserved `Mage Armor`, not its owning
+`Armor of Shadows` feature. Campaign evidence confirmed that both are sibling
+power records in the same group: Armor of Shadows has no executable actions
+and its formatted description links Mage Armor, while Mage Armor owns the
+`AC: 3` action. Version 1.4.13 resolves that unique authoritative relationship
+and falls back when it is absent or ambiguous. Correlation remains bounded by
+actor, target, paths, effect text, event sequence, and time. It does not infer
+from `AC: 3`, duration, class, spell list, or D&D rules. A fresh
+owner-coordinated Test9 confirmation is still required. See
 [`FG-EFFECT-002`](contracts/active/fg-effect-002-live-power-provenance.md) and
 the
-[`Test7 Armor evidence`](evidence/fantasy-grounds/fg-effect-002-test7-armor.md).
+[`Test7 Armor evidence`](evidence/fantasy-grounds/fg-effect-002-test7-armor.md)
+and
+[`Test8 Armor evidence`](evidence/fantasy-grounds/fg-effect-002-test8-armor.md).
 
 #### FG-CONC-001 — Concentration uses the active attacker
 
@@ -652,23 +659,19 @@ Implemented:
 - PyInstaller build at `dist/Lectern/Lectern.exe`.
 - Packaged Lectern Sync extension at
   `dist/Lectern/FantasyGrounds/LecternSync.ext`.
-- Inno Setup installer at `release/Lectern_v3_0_0_Setup.exe`.
+- Inno Setup installer at `release/Lectern_v3_0_1_Ashen_Company_Setup.exe`.
 - Installer prompt for the user's Fantasy Grounds `extensions` directory.
 - Desktop and Start Menu shortcuts.
 
 Repository convention:
 
 - `dist` and ordinary generated release output are ignored.
-- The current installer executable is already tracked and is intentionally
-  replaced and committed when the owner explicitly requests an installer push.
-- Do not assume that building an application also builds the installer; both
-  `build/Build.ps1` and Inno Setup compilation are required.
+- Generated installer output is ignored by Git. Release binaries remain in
+  the local `release/` directory and can be distributed separately.
+- `build/Build-Installer.ps1` builds the app, extension, and installer together.
 
-Open maintenance question:
-
-- Reconcile [`RELEASE_MANIFEST.md`](../RELEASE_MANIFEST.md), which says compiled
-  outputs are excluded, with the established practice of tracking the current
-  installer.
+The older tracked 3.0.0 installer is retained as historical release data.
+The 3.0.1 installer is generated locally and ignored by Git.
 
 ## 6. Current verification state
 
@@ -693,9 +696,10 @@ provenance regression in addition to the prior fifteen checks:
 - portrait workflow;
 - seeded-database smoke test.
 
-The current installer was built and verified with narrative library content
-version `2026.07.28.1` and Lectern Sync 1.4.12. The packaged application
-started successfully in an isolated offscreen check.
+The current verified installer was built with narrative library content version
+`2026.07.28.1` and Lectern Sync 1.4.13. It contains the Test8 linked
+owning-power correction and passed extension archive inspection plus isolated
+offscreen startup.
 
 The original automated tests did not catch the three live Test6 defects because:
 
@@ -708,17 +712,19 @@ The original automated tests did not catch the three live Test6 defects because:
 - prepared/live tests did not cover a differently named session with a uniquely
   overlapping roster. This gap is now covered by FG-LINK-001.
 
-Automation is green for the actual 5E power-action capture path. Test7 live
-verification passed FG-LINK-001 and FG-CONC-001 and supplied the failing
-evidence for FG-EFFECT-002. A new package and owner-coordinated live session are
-still required to clear its final acceptance criterion.
+Automation is green for the actual 5E power-action capture path and the Test8
+linked owning-power hierarchy. Test7 live verification passed FG-LINK-001 and
+FG-CONC-001; Test7 and Test8 supplied successive failing evidence for
+FG-EFFECT-002. Installation of the new 1.4.13 package and an
+owner-coordinated Test9 session are still required to clear its final
+acceptance criterion.
 
 ## 7. Release blockers and prioritized backlog
 
 ### Priority 0 — Release blockers
 
-1. Install the current package and start one isolated owner-coordinated
-   session.
+1. Install the current Lectern Sync 1.4.13 package, then start one isolated
+   owner-coordinated `Test9 Armor` session.
 2. Apply Armor of Shadows, import the session, and confirm the Action column and
    Combat Narrative name the power while retaining the mechanical effect.
 3. Close FG-EFFECT-002 only after that live evidence passes.
@@ -842,9 +848,10 @@ The initial contract sequence covered the three Test6 blockers:
 - [`FG-LINK-001`](contracts/completed/fg-link-001-prepared-live-matching.md) is
   implemented, automated-verified, and live-verified.
 
-`FG-EFFECT-002` is active. Its source correction, automated verification, and
-[`REL-PACK-002`](contracts/completed/rel-pack-002-fg-effect-002.md) package are
-complete, but installed live acceptance is pending.
+`FG-EFFECT-002` is active. REL-PACK-002 delivered the superseded 1.4.12
+correction; Test8 required the 1.4.13 linked owning-power correction. Its source,
+automated regression, and package are complete, while installed live acceptance
+remains pending.
 
 Sanitized contract and release evidence belongs under
 [`docs/evidence/`](evidence/README.md).
@@ -882,9 +889,10 @@ CSV transfer, data safety, one-way Fantasy Grounds synchronization, and offline
 Combat Narrative are implemented.
 
 FG-LINK-001 and FG-CONC-001 are implemented, packaged, automated-verified, and
-live-verified. FG-EFFECT-002 is corrected, packaged, and automated-verified
-after Test7 Armor exposed the live-path gap; a fresh installed live confirmation
-remains release-blocking. Broader 3.1
+live-verified. FG-EFFECT-002 remains release-blocking: Test8 showed that 1.4.12
+captured Mage Armor rather than owning Armor of Shadows, and packaged 1.4.13 now
+covers that hierarchy but still needs fresh Test9 live confirmation.
+Broader 3.1
 work—especially two-way Fantasy Grounds
 integration—must remain a separate product-design decision rather than being
 inferred from the existing one-way handoff.

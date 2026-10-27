@@ -18,7 +18,7 @@ by [`FG-EFFECT-001`](../completed/fg-effect-001-armor-of-shadows-provenance.md).
 Packaging was completed by
 [`REL-PACK-001`](../completed/rel-pack-001-fantasy-grounds-corrections.md).
 
-Execution was authorized on 2026-07-28. The source correction and automated
-verification are complete, and REL-PACK-002 delivered Lectern Sync 1.4.12. The
-contract remains active until that package is installed and passes the
-owner-coordinated live check.
+Execution was authorized on 2026-07-28. Test8 superseded the 1.4.12 provenance
+result, and the linked owning-power correction is now automated-verified and
+packaged as Lectern Sync 1.4.13. The contract remains active until that package
+is installed and passes the owner-coordinated Test9 Armor live check.

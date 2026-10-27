@@ -1,4 +1,17 @@
-# Verification Report — Lectern v3.0.0
+# Verification Report — Lectern
+
+## Current 3.0.1 Ashen and Lectern Sync 1.4.13 package
+
+On October 27, 2026, the D: development checkout passed 49 Ashen pytest tests,
+all 16 legacy regression scripts, `pip check`, and a packaged offscreen startup
+using Python 3.13.14. The clean packaged startup created schema v11 and the
+Ashen campaign root. The bundled Fantasy Grounds extension manifest reports
+Lectern Sync 1.4.13. The GM guide is absent from the package. The installer is
+`release/Lectern_v3_0_1_Ashen_Company_Setup.exe`, SHA-256 `2BFF5F8DB6A73B369CFCF4718B092542B922561C694CC9B3252808D29C91F190`.
+Fresh Test9 Armor live Fantasy Grounds acceptance remains pending.
+
+## Historical 3.0.0 acceptance record
+
 
 Status: **In progress**
 
@@ -75,6 +88,7 @@ If an operation is not implemented, record it as a blocking defect.
 | 2026-07-21 | Windows 11, PyInstaller 6.21.0, Inno Setup 6.7.3 | Combined Milestone 2 package | Rebuilt the application and Fantasy Grounds extension; packaged startup exited 0; and `Lectern_v3_0_0_Setup.exe` compiled successfully with product version 3.0.0 and SHA-256 `BDE54A91B529096B82B94C79DCE2C242A4A50E6C635E1CD6A0C3DEC7B8DC16CE`. |
 | 2026-07-28 | Windows 11, Python 3.13.14, PyInstaller 6.21.0, Inno Setup 6.7.3 | Fantasy Grounds correction package | All fifteen automated regressions passed. Rebuilt `Lectern.exe` and Lectern Sync 1.4.11, verified the extension archive and manifest, completed an isolated offscreen packaged-startup check, and compiled `Lectern_v3_0_0_Setup.exe` with SHA-256 `F1BD85F6A1C3AE3B2C855A276D15C24AA7FD9FA85AD2144FED0516365C3B7B0B`. Live Fantasy Grounds verification remains deferred. |
 | 2026-07-28 | Windows 11, Python 3.13.14, PyInstaller 6.21.0, Inno Setup 6.7.3 | FG-EFFECT-002 package | All sixteen automated regressions passed. Rebuilt `Lectern.exe`, packaged Lectern Sync 1.4.12, verified the extension manifest and live power hook, completed an isolated offscreen first-run startup check, and compiled `Lectern_v3_0_0_Setup.exe` with SHA-256 `60BF19156AE434B28E1E29CA43CF2798DBABE01DBF53C2B0D5845C129E8FA730`. Installed live Armor of Shadows acceptance remains pending. |
+| 2026-07-28 | Windows 11, Python 3.13.14, PyInstaller 6.21.0, Inno Setup 6.7.3 | FG-EFFECT-002 linked owning-power package | Test8 established the sibling hierarchy `Armor of Shadows -> Mage Armor -> AC: 3`. The focused regression includes successful and ambiguous relationships, and all sixteen automated regressions passed. Rebuilt `Lectern.exe`, packaged Lectern Sync 1.4.13, verified its manifest/source versions, completed an isolated offscreen first-run startup check, and compiled `Lectern_v3_0_0_Setup.exe` with SHA-256 `3B6457DDF6BBD58EC3D7604A5FBCCFDB3B027A730E8901807F27E3737BBC5E31`. Fresh Test9 Armor live acceptance remains pending. |
 
 ## Release decision
 

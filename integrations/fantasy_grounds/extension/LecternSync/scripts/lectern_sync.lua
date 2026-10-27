@@ -1,7 +1,7 @@
--- Lectern Sync 1.4.12
+-- Lectern Sync 1.4.13
 -- One-way Fantasy Grounds Unity 5E export. This script never writes FG database nodes.
 
-local EXTENSION_VERSION = "1.4.12"
+local EXTENSION_VERSION = "1.4.13"
 local SCHEMA_VERSION = 1
 local bExporting = false
 local tCachedSnapshot = nil
@@ -611,7 +611,68 @@ local function isMeaningfulEffectActionName(sValue)
   return true
 end
 
+local function powerHasExecutableActions(nodePower)
+  local nodeActions = nodePower and DB.getChild(nodePower, "actions") or nil
+  if not nodeActions then return false end
+  for _, nodeAction in pairs(DB.getChildren(nodeActions)) do
+    if nodeText(nodeAction, "type", "") ~= "" then return true end
+  end
+  return false
+end
+
+local function descriptionReferencesPower(nodePower, sPowerName)
+  local sDescription = descriptionFor(nodePower):lower()
+  local sNeedle = tostring(sPowerName or ""):lower()
+  if sDescription == "" or sNeedle == "" then return false end
+  local nSearchFrom = 1
+  while true do
+    local nStart, nEnd = sDescription:find(sNeedle, nSearchFrom, true)
+    if not nStart then return false end
+    local sBefore = nStart > 1 and sDescription:sub(nStart - 1, nStart - 1) or ""
+    local sAfter = nEnd < #sDescription and sDescription:sub(nEnd + 1, nEnd + 1) or ""
+    if not sBefore:match("[%w]") and not sAfter:match("[%w]") then return true end
+    nSearchFrom = nEnd + 1
+  end
+end
+
+local function linkedOwningPowerName(nodePower)
+  if not nodePower then return "" end
+  local sExecutedName = nodeText(nodePower, "name", nodeText(nodePower, "label", ""))
+  local sGroup = nodeText(nodePower, "group", "")
+  if not isMeaningfulEffectActionName(sExecutedName) or sGroup == "" then return "" end
+
+  local nodePowers = DB.getParent(nodePower)
+  if not nodePowers then return "" end
+  local sOwnerName = ""
+  local nOwnerCount = 0
+  local sPowerPath = DB.getPath(nodePower)
+  for _, nodeCandidate in pairs(DB.getChildren(nodePowers)) do
+    local sCandidatePath = DB.getPath(nodeCandidate)
+    local sCandidateName = nodeText(
+      nodeCandidate, "name", nodeText(nodeCandidate, "label", "")
+    )
+    if sCandidatePath ~= sPowerPath and
+      nodeText(nodeCandidate, "group", "") == sGroup and
+      isMeaningfulEffectActionName(sCandidateName) and
+      not powerHasExecutableActions(nodeCandidate) and
+      descriptionReferencesPower(nodeCandidate, sExecutedName) then
+      nOwnerCount = nOwnerCount + 1
+      if nOwnerCount > 1 then return "" end
+      sOwnerName = sCandidateName
+    end
+  end
+  return sOwnerName
+end
+
 local function effectActionName(rAction, sEffectText, nodePower)
+  -- Character features such as Armor of Shadows can own a linked spell action.
+  -- Fantasy Grounds stores the feature and executable spell as sibling power
+  -- records in one group. Prefer the unique, non-executable sibling whose
+  -- authoritative description links the executed power; never infer from the
+  -- mechanical effect text.
+  local sOwningPower = linkedOwningPowerName(nodePower)
+  if isMeaningfulEffectActionName(sOwningPower) then return sOwningPower end
+
   for _, sField in ipairs({ "sLabel", "label", "sActionName", "name" }) do
     local sCandidate = rAction and rAction[sField]
     if isMeaningfulEffectActionName(sCandidate) then

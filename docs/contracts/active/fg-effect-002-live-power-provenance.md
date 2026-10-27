@@ -32,6 +32,12 @@ mechanical text.
 - `FG-EFFECT-001` changed callback ordering and passed automated fixtures, but
   this live result proves that its fixture did not reproduce the authoritative
   Fantasy Grounds action-announcement path.
+- A second isolated session, `Test8 Armor`, used packaged Lectern Sync 1.4.12.
+  It improved the imported Action from generic `Effect` to `Mage Armor`, but
+  still failed to preserve the owning `Armor of Shadows` feature displayed by
+  Fantasy Grounds.
+- Sanitized Test8 evidence:
+  [`../../evidence/fantasy-grounds/fg-effect-002-test8-armor.md`](../../evidence/fantasy-grounds/fg-effect-002-test8-armor.md).
 
 ## Authoritative behavior
 
@@ -49,11 +55,19 @@ not invoke the `onActionPostGetRoll` callback used by `FG-EFFECT-001`.
 Consequently, the earlier automated fixture exercised a callback-order path
 that the live Armor of Shadows action never entered.
 
-The correction wraps the authoritative 5E power-action entry point and records
-the named power before delegating to Fantasy Grounds. Correlation is bounded by
-actor, known self-target, action path, power path, mechanical effect text, event
-sequence, and time. The power name and mechanical effect remain separate, and
-no rules inference is used.
+The first correction wrapped the authoritative 5E power-action entry point and
+recorded the executable power before delegating to Fantasy Grounds. Test8
+proved that the executable record can be a linked spell rather than the owning
+feature.
+
+Fantasy Grounds stores Armor of Shadows and its executable Mage Armor spell as
+sibling character power records in the same group. Armor of Shadows has no
+executable action and its authoritative formatted description links Mage
+Armor; Mage Armor owns the `AC: 3` effect action. The next correction resolves
+that unique sibling relationship before falling back to the executable power
+name. It does not infer from effect mechanics, duration, class, or D&D rules.
+Correlation remains bounded by actor, known self-target, action path, power
+path, mechanical effect text, event sequence, and time.
 
 ## Scope
 
@@ -103,9 +117,10 @@ no rules inference is used.
 
 Automated status:
 
-- Criteria 1 through 6 pass in the repository source.
-- Criterion 7 remains pending against the newly packaged and installed
-  extension.
+- Test8 failed criteria 2 through 4 against packaged version 1.4.12.
+- The parent-feature hierarchy regression, source correction, full suite, and
+  version 1.4.13 package verification pass.
+- Criterion 7 requires a fresh Test9 Armor session after installation.
 
 ## Required verification
 
@@ -122,7 +137,8 @@ Automated status:
 - Implementation: authoritative live power provenance capture.
 - Regression: Test7 Armor-shaped fixture plus generic-effect control.
 - Documentation: PRD, changelog, integration guide, and completion evidence.
-- Build or artifact: Not authorized by this ready contract.
+- Build or artifact: Lectern application, Lectern Sync 1.4.13, and Windows
+  installer built under the owner's one-time authorization.
 
 ## Delivery authority
 
@@ -134,8 +150,8 @@ Automated status:
 | Modify extension source | Yes, after explicit execution |
 | Install extension | No |
 | Run live Fantasy Grounds test | Owner-coordinated after automated verification |
-| Build application or extension | No |
-| Build installer | No |
+| Build application or extension | One-time owner authorization for 1.4.13 on 2026-07-28 |
+| Build installer | One-time owner authorization for 1.4.13 on 2026-07-28 |
 | Commit | No |
 | Merge | No |
 | Push | No |
@@ -149,15 +165,21 @@ Combat Narrative.
 
 ## Completion record
 
-- Result: Automated correction complete; contract remains active pending the
-  required live Fantasy Grounds confirmation.
-- Verification evidence: The focused live-effect provenance, sync,
-  effect-lifecycle, historical reprocessing, and Combat Narrative tests pass.
-  All sixteen repository regression scripts passed on 2026-07-28.
+- Result: Reopened after Test8 live evidence showed that version 1.4.12
+  retained linked `Mage Armor` rather than owning `Armor of Shadows`.
+- Verification evidence: Test8 actor, target, mechanics, and qualitative prose
+  passed; originating-feature attribution failed. A hierarchy-shaped focused
+  regression now covers the discovered character-record structure. All sixteen
+  repository regressions, extension manifest inspection, and isolated packaged
+  startup pass for version 1.4.13.
 - Commit(s): None; this contract does not authorize a commit.
-- Artifact(s) and hash: None; packaging is outside this contract's authority.
-- Remaining risks: The corrected source is packaged as Lectern Sync 1.4.12 but
-  has not yet been installed or confirmed in a fresh owner-coordinated Fantasy
-  Grounds session.
+- Artifact(s) and hash: `dist/Lectern/Lectern.exe`
+  `BA495D36AAD05FC7EAF6565438885BDBD40A581B604CD6BCC2E38E2F38109CC0`;
+  `dist/Lectern/FantasyGrounds/LecternSync.ext`
+  `37980F7682892BB7DB9BB748978F85D8980435E57A60242280F31F2F3BF58FA3`;
+  `release/Lectern_v3_0_0_Setup.exe`
+  `3B6457DDF6BBD58EC3D7604A5FBCCFDB3B027A730E8901807F27E3737BBC5E31`.
+- Remaining risks: Install version 1.4.13 and complete a fresh
+  owner-coordinated Test9 Armor session.
 - PRD/Changelog updates: Updated for the confirmed live-path root cause,
   automated implementation, and remaining live acceptance gate.

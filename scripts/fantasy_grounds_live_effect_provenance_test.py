@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +42,10 @@ assert (
     in extension_source
 )
 assert "effectActionName(rAction, sEffectText, nodePower)" in extension_source
+assert "local function linkedOwningPowerName(nodePower)" in extension_source
+assert "not powerHasExecutableActions(nodeCandidate)" in extension_source
+assert "descriptionReferencesPower(nodeCandidate, sExecutedName)" in extension_source
+assert "if nOwnerCount > 1 then return \"\" end" in extension_source
 assert 'nodeText(nodePower, "name", nodeText(nodePower, "label", ""))' in extension_source
 assert "rAction.nodeAction and DB.getPath(rAction.nodeAction)" in extension_source
 assert "nodePower and DB.getPath(nodePower)" in extension_source
@@ -59,6 +64,79 @@ assert wrapper_source.index(
 ) < wrapper_source.index(
     "fPreviousPowerPerformAction(draginfo, rActor, rAction, nodePower)"
 ), "The authoritative 5E power must be queued before Fantasy Grounds applies it"
+
+# Test8 reproduced the live Fantasy Grounds hierarchy: the owning invocation
+# and executable spell are sibling power records in one group, while the
+# mechanical effect remains a child action of the spell. This model guards the
+# data-driven relationship without mapping Armor of Shadows from AC mechanics.
+test8_power_hierarchy = ET.fromstring(
+    """
+    <powers>
+      <id-00001>
+        <actions />
+        <description>
+          <p>You can cast Mage Armor on yourself.</p>
+          <linklist><link class="power">Spell: Mage Armor</link></linklist>
+        </description>
+        <group>Eldritch Invocations (Warlock)</group>
+        <name>Armor of Shadows</name>
+      </id-00001>
+      <id-00016>
+        <actions>
+          <id-00001><label>AC: 3</label><type>effect</type></id-00001>
+        </actions>
+        <group>Eldritch Invocations (Warlock)</group>
+        <name>Mage Armor</name>
+      </id-00016>
+    </powers>
+    """
+)
+
+
+def _has_executable_actions(power: ET.Element) -> bool:
+    return any(
+        (action.findtext("type") or "").strip()
+        for action in power.findall("./actions/*")
+    )
+
+
+def _linked_owner_name(powers: ET.Element, executed: ET.Element) -> str:
+    executed_name = (executed.findtext("name") or "").strip()
+    executed_group = (executed.findtext("group") or "").strip()
+    candidates = []
+    for candidate in powers:
+        if candidate is executed:
+            continue
+        candidate_description = " ".join(candidate.itertext()).lower()
+        if (
+            (candidate.findtext("group") or "").strip() == executed_group
+            and not _has_executable_actions(candidate)
+            and executed_name.lower() in candidate_description
+        ):
+            candidates.append((candidate.findtext("name") or "").strip())
+    return candidates[0] if len(candidates) == 1 else ""
+
+
+executed_power = test8_power_hierarchy.find("./id-00016")
+assert executed_power is not None
+assert _linked_owner_name(test8_power_hierarchy, executed_power) == "Armor of Shadows"
+assert executed_power.findtext("./actions/id-00001/label") == "AC: 3"
+
+ambiguous_hierarchy = ET.fromstring(ET.tostring(test8_power_hierarchy))
+second_owner = ET.fromstring(
+    """
+    <id-00017>
+      <actions />
+      <description><p>Also references Mage Armor.</p></description>
+      <group>Eldritch Invocations (Warlock)</group>
+      <name>Ambiguous Invocation</name>
+    </id-00017>
+    """
+)
+ambiguous_hierarchy.append(second_owner)
+ambiguous_executed = ambiguous_hierarchy.find("./id-00016")
+assert ambiguous_executed is not None
+assert _linked_owner_name(ambiguous_hierarchy, ambiguous_executed) == ""
 
 named_event = {
     "type": "effect",
