@@ -112,6 +112,8 @@ def main() -> int:
         win = MainWindow(db)
         win.show()
         _ensure_window_is_visible(app, win)
+        if os.environ.get('LECTERN_OPENED_FROM_DASHBOARD') == '1':
+            QTimer.singleShot(0, lambda: (win.raise_(), win.activateWindow()))
         autoclose = os.environ.get("LECTERN_TEST_AUTOCLOSE_MS")
         if autoclose:
             QTimer.singleShot(max(1, int(autoclose)), app.quit)

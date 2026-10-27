@@ -1378,11 +1378,20 @@ class CampaignDashboardPage(QWidget):
         child_env = os.environ.copy()
         child_env['LECTERN_DATA_DIR'] = str(local_app_data / 'DND5ECampaignManager-AshenCompany')
         child_env['LECTERN_ASHEN_COMPANY'] = '1'
+        child_env['LECTERN_OPENED_FROM_DASHBOARD'] = '1'
+        # PyInstaller child instances must unpack independently from the parent.
+        child_env['PYINSTALLER_RESET_ENVIRONMENT'] = '1'
         frozen = bool(getattr(sys, 'frozen', False))
         working_dir = Path(sys.executable).parent if frozen else project_root()
         command = [sys.executable] if frozen else [sys.executable, str(project_root() / 'run.py')]
         try:
             subprocess.Popen(command, cwd=str(working_dir), env=child_env)
+            self.open_ashen_button.setText('Opening Ashen Company...')
+            self.open_ashen_button.setEnabled(False)
+            QTimer.singleShot(20000, lambda: (
+                self.open_ashen_button.setText('Open Ashen Company Workspace'),
+                self.open_ashen_button.setEnabled(True),
+            ))
         except OSError as exc:
             QMessageBox.warning(self, 'Ashen Company Did Not Open', str(exc))
 

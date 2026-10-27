@@ -26,6 +26,8 @@ def test_regular_dashboard_opens_separate_ashen_workspace(tmp_path: Path, monkey
     args, kwargs = launch.call_args
     assert args[0][-1].endswith('run.py')
     assert kwargs['env']['LECTERN_ASHEN_COMPANY'] == '1'
+    assert kwargs['env']['LECTERN_OPENED_FROM_DASHBOARD'] == '1'
+    assert kwargs['env']['PYINSTALLER_RESET_ENVIRONMENT'] == '1'
     assert kwargs['env']['LECTERN_DATA_DIR'] == str(tmp_path / 'DND5ECampaignManager-AshenCompany')
     page.close()
 

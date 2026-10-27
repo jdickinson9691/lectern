@@ -2,8 +2,8 @@
 
 **Lüdinn Entertainment Campaign Tracker for Encounters, Rules & Navigation**
 
-**Version:** 3.0.2 — Ashen Company Workspace
-**Milestone:** 3.0.2
+**Version:** 3.0.3 — Ashen Company Workspace
+**Milestone:** 3.0.3
 **Database schema:** v11 (optional Ashen canon layer over v10)
 
 Lectern is a single evolving Python/PySide6 Windows desktop codebase for D&D 5E campaign planning, combat tracking, and campaign analysis. This package is a clean, Git-ready source baseline.
@@ -62,7 +62,7 @@ This source is maintained at [jdickinson9691/lectern](https://github.com/jdickin
 
 Use **Start Ashen Company.cmd** for the isolated Ashen database. It enables the campaign canon, draft/review, player export, and Fantasy Grounds Story module workflow without changing ordinary Lectern campaign data. See [Ashen Company on Lectern 3.0](docs/ASHEN_3_0_INTEGRATION.md), the [player guide](docs/campaign/Ashen_Company_Player_Guide.docx), and [class access plan](docs/campaign/CLASS_ACCESS.md). Private GM materials and the live campaign database are kept outside this public repository.
 
-The 3.0.2 Windows installer adds an **Ashen Company** Start menu shortcut and an optional desktop shortcut. It can install the currently approved player Story module into the Fantasy Grounds `modules` folder alongside Lectern Sync in `extensions`. The bundled module is a release snapshot; use **Ashen Player Export** in Lectern to publish later approvals. The installer does not include the live campaign database or GM guide. The current D: executable and installer are built with the project's Python 3.13 environment. The regular Campaign Dashboard can open the separate Ashen workspace; within that workspace, Ashen Company appears in the campaign selector.
+The 3.0.3 Windows installer adds an **Ashen Company** Start menu shortcut and an optional desktop shortcut. It can install the currently approved player Story module into the Fantasy Grounds `modules` folder alongside Lectern Sync in `extensions`. The bundled module is a release snapshot; use **Ashen Player Export** in Lectern to publish later approvals. The installer does not include the live campaign database or GM guide. The current D: executable and installer are built with the project's Python 3.13 environment. The regular Campaign Dashboard can open the separate Ashen workspace; within that workspace, Ashen Company appears in the campaign selector.
 
 ## Product and Agent Documentation
 

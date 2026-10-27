@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.0.3 — Ashen Workspace Launcher Fix
+
+- Fixed the Campaign Dashboard button in packaged Lectern so Ashen Company
+  opens in a visible second window. PyInstaller child processes now start with
+  an independent runtime environment. The button shows startup progress, and the
+  Ashen window comes to the foreground.
+
 ## 3.0.2 — Ashen Company Workspace
 
 - Added an Open Ashen Company Workspace action to the regular Campaign Dashboard.
