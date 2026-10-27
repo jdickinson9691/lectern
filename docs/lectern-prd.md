@@ -896,4 +896,3 @@ Broader 3.1
 work—especially two-way Fantasy Grounds
 integration—must remain a separate product-design decision rather than being
 inferred from the existing one-way handoff.
-

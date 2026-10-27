@@ -93,4 +93,3 @@ If an operation is not implemented, record it as a blocking defect.
 ## Release decision
 
 Declare v3.0.0 complete only when all checks pass, no startup errors or syntax/merge issues remain, and every blocking defect is resolved or explicitly removed from scope.
-
