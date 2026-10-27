@@ -43,8 +43,9 @@ class CampaignCanonAgent:
     def entities(self) -> list[dict]:
         with connect(self.db_path) as conn:
             return [dict(row) for row in conn.execute("""SELECT entity_id,name,kind,status
-                FROM campaign_entities WHERE campaign_id=? AND status<>'archived'
-                ORDER BY name,entity_id""", (self.campaign_id,))]
+                FROM campaign_entities WHERE (entity_id=? OR campaign_id=?) AND status<>'archived'
+                ORDER BY CASE WHEN entity_id=? THEN 1 ELSE 0 END,name,entity_id""",
+                (self.campaign_id, self.campaign_id, self.campaign_id))]
 
     def propose_fact(self, entity_id: str, audience: str, field_key: str, content: str,
                      *, source_type: str, source_ref: str, citation: str = '',
@@ -59,7 +60,7 @@ class CampaignCanonAgent:
         with connect(self.db_path) as conn:
             conn.execute('BEGIN IMMEDIATE')
             entity = conn.execute("""SELECT status FROM campaign_entities WHERE entity_id=?
-                AND campaign_id=?""", (entity_id, self.campaign_id)).fetchone()
+                AND (entity_id=? OR campaign_id=?)""", (entity_id, self.campaign_id, self.campaign_id)).fetchone()
             if entity is None:
                 raise KeyError(entity_id)
             if entity['status'] == 'archived':
@@ -96,7 +97,7 @@ class CampaignCanonAgent:
         with connect(self.db_path) as conn:
             conn.execute('BEGIN IMMEDIATE')
             entity = conn.execute("""SELECT status FROM campaign_entities WHERE entity_id=?
-                AND campaign_id=?""", (entity_id, self.campaign_id)).fetchone()
+                AND (entity_id=? OR campaign_id=?)""", (entity_id, self.campaign_id, self.campaign_id)).fetchone()
             if entity is None:
                 raise KeyError(entity_id)
             if entity['status'] == 'archived':
@@ -123,8 +124,8 @@ class CampaignCanonAgent:
                 FROM canon_proposals p JOIN campaign_entities e ON e.entity_id=p.entity_id
                 LEFT JOIN entity_knowledge k ON k.entity_id=p.entity_id
                     AND k.audience=p.audience AND k.field_key=p.field_key
-                WHERE e.campaign_id=? AND (? OR p.status='pending')
-                ORDER BY p.id""", (self.campaign_id, int(include_resolved))).fetchall()
+                WHERE (e.entity_id=? OR e.campaign_id=?) AND (? OR p.status='pending')
+                ORDER BY p.id""", (self.campaign_id, self.campaign_id, int(include_resolved))).fetchall()
             return [dict(row) for row in rows]
 
     def resolve(self, proposal_id: int, decision: str, *, reviewer: str = 'gm',
@@ -136,7 +137,7 @@ class CampaignCanonAgent:
             conn.execute('BEGIN IMMEDIATE')
             proposal = conn.execute("""SELECT p.* FROM canon_proposals p
                 JOIN campaign_entities e ON e.entity_id=p.entity_id
-                WHERE p.id=? AND e.campaign_id=?""", (proposal_id, self.campaign_id)).fetchone()
+                WHERE p.id=? AND (e.entity_id=? OR e.campaign_id=?)""", (proposal_id, self.campaign_id, self.campaign_id)).fetchone()
             if proposal is None:
                 raise KeyError(proposal_id)
             if proposal['status'] != 'pending':
@@ -154,6 +155,8 @@ class CampaignCanonAgent:
                                          current_status != proposal['baseline_status']):
                 raise CanonConflict('Canon changed since submission; review the current fact again')
             if decision == 'accept':
+                conn.execute("UPDATE campaign_entities SET updated_at=CURRENT_TIMESTAMP WHERE entity_id=?",
+                             (proposal['entity_id'],))
                 conn.execute("""INSERT INTO entity_knowledge(entity_id,audience,field_key,content,status)
                     VALUES(?,?,?,?,'draft') ON CONFLICT(entity_id,audience,field_key)
                     DO UPDATE SET content=excluded.content,status='draft'""",

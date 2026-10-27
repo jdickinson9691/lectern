@@ -25,16 +25,24 @@ class StoryMissionAgent:
     def available_sources(self) -> list[dict]:
         with connect(self.db_path) as conn:
             return [dict(row) for row in conn.execute("""SELECT entity_id,name,kind
-                FROM campaign_entities WHERE campaign_id=? AND visibility='player'
-                AND status='approved' ORDER BY name,entity_id""", (CAMPAIGN_ID,))]
+                FROM campaign_entities e WHERE e.status='approved' AND
+                ((e.campaign_id=? AND e.visibility='player') OR
+                 (e.entity_id=? AND e.kind='CAM' AND EXISTS (
+                    SELECT 1 FROM entity_knowledge k WHERE k.entity_id=e.entity_id
+                    AND k.audience='player' AND k.status='approved')))
+                ORDER BY name,entity_id""", (CAMPAIGN_ID, CAMPAIGN_ID))]
 
     @staticmethod
     def _approved_context(conn, entity_ids: list[str]) -> list[dict]:
         context = []
         for entity_id in dict.fromkeys(entity_ids):
             row = conn.execute("""SELECT entity_id,name,kind FROM campaign_entities
-                WHERE entity_id=? AND campaign_id=? AND visibility='player'
-                AND status='approved'""", (entity_id, CAMPAIGN_ID)).fetchone()
+                WHERE entity_id=? AND status='approved' AND
+                ((campaign_id=? AND visibility='player') OR
+                 (entity_id=? AND kind='CAM' AND EXISTS (
+                    SELECT 1 FROM entity_knowledge k WHERE k.entity_id=campaign_entities.entity_id
+                    AND k.audience='player' AND k.status='approved')))
+                """, (entity_id, CAMPAIGN_ID, CAMPAIGN_ID)).fetchone()
             if row is None:
                 raise ValueError(f'Approved player-visible source required: {entity_id}')
             facts = {fact['field_key']: fact['content'] for fact in conn.execute("""SELECT field_key,content

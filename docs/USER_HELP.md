@@ -36,7 +36,7 @@ Select a title to jump directly to that section.
 
 ### Integration and data screens
 
-- [Ashen Company canon and player export](#ashen-company-canon-and-player-export)
+- [Campaign planning, canon, and player export](#campaign-planning-canon-and-player-export)
 - [CSV Import and Export](#csv-import-and-export)
 - [Fantasy Grounds Sync](#fantasy-grounds-sync)
 - [Data Workflow](#data-workflow)
@@ -549,15 +549,35 @@ Review the application log in Lectern's LocalAppData folder and verify that the 
 
 [Back to Help contents](#help-contents)
 
-## Ashen Company canon and player export
+## Campaign planning, canon, and player export
 
-In regular Lectern, open **Campaigns** and select **Open Ashen Company Workspace**. The installed Start menu also has an **Ashen Company** shortcut. Both open the isolated Ashen database in a separate Lectern window. In that window, choose **Ashen Company [Local]** in the Campaign Dashboard; it will not appear beside Fantasy Grounds campaigns in the regular workspace. Its Story, Mission, NPC, Location, Faction, and Canon Review screens separate player descriptions from GM notes. Save drafts with approved sources, resolve conflicts in **Canon Review (GM)**, and approve public text only after review.
+Open **Campaigns** first. Select an existing campaign or create one. For a
+regular Lectern campaign, choose **Open Selected Campaign Content** to open its
+canon and writing tools in a campaign-scoped window. Use **Open Ashen Company
+Workspace** or the Start-menu shortcut for the isolated Ashen database. The
+Ashen campaign retains its existing permanent ID and data.
 
-Open **Ashen Player Export** to change visibility, review the approved release, and export player JSON or a Fantasy Grounds Story module. In Fantasy Grounds, load the module and open **Story → Group → Ashen Company**. Full CSV exports contain GM data and should not be shared as player handouts. The live Fantasy Grounds Sync extension is a separate inbound flow for characters and combat; it does not publish Ashen lore.
+In a content window, use **Campaign Plan** to follow this sequence:
+**Canon & Lore → Stories → Campaign Locations → Campaign Factions → Campaign
+NPCs → Missions**. The buttons are guidance; you can revisit any step. In
+**Canon & Lore**, inspect the campaign root, approved facts, source references,
+relationships, and audit history. Submit sourced changes in **Canon Review
+(GM)**. Accepting a proposal creates a draft; return to **Canon & Lore** to
+approve the reviewed fact. Only approved player-facing lore appears among the
+sources available to Story and world drafts. GM lore stays private.
 
-The proposed class and subclass access plan is in `docs/campaign/CLASS_ACCESS.md`. Lectern stores character class names but does not yet enforce campaign locks or unlocks. Confirm each option with the GM before character creation.
+Use **Story Drafts** or **Mission Drafts** to create records from approved
+sources. Existing Story, Location, Faction, NPC, and Mission editors show their
+**Based on** links. A review warning appears if a source is no longer approved
+or changed after the dependent record was drafted. Review and update that
+record yourself; Lectern does not silently rewrite approved text. Public
+changes return that record to draft while private GM notes stay private.
 
-[Back to Help contents](#help-contents)
+Use **Review & Publish** to check visibility, approve player text, preview the
+approved release, and export player JSON or a Fantasy Grounds Story module.
+Only the active campaign's approved player text is included. Full CSV exports
+contain GM data and should not be shared as player handouts. The live Fantasy
+Grounds Sync extension is a separate inbound flow for characters and combat.
 
 ## Data safety and ownership
 

@@ -396,7 +396,7 @@ try:
     assert len(combatants) == 1 and combatants[0]["current_hp"] == 9, "Live combatant HP mapping failed"
     with connect(db) as conn:
         assert conn.execute("SELECT COUNT(*) FROM active_conditions").fetchone()[0] == 1, "Combat effects were not imported"
-        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == "11", "Schema version was not migrated"
+        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == "12", "Schema version was not migrated"
         imported_campaign = conn.execute("SELECT source_type FROM campaigns WHERE name=?", (payload["source"]["campaign_name"],)).fetchone()
         assert imported_campaign and imported_campaign["source_type"] == "fantasy_grounds", "Imported campaign ownership was not recorded"
         columns = {row[1] for row in conn.execute("PRAGMA table_info(turn_log)")}

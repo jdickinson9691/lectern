@@ -12,7 +12,7 @@ from ..services.story_mission_agent import StoryMissionAgent
 
 
 class StoryMissionPage(QWidget):
-    def __init__(self, db_path: Path):
+    def __init__(self, db_path: Path, draft_kind: str | None = None):
         super().__init__()
         self.agent = StoryMissionAgent(db_path)
         layout = QVBoxLayout(self)
@@ -34,6 +34,9 @@ class StoryMissionPage(QWidget):
         form = QFormLayout()
         self.kind = QComboBox()
         self.kind.addItems(['Story', 'Mission'])
+        if draft_kind:
+            self.kind.setCurrentText(draft_kind)
+            self.kind.setEnabled(False)
         self.kind.currentTextChanged.connect(self.update_kind)
         self.title = QLineEdit()
         self.player_text = QTextEdit()

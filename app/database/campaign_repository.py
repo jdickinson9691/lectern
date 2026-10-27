@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from .schema import connect
-from .campaign_identity import link_legacy_row
+from .campaign_identity import CAMPAIGN_ID, link_legacy_row
 
 
 class CampaignRepository:
@@ -11,7 +11,7 @@ class CampaignRepository:
         self.db_path = Path(db_path)
 
     def create_entity(self, entity_id: str, kind: str, name: str, *,
-                      campaign_id: str | None = 'CAM-ASHEN-0001',
+                      campaign_id: str | None = CAMPAIGN_ID,
                       visibility: str = 'gm', actor: str = 'user') -> None:
         if kind == 'CAM':
             campaign_id = None
@@ -39,8 +39,12 @@ class CampaignRepository:
             conn.execute("""INSERT INTO entity_audit(entity_id,action,actor,detail)
                 VALUES(?,'link',?,?)""", (entity_id, actor, f'{table}:{row_id}'))
 
-    def list_entities(self):
+    def list_entities(self, campaign_id: str | None = None):
         with connect(self.db_path) as conn:
+            if campaign_id is not None:
+                return conn.execute("""SELECT entity_id,kind,name,visibility,status
+                    FROM campaign_entities WHERE entity_id=? OR campaign_id=?
+                    ORDER BY name,entity_id""", (campaign_id, campaign_id)).fetchall()
             return conn.execute(
                 'SELECT entity_id,kind,name,visibility,status FROM campaign_entities ORDER BY name,entity_id'
             ).fetchall()
@@ -101,6 +105,29 @@ class CampaignRepository:
                 conn.execute("""UPDATE entity_knowledge SET status='approved'
                     WHERE entity_id=? AND audience='player' AND field_key=?""", (entity_id, field_key))
                 self._audit(conn, entity_id, 'approve_knowledge', actor, field_key)
+
+    def approve_knowledge(self, entity_id: str, audience: str, field_key: str,
+                          *, actor: str = 'gm') -> None:
+        """Mark a reviewed canon fact authoritative without publishing GM text."""
+        if audience not in {'internal', 'gm', 'player'}:
+            raise ValueError('Invalid audience')
+        with connect(self.db_path) as conn:
+            row = conn.execute("""SELECT k.status,e.status AS entity_status
+                FROM entity_knowledge k JOIN campaign_entities e ON e.entity_id=k.entity_id
+                WHERE k.entity_id=? AND k.audience=? AND k.field_key=?""",
+                (entity_id, audience, field_key)).fetchone()
+            if row is None:
+                raise KeyError((entity_id, audience, field_key))
+            if row['entity_status'] == 'archived':
+                raise ValueError('Archived canon cannot be approved')
+            if row['status'] == 'approved':
+                return
+            conn.execute("""UPDATE entity_knowledge SET status='approved'
+                WHERE entity_id=? AND audience=? AND field_key=?""",
+                (entity_id, audience, field_key))
+            conn.execute("UPDATE campaign_entities SET updated_at=CURRENT_TIMESTAMP WHERE entity_id=?",
+                         (entity_id,))
+            self._audit(conn, entity_id, 'approve_knowledge', actor, f'{audience}:{field_key}')
 
     def revoke_player_knowledge(self, entity_id: str, field_key: str, *, actor: str = 'user') -> None:
         with connect(self.db_path) as conn:

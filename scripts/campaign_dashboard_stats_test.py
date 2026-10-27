@@ -36,7 +36,7 @@ try:
         assert conn.execute("SELECT details FROM turn_log").fetchone()[0] == "Legacy row", "Schema migration changed a historical log row"
         campaign_columns = {row[1] for row in conn.execute("PRAGMA table_info(campaigns)")}
         assert {"source_type", "is_archived"} <= campaign_columns, "Schema-v10 campaign columns were not migrated"
-        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == "11"
+        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == "12"
 
     db = temp_dir / "lectern.db"
     initialize_database(db)

@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from .schema import connect
 from .campaign_identity import campaign_monster, ensure_campaign_link, has_ashen_campaign
+from .campaign_workspace_migration import ensure_campaign_workspace
 
 ABILITY_FIELDS = ['str', 'dex', 'con', 'int', 'wis', 'cha']
 DND5E_DAMAGE_TYPES = (
@@ -199,7 +200,9 @@ class Repository:
     def create_campaign(self, name: str, description: str = '') -> int:
         with connect(self.db_path) as conn:
             conn.execute("INSERT OR IGNORE INTO campaigns(name,description,source_type,is_archived) VALUES(?,?,'local',0)", (name, description))
-            return int(conn.execute("SELECT id FROM campaigns WHERE name=?", (name,)).fetchone()[0])
+            campaign_id = int(conn.execute("SELECT id FROM campaigns WHERE name=?", (name,)).fetchone()[0])
+            ensure_campaign_workspace(conn, campaign_id)
+            return campaign_id
 
     def get_campaign(self, campaign_id: int):
         with connect(self.db_path) as conn:
@@ -220,6 +223,9 @@ class Repository:
             if not campaign or campaign["source_type"] != "local":
                 raise ValueError("Only local campaigns can be edited in Lectern")
             conn.execute("UPDATE campaigns SET name=?,description=? WHERE id=?", (name.strip(), description.strip(), campaign_id))
+            entity_id = ensure_campaign_workspace(conn, campaign_id)
+            conn.execute("UPDATE campaign_entities SET name=?,updated_at=CURRENT_TIMESTAMP WHERE entity_id=?",
+                         (name.strip(), entity_id))
 
     def set_campaign_archived(self, campaign_id: int, archived: bool) -> None:
         with connect(self.db_path) as conn:

@@ -10,6 +10,8 @@ from collections import defaultdict
 from pathlib import Path
 
 from .player_export import PlayerExportService
+from ..database.campaign_identity import CAMPAIGN_ID
+from ..database.schema import connect
 
 
 MODULE_NAME = 'Lectern Ashen Company Players'
@@ -35,8 +37,13 @@ def _string(parent: ET.Element, tag: str, value: str) -> ET.Element:
 class FantasyGroundsModuleExporter:
     """Build a client module without ever reading raw GM or legacy tables."""
 
-    def __init__(self, db_path: Path):
-        self.player_export = PlayerExportService(db_path)
+    def __init__(self, db_path: Path, campaign_id: str = CAMPAIGN_ID):
+        self.player_export = PlayerExportService(db_path, campaign_id)
+        with connect(db_path) as conn:
+            row = conn.execute("SELECT name FROM campaign_entities WHERE entity_id=? AND kind='CAM'",
+                               (campaign_id,)).fetchone()
+        self.module_name = (MODULE_NAME if campaign_id == 'CAM-ASHEN-0001' else
+                            f"Lectern {row['name']} Players" if row else MODULE_NAME)
 
     def export_mod(self, destination: Path, *, expected_snapshot: dict | None = None) -> dict:
         destination = Path(destination)
@@ -47,7 +54,7 @@ class FantasyGroundsModuleExporter:
             raise ValueError('Approved player content changed; preview the export again')
         if not snapshot['entities']:
             raise ValueError('No approved, player-visible records to export')
-        definition, client = self._build_xml(snapshot)
+        definition, client = self._build_xml(snapshot, self.module_name)
         destination.parent.mkdir(parents=True, exist_ok=True)
         descriptor, temporary = tempfile.mkstemp(prefix=f'.{destination.name}.', suffix='.tmp', dir=destination.parent)
         os.close(descriptor)
@@ -67,11 +74,11 @@ class FantasyGroundsModuleExporter:
         return snapshot
 
     @staticmethod
-    def _build_xml(snapshot: dict) -> tuple[bytes, bytes]:
+    def _build_xml(snapshot: dict, module_name: str = MODULE_NAME) -> tuple[bytes, bytes]:
         if snapshot.get('format') != 'lectern-player-campaign-v1':
             raise ValueError('Unsupported player export format')
         definition = ET.Element('root', {'version': '4.8'})
-        for tag, value in [('name', MODULE_NAME), ('displayname', MODULE_NAME),
+        for tag, value in [('name', module_name), ('displayname', module_name),
                            ('category', 'Campaign'), ('author', 'Lectern'), ('ruleset', '5E')]:
             ET.SubElement(definition, tag).text = value
 
@@ -112,7 +119,7 @@ class FantasyGroundsModuleExporter:
 
         library = ET.SubElement(client, 'library')
         book = ET.SubElement(library, 'lecternashencompany', {'static': 'true'})
-        _string(book, 'name', MODULE_NAME)
+        _string(book, 'name', module_name)
         _string(book, 'categoryname', 'Campaign')
         entries = ET.SubElement(book, 'entries')
         story_entry = ET.SubElement(entries, 'story')

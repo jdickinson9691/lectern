@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..database.schema import connect
+from ..database.campaign_identity import CAMPAIGN_ID
 
 
 class StoryService:
@@ -16,15 +17,15 @@ class StoryService:
         with connect(self.db_path) as conn:
             rows = conn.execute("""SELECT entity_id, name, visibility, status
                 FROM campaign_entities
-                WHERE kind='DOC' AND campaign_id='CAM-ASHEN-0001'
-                ORDER BY entity_id""").fetchall()
+                WHERE kind='DOC' AND campaign_id=?
+                ORDER BY entity_id""", (CAMPAIGN_ID,)).fetchall()
             return [dict(row) for row in rows]
 
     def get_story(self, entity_id: str) -> dict:
         with connect(self.db_path) as conn:
             row = conn.execute("""SELECT entity_id, name, visibility, status
                 FROM campaign_entities WHERE entity_id=? AND kind='DOC'
-                AND campaign_id='CAM-ASHEN-0001'""", (entity_id,)).fetchone()
+                AND campaign_id=?""", (entity_id, CAMPAIGN_ID)).fetchone()
             if row is None:
                 raise KeyError(entity_id)
             story = dict(row)
@@ -65,8 +66,8 @@ class StoryService:
         entity_id = f'{cls.PREFIX}{max(numbers, default=0) + 1:04d}'
         conn.execute("""INSERT INTO campaign_entities
                 (entity_id, kind, name, campaign_id, visibility, status)
-                VALUES(?, 'DOC', ?, 'CAM-ASHEN-0001', 'player', 'draft')""",
-                (entity_id, title))
+                VALUES(?, 'DOC', ?, ?, 'player', 'draft')""",
+                (entity_id, title, CAMPAIGN_ID))
         if player_text:
             cls._set_note(conn, entity_id, 'player', 'story', player_text)
         if gm_notes:
@@ -84,8 +85,8 @@ class StoryService:
         with connect(self.db_path) as conn:
             conn.execute('BEGIN IMMEDIATE')
             row = conn.execute("""SELECT name, status FROM campaign_entities
-                WHERE entity_id=? AND kind='DOC' AND campaign_id='CAM-ASHEN-0001'""",
-                (entity_id,)).fetchone()
+                WHERE entity_id=? AND kind='DOC' AND campaign_id=?""",
+                (entity_id, CAMPAIGN_ID)).fetchone()
             if row is None:
                 raise KeyError(entity_id)
             if row['status'] == 'archived':
@@ -119,8 +120,8 @@ class StoryService:
         with connect(self.db_path) as conn:
             conn.execute('BEGIN IMMEDIATE')
             row = conn.execute("""SELECT status, visibility FROM campaign_entities
-                WHERE entity_id=? AND kind='DOC' AND campaign_id='CAM-ASHEN-0001'""",
-                (entity_id,)).fetchone()
+                WHERE entity_id=? AND kind='DOC' AND campaign_id=?""",
+                (entity_id, CAMPAIGN_ID)).fetchone()
             if row is None:
                 raise KeyError(entity_id)
             if row['status'] == 'archived' or row['visibility'] != 'player':
@@ -142,7 +143,7 @@ class StoryService:
         with connect(self.db_path) as conn:
             conn.execute('BEGIN IMMEDIATE')
             row = conn.execute("""SELECT status FROM campaign_entities WHERE entity_id=?
-                AND kind='DOC' AND campaign_id='CAM-ASHEN-0001'""", (entity_id,)).fetchone()
+                AND kind='DOC' AND campaign_id=?""", (entity_id, CAMPAIGN_ID)).fetchone()
             if row is None:
                 raise KeyError(entity_id)
             if row['status'] == 'approved':

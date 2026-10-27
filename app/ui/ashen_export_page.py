@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..database.campaign_repository import CampaignRepository
+from ..database.campaign_identity import CAMPAIGN_ID
 from ..services.fantasy_grounds_export import FantasyGroundsModuleExporter
 from ..services.player_export import PlayerExportService
 from ..services.story_editor import StoryService
@@ -61,7 +62,7 @@ class AshenPlayerExportPage(QWidget):
     def refresh(self):
         selected = self.entity.currentData()
         self.entity.clear()
-        for row in self.campaign_repo.list_entities():
+        for row in self.campaign_repo.list_entities(CAMPAIGN_ID):
             self.entity.addItem(
                 f"{row['entity_id']} — {row['name']} ({row['visibility']}, {row['status']})",
                 row['entity_id'],

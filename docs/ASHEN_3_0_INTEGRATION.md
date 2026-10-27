@@ -6,7 +6,7 @@ The Ashen canon layer from the Desktop checkout has been ported onto the current
 
 - The existing `campaigns` and combat tables remain Lectern's general campaign and Fantasy Grounds snapshot store.
 - The optional `campaign_entities`, knowledge, source, relationship, audit, and review tables hold Ashen canon and publication state. Permanent IDs are stable across renames.
-- Schema v11 adds that layer to Lectern schema v10. The dedicated **Start Ashen Company.cmd** launcher and the regular Campaign Dashboard’s **Open Ashen Company Workspace** action use an isolated user-data directory. The Ashen workspace contains its own **Ashen Company [Local]** dashboard row. Generic Lectern databases receive empty optional tables and no Ashen seed.
+- Schema v11 added that layer to Lectern schema v10; schema v12 adds permanent roots for other Lectern campaigns. The dedicated **Start Ashen Company.cmd** launcher and the regular Campaign Dashboard’s **Open Ashen Company Workspace** action use an isolated user-data directory. The Ashen workspace contains its own **Ashen Company [Local]** dashboard row. Generic Lectern databases receive empty optional tables and no Ashen seed.
 - Existing Ashen schema-v8 databases are detected by their tables and upgrade to v11 without reseeding. Before routine use, make a backup using Data Workflow.
 - Player and encounter rows created in the Ashen database receive permanent links. Generic Lectern users and rules catalog rows are not automatically claimed as Ashen records.
 
@@ -21,7 +21,7 @@ Fantasy Grounds stays authoritative for live combat. Lectern stays authoritative
 
 ## Source and publication
 
-Ashen pages now appear in the Lectern navigation: Stories; Story & Mission Drafts; Missions; Campaign NPCs, Locations, and Factions; Canon Review (GM); and Ashen Player Export. The latter previews approved content before JSON or `.mod` release. Full CSV exports still carry GM data.
+The authoring navigation now follows Campaign Plan, Canon & Lore, Stories, Locations, Factions, NPCs, Missions, and Review & Publish. Story Drafts and Mission Drafts reuse the existing sourced drafting workflow. The latter previews approved content before JSON or `.mod` release. Full CSV exports still carry GM data.
 
 The public repository includes the player guide, approved player Story module, and working class access list. The GM guide, live database, private map, and campaign-local Fantasy Grounds files remain outside this public repository to protect unrevealed campaign details. The installer offers the approved module as a selectable Fantasy Grounds task; later approvals require a fresh export from Lectern.
 

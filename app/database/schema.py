@@ -242,3 +242,5 @@ def initialize_database(db_path: Path) -> None:
         conn.execute("INSERT OR REPLACE INTO metadata(key,value) VALUES('schema_version','10')")
         from .ashen_upgrade import migrate_ashen_v11
         migrate_ashen_v11(conn)
+        from .campaign_workspace_migration import migrate_campaign_workspaces_v12
+        migrate_campaign_workspaces_v12(conn)

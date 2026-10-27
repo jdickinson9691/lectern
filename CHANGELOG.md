@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.0.4 — Campaign Workflow
+
+- Reordered campaign authoring as Campaign → Canon & Lore → Stories → Locations
+  → Factions → NPCs → Missions, followed by review and publication.
+- Added a campaign plan, canon library, approval of reviewed lore facts, and
+  source links with review warnings when approved sources change.
+- Added schema v12 campaign roots for existing and newly created Lectern
+  campaigns. Content windows and player exports use the selected permanent ID;
+  existing Ashen data keeps CAM-ASHEN-0001.
+
 ## 3.0.3 — Ashen Workspace Launcher Fix
 
 - Fixed the Campaign Dashboard button in packaged Lectern so Ashen Company

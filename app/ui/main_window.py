@@ -18,13 +18,15 @@ from PySide6.QtCore import Qt, QRect, QSize, QTimer, QUrl
 from PySide6.QtGui import QPainter, QPixmap, QIcon, QImage, QColor, QBrush, QFont, QTextCursor, QDesktopServices
 from ..database.repositories import Repository
 from ..database.schema import connect
-from ..database.campaign_identity import has_ashen_campaign
+from ..database.campaign_identity import CAMPAIGN_ID, has_ashen_campaign
+from ..database.campaign_workspace_migration import ensure_campaign_workspace
 from .story_page import StoryPage
 from .story_mission_page import StoryMissionPage
 from .mission_page import MissionPage
 from .world_page import WorldPage
 from .canon_review_page import CanonReviewPage
 from .ashen_export_page import AshenPlayerExportPage
+from .campaign_workflow_page import CampaignWorkflowPage, CanonLorePage
 from ..services.world_agents import NPCAgent, LocationAgent, FactionAgent
 from ..importers.spreadsheet_importer import SpreadsheetImporter
 from ..importers.csv_transfer import CsvTransferService, CSV_TABLES
@@ -1299,8 +1301,9 @@ class CampaignDashboardPage(QWidget):
         "thunder": ("#404b8a", "#f2f4ff"),
     }
 
-    def __init__(self, repo: Repository, refresh_callback):
+    def __init__(self, repo: Repository, refresh_callback, open_plan_callback=None):
         super().__init__(); self.repo=repo; self.refresh_callback=refresh_callback
+        self.open_plan_callback = open_plan_callback
         root=adaptive_page_layout(self); root.addWidget(QLabel("<h2>Campaign Dashboard</h2>"))
         create=QHBoxLayout(); self.name=QLineEdit(); self.name.setPlaceholderText("Campaign name"); self.description=QLineEdit(); self.description.setPlaceholderText("Description (optional)"); add=QPushButton("Create Campaign"); add.clicked.connect(self.create_campaign)
         self.setup_campaign_button=QPushButton("Guided Local Setup..."); self.setup_campaign_button.clicked.connect(self.guided_setup)
@@ -1312,13 +1315,36 @@ class CampaignDashboardPage(QWidget):
         self.open_ashen_button.setToolTip("Open the Ashen campaign and canon tools in a separate Lectern window.")
         self.open_ashen_button.clicked.connect(self.open_ashen_company)
         with connect(self.repo.db_path) as conn:
-            in_ashen_workspace=has_ashen_campaign(conn)
-        self.ashen_workspace_note.setVisible(not in_ashen_workspace)
-        self.open_ashen_button.setVisible(not in_ashen_workspace)
+            in_content_workspace = conn.execute(
+                "SELECT 1 FROM campaign_entities WHERE entity_id=? AND kind='CAM'",
+                (CAMPAIGN_ID,)).fetchone() is not None
+        self.ashen_workspace_note.setVisible(not in_content_workspace)
+        self.open_ashen_button.setVisible(not in_content_workspace)
+        self.open_content_button = QPushButton('Open Selected Campaign Content')
+        self.open_content_button.setVisible(not in_content_workspace)
+        self.open_content_button.clicked.connect(self.open_campaign_content)
+        self.plan_button = QPushButton("Continue to Campaign Plan")
+        self.plan_button.setVisible(in_content_workspace)
+        self.plan_button.clicked.connect(lambda: self.open_plan_callback() if self.open_plan_callback else None)
+        self.content_scope_note = QLabel()
+        self.content_scope_note.setWordWrap(True)
+        self.content_scope_note.setVisible(in_content_workspace)
+        if in_content_workspace:
+            with connect(self.repo.db_path) as conn:
+                root_row = conn.execute(
+                    "SELECT name FROM campaign_entities WHERE entity_id=?", (CAMPAIGN_ID,)
+                ).fetchone()
+            self.content_scope_note.setText(
+                f"Content tools in this window are scoped to {root_row['name']}. "
+                "Open another campaign from the main Lectern window to edit its content."
+            )
         workspace.addWidget(self.ashen_workspace_note)
         workspace.addWidget(self.open_ashen_button)
+        workspace.addWidget(self.open_content_button)
+        workspace.addWidget(self.plan_button)
         workspace.addStretch()
         root.addLayout(workspace)
+        root.addWidget(self.content_scope_note)
         choose=QHBoxLayout(); self.campaigns=QComboBox(); self.campaigns.currentIndexChanged.connect(self.refresh_dashboard); self.campaign_source=QLabel(); self.campaign_source.setStyleSheet("font-weight: 700; color: #9aa0a6;")
         self.edit_campaign_button=QPushButton("Edit Campaign"); self.edit_campaign_button.clicked.connect(self.edit_campaign)
         self.archive_campaign_button=QPushButton("Archive Campaign"); self.archive_campaign_button.clicked.connect(self.toggle_archive_campaign)
@@ -1371,6 +1397,11 @@ class CampaignDashboardPage(QWidget):
             archived=" | Archived" if row['is_archived'] else ""
             self.campaigns.addItem(f"{row['name']} [{source}{archived}]",row['id'])
         self.campaigns.blockSignals(False)
+        if campaign_id is None:
+            with connect(self.repo.db_path) as conn:
+                linked = conn.execute("SELECT campaign_id FROM campaign_workspace_links WHERE entity_id=?",
+                                      (CAMPAIGN_ID,)).fetchone()
+            campaign_id = linked['campaign_id'] if linked else None
         if campaign_id is not None: self.campaigns.setCurrentIndex(max(0,self.campaigns.findData(campaign_id)))
         self.refresh_dashboard()
     def open_ashen_company(self):
@@ -1394,6 +1425,33 @@ class CampaignDashboardPage(QWidget):
             ))
         except OSError as exc:
             QMessageBox.warning(self, 'Ashen Company Did Not Open', str(exc))
+
+    def open_campaign_content(self):
+        campaign_id = self.campaigns.currentData()
+        if campaign_id is None:
+            QMessageBox.information(self, 'Choose a Campaign',
+                                    'Select or create a campaign first.')
+            return
+        with connect(self.repo.db_path) as conn:
+            entity_id = ensure_campaign_workspace(conn, int(campaign_id))
+        child_env = os.environ.copy()
+        child_env['LECTERN_DATA_DIR'] = str(self.repo.db_path.parent.parent)
+        child_env['LECTERN_CANON_CAMPAIGN_ID'] = entity_id
+        child_env['LECTERN_OPENED_FROM_DASHBOARD'] = '1'
+        child_env['PYINSTALLER_RESET_ENVIRONMENT'] = '1'
+        frozen = bool(getattr(sys, 'frozen', False))
+        working_dir = Path(sys.executable).parent if frozen else project_root()
+        command = [sys.executable] if frozen else [sys.executable, str(project_root() / 'run.py')]
+        try:
+            subprocess.Popen(command, cwd=str(working_dir), env=child_env)
+            self.open_content_button.setText('Opening Campaign Content...')
+            self.open_content_button.setEnabled(False)
+            QTimer.singleShot(20000, lambda: (
+                self.open_content_button.setText('Open Selected Campaign Content'),
+                self.open_content_button.setEnabled(True),
+            ))
+        except OSError as exc:
+            QMessageBox.warning(self, 'Campaign Content Did Not Open', str(exc))
 
     def create_campaign(self):
         name=self.name.text().strip()
@@ -2170,7 +2228,9 @@ class MainWindow(QMainWindow):
     def __init__(self, db_path: Path):
         super().__init__(); self.db_path=db_path; self.repo=Repository(db_path)
         with connect(db_path) as conn:
-            self._ashen_enabled = has_ashen_campaign(conn)
+            self._ashen_enabled = conn.execute(
+                "SELECT 1 FROM campaign_entities WHERE entity_id=? AND kind='CAM'",
+                (CAMPAIGN_ID,)).fetchone() is not None
         self.setWindowTitle(f"{APP_NAME} - {VERSION}"); self.resize(1400,900); self.setMinimumSize(1100,700)
         app_icon = icon_path()
         if app_icon.exists():
@@ -2198,22 +2258,28 @@ class MainWindow(QMainWindow):
         """)
         self.pages = []
         sections = [
+            ("Campaigns", CampaignDashboardPage(
+                self.repo, self.refresh_pages,
+                lambda: self.navigate_to("Campaign Plan"))),
+            *([
+                ("Campaign Plan", CampaignWorkflowPage(db_path, self.navigate_to)),
+                ("Canon & Lore", CanonLorePage(
+                    db_path, lambda: self.navigate_to("Canon Review (GM)"))),
+                ("Canon Review (GM)", CanonReviewPage(db_path)),
+                ("Stories", StoryPage(db_path)),
+                ("Story Drafts", StoryMissionPage(db_path, draft_kind="Story")),
+                ("Campaign Locations", WorldPage(db_path, LocationAgent)),
+                ("Campaign Factions", WorldPage(db_path, FactionAgent)),
+                ("Campaign NPCs", WorldPage(db_path, NPCAgent)),
+                ("Mission Drafts", StoryMissionPage(db_path, draft_kind="Mission")),
+                ("Missions", MissionPage(db_path)),
+                ("Review & Publish", AshenPlayerExportPage(db_path)),
+            ] if self._ashen_enabled else []),
             ("Dashboard", self.dashboard()),
-            ("Campaigns", CampaignDashboardPage(self.repo, self.refresh_pages)),
+            ("Players", PlayerManagerPage(self.repo, self.refresh_pages)),
             ("Encounter Builder", EncounterBuilderPage(self.repo, self.refresh_pages)),
             ("Combat Dashboard", CombatDashboardPage(self.repo)),
             ("Combat Narrative", CombatNarrativePage(self.repo)),
-            ("Players", PlayerManagerPage(self.repo, self.refresh_pages)),
-            *([
-            ("Stories", StoryPage(db_path)),
-            ("Story & Mission Drafts", StoryMissionPage(db_path)),
-            ("Missions", MissionPage(db_path)),
-            ("Campaign NPCs", WorldPage(db_path, NPCAgent)),
-            ("Campaign Locations", WorldPage(db_path, LocationAgent)),
-            ("Campaign Factions", WorldPage(db_path, FactionAgent)),
-            ("Canon Review (GM)", CanonReviewPage(db_path)),
-            ("Ashen Player Export", AshenPlayerExportPage(db_path)),
-            ] if self._ashen_enabled else []),
             ("Monster Library", TablePage("Monster Library", self.repo, "monsters")),
             ("Add Monster", MonsterAddPage(self.repo)),
             ("Weapons", TablePage("Weapons", self.repo, "weapons")),
@@ -2233,8 +2299,15 @@ class MainWindow(QMainWindow):
         self.nav.currentRowChanged.connect(self.refresh_selected_campaign_page)
         self.nav.setCurrentRow(0)
 
+    def navigate_to(self, name: str):
+        for index in range(self.nav.count()):
+            if self.nav.item(index).text() == name:
+                self.nav.setCurrentRow(index)
+                return
+        raise KeyError(name)
+
     def refresh_selected_campaign_page(self, index):
-        if 0 <= index < len(self.pages) and isinstance(self.pages[index], (MissionPage, WorldPage, AshenPlayerExportPage)):
+        if 0 <= index < len(self.pages) and isinstance(self.pages[index], (CampaignWorkflowPage, CanonLorePage, CanonReviewPage, StoryPage, StoryMissionPage, MissionPage, WorldPage, AshenPlayerExportPage)):
             self.pages[index].refresh()
     def add_page(self, name, widget):
         self.nav.addItem(name)

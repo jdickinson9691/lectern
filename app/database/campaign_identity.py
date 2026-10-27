@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import sqlite3
+import os
 
 
-CAMPAIGN_ID = 'CAM-ASHEN-0001'
+ASHEN_CAMPAIGN_ID = 'CAM-ASHEN-0001'
+CAMPAIGN_ID = os.environ.get('LECTERN_CANON_CAMPAIGN_ID', ASHEN_CAMPAIGN_ID)
 TABLE_KINDS = {
     'players': 'PC',
     'encounters': 'ENC',
@@ -20,7 +22,7 @@ TABLE_KINDS = {
 
 def has_ashen_campaign(conn: sqlite3.Connection) -> bool:
     return conn.execute(
-        'SELECT 1 FROM campaign_entities WHERE entity_id=?', (CAMPAIGN_ID,)
+        'SELECT 1 FROM campaign_entities WHERE entity_id=?', (ASHEN_CAMPAIGN_ID,)
     ).fetchone() is not None
 
 

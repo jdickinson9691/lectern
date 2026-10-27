@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ..services.campaign_workflow import format_dependencies
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
     QListWidget, QListWidgetItem, QTextEdit, QLineEdit, QPushButton, QFormLayout,
@@ -56,6 +58,9 @@ class WorldPage(QWidget):
         form.addRow('Player profile' if label == 'NPC' else 'Player description', self.player_text)
         form.addRow('Private GM notes', self.gm_notes)
         layout.addLayout(form)
+        self.based_on = QLabel()
+        self.based_on.setWordWrap(True)
+        layout.addWidget(self.based_on)
         actions = QHBoxLayout()
         for text, method in [('Save Draft', self.save), ('Approve Player Text', self.approve),
                              ('Return to Draft', self.return_to_draft),
@@ -128,6 +133,7 @@ class WorldPage(QWidget):
             self.player_text.clear()
             self.gm_notes.clear()
             self.status.setText(f'New {self.agent.LABEL} draft. Select a source and enter player text.')
+            self.based_on.clear()
             if isinstance(self.agent, FactionAgent):
                 self.refresh_faction_links()
             return
@@ -137,6 +143,7 @@ class WorldPage(QWidget):
         self.gm_notes.setPlainText(row['gm_notes'] or '')
         self.status.setText(f"{self.current_id}: {row['status']}; "
                             f"player text: {row['player_text_status'] or 'missing'}.")
+        self.based_on.setText(format_dependencies(self.agent.db_path, self.current_id))
         if isinstance(self.agent, FactionAgent):
             self.refresh_faction_links()
 

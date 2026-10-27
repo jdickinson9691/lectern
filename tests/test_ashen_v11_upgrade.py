@@ -11,7 +11,7 @@ def test_clean_database_adds_optional_ashen_schema_without_seeding(tmp_path: Pat
     db = tmp_path / 'clean.db'
     initialize_database(db)
     with connect(db) as conn:
-        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == '11'
+        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == '12'
         assert conn.execute('SELECT COUNT(*) FROM campaign_entities').fetchone()[0] == 0
         assert conn.execute('SELECT COUNT(*) FROM campaigns').fetchone()[0] == 0
 
@@ -67,7 +67,7 @@ def test_upgrade_preserves_existing_ashen_data(tmp_path: Path, monkeypatch):
     with connect(db) as conn:
         assert conn.execute("SELECT name FROM campaign_entities WHERE entity_id='LOC-COMP-0001'").fetchone()[0] == 'Test Site'
         assert conn.execute("SELECT COUNT(*) FROM campaigns WHERE name='Ashen Company'").fetchone()[0] == 1
-        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == '11'
+        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == '12'
 
 
 def test_existing_ashen_canon_regains_missing_dashboard_row_without_reseed(tmp_path: Path, monkeypatch):

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ..services.campaign_workflow import format_dependencies
+
 from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QComboBox, QLineEdit, QTextEdit, QPushButton, QFormLayout, QMessageBox)
 
@@ -41,6 +43,9 @@ class MissionPage(QWidget):
         form.addRow('Player briefing', self.player_briefing)
         form.addRow('Private GM notes', self.gm_notes)
         layout.addLayout(form)
+        self.based_on = QLabel()
+        self.based_on.setWordWrap(True)
+        layout.addWidget(self.based_on)
         actions = QHBoxLayout()
         for label, method in [('Save Draft', self.save), ('Approve Player Mission', self.approve),
                               ('Return to Draft', self.return_to_draft),
@@ -74,7 +79,8 @@ class MissionPage(QWidget):
             self.title.clear()
             self.player_briefing.clear()
             self.gm_notes.clear()
-            self.status.setText('No Missions yet. Create one in Story & Mission Drafts.')
+            self.status.setText('No Missions yet. Create one in Mission Drafts.')
+            self.based_on.clear()
             return
         mission = self.missions.get_mission(self.current_id)
         self.title.setText(mission['name'])
@@ -82,6 +88,7 @@ class MissionPage(QWidget):
         self.gm_notes.setPlainText(mission['gm_notes'] or '')
         self.status.setText(f"{self.current_id}: {mission['status']}; "
                             f"player briefing: {mission['briefing_status'] or 'missing'}.")
+        self.based_on.setText(format_dependencies(self.missions.db_path, self.current_id))
 
     def _save(self):
         if not self.current_id:

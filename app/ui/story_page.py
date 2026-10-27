@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ..services.campaign_workflow import format_dependencies
+
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox,
     QLineEdit, QTextEdit, QFormLayout, QMessageBox, QFileDialog, QDialog,
@@ -113,6 +115,9 @@ class StoryPage(QWidget):
         self.gm_notes.setPlaceholderText('Private GM notes; never included in player exports')
         form.addRow('GM notes', self.gm_notes)
         layout.addLayout(form)
+        self.based_on = QLabel()
+        self.based_on.setWordWrap(True)
+        layout.addWidget(self.based_on)
         actions = QHBoxLayout()
         for label, callback in [
             ('Save Draft', self.save), ('Approve Player Story', self.approve),
@@ -151,6 +156,7 @@ class StoryPage(QWidget):
         self.player_text.setPlainText(story['player_text'])
         self.gm_notes.setPlainText(story['gm_notes'])
         self.status.setText(f"{entity_id}: {story['status']}; player text: {story['player_text_status']}.")
+        self.based_on.setText(format_dependencies(self.stories.db_path, entity_id))
 
     def new_story(self):
         self.story_select.setCurrentIndex(-1)
@@ -159,6 +165,7 @@ class StoryPage(QWidget):
         self.player_text.clear()
         self.gm_notes.clear()
         self.status.setText('New Story draft. Enter a title and player text, then save.')
+        self.based_on.setText('Create a sourced Story in Story Drafts to retain canon links.')
         self.title.setFocus()
 
     def _save(self) -> str:

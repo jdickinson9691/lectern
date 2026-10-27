@@ -21,7 +21,7 @@ class AshenMigrationTests(unittest.TestCase):
         initialize_database(self.db)
         initialize_database(self.db)
         with connect(self.db) as conn:
-            self.assertEqual(conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0], '11')
+            self.assertEqual(conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0], '12')
             self.assertEqual(conn.execute('SELECT count(*) FROM campaign_entities').fetchone()[0], 1)
             self.assertEqual(conn.execute('PRAGMA foreign_keys').fetchone()[0], 1)
 
@@ -35,7 +35,7 @@ class AshenMigrationTests(unittest.TestCase):
         with connect(self.db) as conn:
             self.assertEqual(conn.execute("SELECT notes FROM players WHERE name='Veteran'").fetchone()[0], 'keep me')
             self.assertEqual(conn.execute('SELECT rows_imported FROM import_history').fetchone()[0], 7)
-            self.assertEqual(conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0], '11')
+            self.assertEqual(conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0], '12')
 
     def test_failure_rolls_back_ashen_layer_and_can_retry(self):
         def broken(conn):
