@@ -23,7 +23,7 @@ Fantasy Grounds stays authoritative for live combat. Lectern stays authoritative
 
 Ashen pages now appear in the Lectern navigation: Stories; Story & Mission Drafts; Missions; Campaign NPCs, Locations, and Factions; Canon Review (GM); and Ashen Player Export. The latter previews approved content before JSON or `.mod` release. Full CSV exports still carry GM data.
 
-The public repository includes the player guide and the working class access list. The GM guide, live database, private map, and campaign-local Fantasy Grounds files remain outside this public repository to protect unrevealed campaign details.
+The public repository includes the player guide, approved player Story module, and working class access list. The GM guide, live database, private map, and campaign-local Fantasy Grounds files remain outside this public repository to protect unrevealed campaign details. The 3.0.1 installer offers the approved module as a selectable Fantasy Grounds task; later approvals require a fresh export from Lectern.
 
 ## Verification
 

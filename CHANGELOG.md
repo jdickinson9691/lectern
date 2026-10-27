@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.0.1 — Ashen Company Integration
+
+- Added an Ashen Company installer shortcut that launches the packaged app against its isolated campaign data directory.
+- Added optional installation of the approved seven-record player Story module into Fantasy Grounds alongside Lectern Sync. The live database and GM guide remain private.
+- Excluded an incompatible third-party ICU DLL from the Windows bundle; verified clean Ashen database creation with the packaged executable.
+- The 3.0.1 installer was built with Python 3.12.10; Python 3.13 packaging verification remains open.
+
 - Packaged the FG-EFFECT-002 correction as Lectern Sync 1.4.12 with the current
   Lectern 3.0.0 application and Windows installer. All sixteen regressions,
   extension archive inspection, and isolated packaged startup passed. Installed

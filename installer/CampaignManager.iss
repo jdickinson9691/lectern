@@ -1,5 +1,5 @@
 #define MyAppName "Lectern - D&D Campaign Manager"
-#define MyAppVersion "3.0.0"
+#define MyAppVersion "3.0.1"
 #define MyAppExeName "Lectern.exe"
 #define MyAppPublisher "Lüdinn Entertainment"
 #define MyAppDescription "Lüdinn Entertainment Campaign Tracker for Encounters, Rules & Navigation"
@@ -14,17 +14,23 @@ VersionInfoProductName=Lectern
 DefaultDirName={autopf}\LecternDNDCampaignManager
 DefaultGroupName={#MyAppName}
 OutputDir=..\release
-OutputBaseFilename=Lectern_v3_0_0_Setup
+OutputBaseFilename=Lectern_v3_0_1_Ashen_Company_Setup
 Compression=lzma
 SolidCompression=yes
 [Files]
 Source: "..\dist\Lectern\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\dist\Lectern\FantasyGrounds\LecternSync.ext"; DestDir: "{code:GetFantasyGroundsExtensionsDir}"; Flags: ignoreversion
+Source: "..\Start Ashen Company.cmd"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\docs\campaign\Ashen_Company_Players.mod"; DestDir: "{code:GetFantasyGroundsModulesDir}"; Flags: ignoreversion; Tasks: ashenmodule
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{group}\Ashen Company"; Filename: "{app}\Start Ashen Company.cmd"; WorkingDir: "{app}"
+Name: "{commondesktop}\Ashen Company"; Filename: "{app}\Start Ashen Company.cmd"; WorkingDir: "{app}"; Tasks: ashendesktopicon
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"
+Name: "ashendesktopicon"; Description: "Create an Ashen Company desktop shortcut"; GroupDescription: "Additional icons:"
+Name: "ashenmodule"; Description: "Install the approved Ashen Company player module into Fantasy Grounds"; GroupDescription: "Fantasy Grounds:"
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
@@ -76,4 +82,9 @@ end;
 function GetFantasyGroundsExtensionsDir(Param: String): String;
 begin
   Result := FantasyGroundsExtensionsPage.Values[0];
+end;
+
+function GetFantasyGroundsModulesDir(Param: String): String;
+begin
+  Result := AddBackslash(ExtractFileDir(FantasyGroundsExtensionsPage.Values[0])) + 'modules';
 end;

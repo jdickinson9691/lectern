@@ -15,6 +15,10 @@ a = Analysis(
     hiddenimports=['app.main', 'openpyxl', 'pypdf', 'PySide6.QtCore', 'PySide6.QtGui', 'PySide6.QtWidgets'],
     hookspath=[], hooksconfig={}, runtime_hooks=[], excludes=[], noarchive=False,
 )
+# Qt6Core uses the Windows ICU API. A third-party icuuc.dll on PATH (for
+# example Poppler's versioned ICU build) has incompatible exports and causes
+# QtCore to fail at startup when PyInstaller collects it into _internal.
+a.binaries = TOC([entry for entry in a.binaries if Path(entry[0]).name.lower() not in {'icuuc.dll', 'icudt78.dll'}])
 pyz = PYZ(a.pure)
 exe = EXE(
     pyz, a.scripts, [], exclude_binaries=True,

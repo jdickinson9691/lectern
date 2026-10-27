@@ -13,11 +13,14 @@ env/
 # Generated build output (the tracked build recipes are explicitly retained below)
 build/*
 !build/Build.ps1
+!build/Build-Installer.ps1
 !build/CampaignManager.spec
 !build/RunFromSource.bat
 dist/
+debug_dist/
 release/
 .pyinstaller_build/
+work/
 *.spec.bak
 
 # Test and tool caches

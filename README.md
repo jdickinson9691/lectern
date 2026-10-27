@@ -2,8 +2,8 @@
 
 **Lüdinn Entertainment Campaign Tracker for Encounters, Rules & Navigation**
 
-**Version:** 3.0.0 — Workflow and Import Refinement
-**Milestone:** 3.0.0 (in progress)
+**Version:** 3.0.1 — Ashen Company Integration
+**Milestone:** 3.0.1
 **Database schema:** v11 (optional Ashen canon layer over v10)
 
 Lectern is a single evolving Python/PySide6 Windows desktop codebase for D&D 5E campaign planning, combat tracking, and campaign analysis. This package is a clean, Git-ready source baseline.
@@ -48,6 +48,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\Diagnose-Launch.ps1
 .\dist\Lectern\Lectern.exe
 ```
 
+With Inno Setup 6 installed, run `.\build\Build-Installer.ps1` to create the Windows installer under `release/`.
+
 ## Source repository
 
 This source is maintained at [jdickinson9691/lectern](https://github.com/jdickinson9691/lectern). The `.gitignore` excludes virtual environments, databases, logs, backups, caches, and generated build output. Private Ashen GM material remains outside this public repository.
@@ -55,6 +57,8 @@ This source is maintained at [jdickinson9691/lectern](https://github.com/jdickin
 ## Ashen Company campaign
 
 Use **Start Ashen Company.cmd** for the isolated Ashen database. It enables the campaign canon, draft/review, player export, and Fantasy Grounds Story module workflow without changing ordinary Lectern campaign data. See [Ashen Company on Lectern 3.0](docs/ASHEN_3_0_INTEGRATION.md), the [player guide](docs/campaign/Ashen_Company_Player_Guide.docx), and [class access plan](docs/campaign/CLASS_ACCESS.md). Private GM materials and the live campaign database are kept outside this public repository.
+
+The 3.0.1 Windows installer adds an **Ashen Company** Start menu shortcut and an optional desktop shortcut. It can install the currently approved player Story module into the Fantasy Grounds `modules` folder alongside Lectern Sync in `extensions`. The bundled module is a release snapshot; use **Ashen Player Export** in Lectern to publish later approvals. The installer does not include the live campaign database or GM guide. The packaged 3.0.1 executable was built and smoke tested with Python 3.12.10; the source project's stated development target remains Python 3.13.
 
 ## Product and Agent Documentation
 
