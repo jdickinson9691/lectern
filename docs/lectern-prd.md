@@ -56,7 +56,7 @@ using a versioned phrase library. It does not use an external LLM or API.
 | Supported Python | 3.13 | Python 3.14 is not approved for packaging |
 | Supported desktop platform | Windows 10/11 | PySide6 desktop application |
 | Source lineage | `d272261` plus archived D: 1.4.13 work | Combined source is maintained on D: `main` |
-| Current installer | `release/Lectern_v3_0_1_Ashen_Company_Setup.exe` | D: Python 3.13 build; SHA-256 `2BFF5F8DB6A73B369CFCF4718B092542B922561C694CC9B3252808D29C91F190` |
+| Current installer | `release/Lectern_v3_0_1_Ashen_Company_Setup.exe` | Built from D: with Python 3.13; record each build checksum outside the bundled source |
 
 The root [`README.md`](../README.md) reports schema v11 and the optional
 Ashen canon layer. Older milestone documents retain their historical versions.
@@ -896,3 +896,4 @@ Broader 3.1
 work—especially two-way Fantasy Grounds
 integration—must remain a separate product-design decision rather than being
 inferred from the existing one-way handoff.
+

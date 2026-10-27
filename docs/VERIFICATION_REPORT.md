@@ -7,7 +7,7 @@ all 16 legacy regression scripts, `pip check`, and a packaged offscreen startup
 using Python 3.13.14. The clean packaged startup created schema v11 and the
 Ashen campaign root. The bundled Fantasy Grounds extension manifest reports
 Lectern Sync 1.4.13. The GM guide is absent from the package. The installer is
-`release/Lectern_v3_0_1_Ashen_Company_Setup.exe`, SHA-256 `2BFF5F8DB6A73B369CFCF4718B092542B922561C694CC9B3252808D29C91F190`.
+`release/Lectern_v3_0_1_Ashen_Company_Setup.exe`. Each compiled installer checksum is recorded with its separately delivered artifact.
 Fresh Test9 Armor live Fantasy Grounds acceptance remains pending.
 
 ## Historical 3.0.0 acceptance record
@@ -93,3 +93,4 @@ If an operation is not implemented, record it as a blocking defect.
 ## Release decision
 
 Declare v3.0.0 complete only when all checks pass, no startup errors or syntax/merge issues remain, and every blocking defect is resolved or explicitly removed from scope.
+
