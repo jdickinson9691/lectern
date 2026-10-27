@@ -1,5 +1,5 @@
 #define MyAppName "Lectern - D&D Campaign Manager"
-#define MyAppVersion "3.0.1"
+#define MyAppVersion "3.0.2"
 #define MyAppExeName "Lectern.exe"
 #define MyAppPublisher "Lüdinn Entertainment"
 #define MyAppDescription "Lüdinn Entertainment Campaign Tracker for Encounters, Rules & Navigation"
@@ -14,7 +14,7 @@ VersionInfoProductName=Lectern
 DefaultDirName={autopf}\LecternDNDCampaignManager
 DefaultGroupName={#MyAppName}
 OutputDir=..\release
-OutputBaseFilename=Lectern_v3_0_1_Ashen_Company_Setup
+OutputBaseFilename=Lectern_v3_0_2_Ashen_Company_Setup
 Compression=lzma
 SolidCompression=yes
 [Files]
@@ -32,7 +32,8 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 Name: "ashendesktopicon"; Description: "Create an Ashen Company desktop shortcut"; GroupDescription: "Additional icons:"
 Name: "ashenmodule"; Description: "Install the approved Ashen Company player module into Fantasy Grounds"; GroupDescription: "Fantasy Grounds:"
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\Start Ashen Company.cmd"; Description: "Open Ashen Company"; Flags: shellexec nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "Open regular Lectern workspace"; Flags: nowait postinstall skipifsilent unchecked
 
 [Code]
 var

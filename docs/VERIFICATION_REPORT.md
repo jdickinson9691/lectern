@@ -1,5 +1,15 @@
 # Verification Report — Lectern
 
+## Current 3.0.2 Ashen workspace correction
+
+The regular Campaign Dashboard opens the separate Ashen Company workspace.
+Within that workspace, an idempotent dashboard campaign row points users to
+Ashen Company while preserving approved canon and Fantasy Grounds test data in
+their respective databases. The live Ashen database was backed up before its
+missing row was added; seven approved player records and foreign keys were
+unchanged. A fresh packaged startup and installer build are required before
+release.
+
 ## Current 3.0.1 Ashen and Lectern Sync 1.4.13 package
 
 On October 27, 2026, the D: development checkout passed 49 Ashen pytest tests,

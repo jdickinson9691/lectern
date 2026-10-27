@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.0.2 — Ashen Company Workspace
+
+- Added an Open Ashen Company Workspace action to the regular Campaign Dashboard.
+  It opens the separate Ashen data directory while preserving the current
+  Fantasy Grounds campaign database.
+- Made the dedicated Ashen campaign appear in its own Campaign Dashboard
+  selector. Existing Ashen databases gain the row on startup without reseeding
+  or changing approved canon.
+
+
 ## 3.0.1 — Ashen Company Integration
 
 - Added an Ashen Company installer shortcut, isolated database mode, player

@@ -13,15 +13,17 @@ def test_clean_database_adds_optional_ashen_schema_without_seeding(tmp_path: Pat
     with connect(db) as conn:
         assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == '11'
         assert conn.execute('SELECT COUNT(*) FROM campaign_entities').fetchone()[0] == 0
+        assert conn.execute('SELECT COUNT(*) FROM campaigns').fetchone()[0] == 0
 
 
-def test_ashen_launcher_seeds_only_root(tmp_path: Path, monkeypatch):
+def test_ashen_launcher_adds_canon_root_and_dashboard_campaign(tmp_path: Path, monkeypatch):
     monkeypatch.setenv('LECTERN_ASHEN_COMPANY', '1')
     db = tmp_path / 'ashen.db'
     initialize_database(db)
     with connect(db) as conn:
         rows = conn.execute('SELECT entity_id,name FROM campaign_entities').fetchall()
         assert [(r[0], r[1]) for r in rows] == [('CAM-ASHEN-0001', 'Ashen Company')]
+        assert [(r['name'], r['source_type']) for r in conn.execute('SELECT name,source_type FROM campaigns')] == [('Ashen Company', 'local')]
 
 
 def test_ashen_launcher_can_opt_in_existing_empty_database(tmp_path: Path, monkeypatch):
@@ -64,4 +66,23 @@ def test_upgrade_preserves_existing_ashen_data(tmp_path: Path, monkeypatch):
     initialize_database(db)
     with connect(db) as conn:
         assert conn.execute("SELECT name FROM campaign_entities WHERE entity_id='LOC-COMP-0001'").fetchone()[0] == 'Test Site'
+        assert conn.execute("SELECT COUNT(*) FROM campaigns WHERE name='Ashen Company'").fetchone()[0] == 1
         assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == '11'
+
+
+def test_existing_ashen_canon_regains_missing_dashboard_row_without_reseed(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv('LECTERN_ASHEN_COMPANY', '1')
+    db = tmp_path / 'old-ashen.db'
+    initialize_database(db)
+    with connect(db) as conn:
+        conn.execute("DELETE FROM campaigns WHERE name='Ashen Company'")
+        conn.execute("INSERT INTO campaign_entities(entity_id,kind,name,campaign_id,visibility,status) "
+                     "VALUES('NPC-COMP-0001','NPC','Mara Venn','CAM-ASHEN-0001','player','approved')")
+        conn.execute("INSERT INTO entity_knowledge(entity_id,audience,field_key,content,status) "
+                     "VALUES('NPC-COMP-0001','player','summary','A Company veteran.','approved')")
+    initialize_database(db)
+    initialize_database(db)
+    with connect(db) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM campaigns WHERE name='Ashen Company'").fetchone()[0] == 1
+        assert conn.execute("SELECT content FROM entity_knowledge WHERE entity_id='NPC-COMP-0001'").fetchone()[0] == 'A Company veteran.'
+        assert conn.execute('PRAGMA foreign_key_check').fetchall() == []

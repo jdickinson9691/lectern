@@ -13,6 +13,7 @@ assert "FantasyGroundsExtensionsPage.Values[0]" in installer, "Selected Fantasy 
 assert "{userappdata}\\SmiteWorks\\Fantasy Grounds\\extensions" in installer, "Account-agnostic default folder is missing"
 assert 'DestDir: "{code:GetFantasyGroundsExtensionsDir}"' in installer, "Lectern Sync is not installed to the selected folder"
 assert 'Start Ashen Company.cmd' in installer, "Ashen Company launcher is not installed"
+assert 'Description: "Open Ashen Company"' in installer, "Installer must offer Ashen after setup"
 assert 'Ashen_Company_Players.mod' in installer, "Approved Ashen player module is not installed"
 assert 'DestDir: "{code:GetFantasyGroundsModulesDir}"' in installer, "Player module does not target Fantasy Grounds modules"
 assert 'Tasks: ashenmodule' in installer, "Player module installation must be selectable"

@@ -43,7 +43,7 @@ This folder is the canonical evolving source tree for Lectern: **Lüdinn Enterta
 
 ## Current baseline
 
-- Application version: 3.0.1 Ashen Company Integration
+- Application version: 3.0.2 Ashen Company Workspace
 - Planning milestone: 3.1 product design
 - Database schema: v11 (optional Ashen canon layer over v10)
 - Fantasy Grounds snapshot contract: v1; Lectern Sync extension 1.4.13

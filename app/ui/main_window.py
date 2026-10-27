@@ -1,6 +1,9 @@
 from __future__ import annotations
 import json
+import os
 import re
+import subprocess
+import sys
 from tempfile import TemporaryDirectory
 from pathlib import Path
 from PySide6.QtWidgets import (
@@ -32,7 +35,7 @@ from ..services.portraits import is_managed_portrait, store_portrait
 from ..services.combat_narrative import CombatNarrativeBuilder, parse_combat_event
 from ..integrations.fantasy_grounds import FantasyGroundsSyncError, FantasyGroundsSyncService
 from ..version import APP_EXPANDED_NAME, APP_NAME, VERSION
-from ..paths import icon_path, watermark_path, help_path, user_data_dir
+from ..paths import icon_path, watermark_path, help_path, user_data_dir, project_root
 
 
 class WatermarkedPage(QWidget):
@@ -1303,6 +1306,19 @@ class CampaignDashboardPage(QWidget):
         self.setup_campaign_button=QPushButton("Guided Local Setup..."); self.setup_campaign_button.clicked.connect(self.guided_setup)
         for w in [self.name,self.description,add,self.setup_campaign_button]: create.addWidget(w)
         root.addLayout(create)
+        workspace=QHBoxLayout()
+        self.ashen_workspace_note=QLabel("Ashen Company has its own workspace and campaign data.")
+        self.open_ashen_button=QPushButton("Open Ashen Company Workspace")
+        self.open_ashen_button.setToolTip("Open the Ashen campaign and canon tools in a separate Lectern window.")
+        self.open_ashen_button.clicked.connect(self.open_ashen_company)
+        with connect(self.repo.db_path) as conn:
+            in_ashen_workspace=has_ashen_campaign(conn)
+        self.ashen_workspace_note.setVisible(not in_ashen_workspace)
+        self.open_ashen_button.setVisible(not in_ashen_workspace)
+        workspace.addWidget(self.ashen_workspace_note)
+        workspace.addWidget(self.open_ashen_button)
+        workspace.addStretch()
+        root.addLayout(workspace)
         choose=QHBoxLayout(); self.campaigns=QComboBox(); self.campaigns.currentIndexChanged.connect(self.refresh_dashboard); self.campaign_source=QLabel(); self.campaign_source.setStyleSheet("font-weight: 700; color: #9aa0a6;")
         self.edit_campaign_button=QPushButton("Edit Campaign"); self.edit_campaign_button.clicked.connect(self.edit_campaign)
         self.archive_campaign_button=QPushButton("Archive Campaign"); self.archive_campaign_button.clicked.connect(self.toggle_archive_campaign)
@@ -1357,6 +1373,19 @@ class CampaignDashboardPage(QWidget):
         self.campaigns.blockSignals(False)
         if campaign_id is not None: self.campaigns.setCurrentIndex(max(0,self.campaigns.findData(campaign_id)))
         self.refresh_dashboard()
+    def open_ashen_company(self):
+        local_app_data = Path(os.environ.get('LOCALAPPDATA', str(Path.home())))
+        child_env = os.environ.copy()
+        child_env['LECTERN_DATA_DIR'] = str(local_app_data / 'DND5ECampaignManager-AshenCompany')
+        child_env['LECTERN_ASHEN_COMPANY'] = '1'
+        frozen = bool(getattr(sys, 'frozen', False))
+        working_dir = Path(sys.executable).parent if frozen else project_root()
+        command = [sys.executable] if frozen else [sys.executable, str(project_root() / 'run.py')]
+        try:
+            subprocess.Popen(command, cwd=str(working_dir), env=child_env)
+        except OSError as exc:
+            QMessageBox.warning(self, 'Ashen Company Did Not Open', str(exc))
+
     def create_campaign(self):
         name=self.name.text().strip()
         if not name: QMessageBox.warning(self,"Missing Name","Campaign name is required."); return

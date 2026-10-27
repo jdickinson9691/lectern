@@ -46,7 +46,7 @@ using a versioned phrase library. It does not use an external LLM or API.
 
 | Item | Current value | Notes |
 |---|---|---|
-| Product version | 3.0.1 | Release name: Ashen Company Integration |
+| Product version | 3.0.2 | Release name: Ashen Company Workspace |
 | Release status | In progress; not release-clear | FG-EFFECT-002 was reopened by Test8; its linked owning-power correction is packaged and automated-verified, with fresh live acceptance pending |
 | Planned milestone | 3.1 design and staged implementation | Some originally proposed 3.1 work has already been implemented without changing product version |
 | Database schema | v11 | Optional Ashen canon layer over the existing v10 tables |
@@ -56,7 +56,7 @@ using a versioned phrase library. It does not use an external LLM or API.
 | Supported Python | 3.13 | Python 3.14 is not approved for packaging |
 | Supported desktop platform | Windows 10/11 | PySide6 desktop application |
 | Source lineage | `d272261` plus archived D: 1.4.13 work | Combined source is maintained on D: `main` |
-| Current installer | `release/Lectern_v3_0_1_Ashen_Company_Setup.exe` | Built from D: with Python 3.13; record each build checksum outside the bundled source |
+| Current installer | `release/Lectern_v3_0_2_Ashen_Company_Setup.exe` | Built from D: with Python 3.13; record each build checksum outside the bundled source |
 
 The root [`README.md`](../README.md) reports schema v11 and the optional
 Ashen canon layer. Older milestone documents retain their historical versions.
@@ -659,7 +659,7 @@ Implemented:
 - PyInstaller build at `dist/Lectern/Lectern.exe`.
 - Packaged Lectern Sync extension at
   `dist/Lectern/FantasyGrounds/LecternSync.ext`.
-- Inno Setup installer at `release/Lectern_v3_0_1_Ashen_Company_Setup.exe`.
+- Inno Setup installer at `release/Lectern_v3_0_2_Ashen_Company_Setup.exe`.
 - Installer prompt for the user's Fantasy Grounds `extensions` directory.
 - Desktop and Start Menu shortcuts.
 
@@ -671,7 +671,7 @@ Repository convention:
 - `build/Build-Installer.ps1` builds the app, extension, and installer together.
 
 The older tracked 3.0.0 installer is retained as historical release data.
-The 3.0.1 installer is generated locally and ignored by Git.
+The 3.0.2 installer is generated locally and ignored by Git.
 
 ## 6. Current verification state
 

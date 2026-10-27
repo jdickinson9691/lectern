@@ -25,6 +25,12 @@ ASHEN_TABLES = {
 def _ensure_ashen_root(conn: sqlite3.Connection) -> None:
     if os.environ.get('LECTERN_ASHEN_COMPANY') != '1':
         return
+    # The canon root and the ordinary Campaign Dashboard use distinct tables.
+    # Keep the dashboard's local campaign row in the dedicated Ashen database,
+    # including databases created by earlier releases that had only the root.
+    if not conn.execute("SELECT 1 FROM campaigns WHERE name='Ashen Company'").fetchone():
+        conn.execute("INSERT INTO campaigns(name,description,source_type) "
+                     "VALUES('Ashen Company','The surviving company after Redwater','local')")
     if conn.execute("SELECT 1 FROM campaign_entities WHERE entity_id='CAM-ASHEN-0001'").fetchone():
         return
     conn.execute("""INSERT INTO campaign_entities(entity_id,kind,name,visibility,status)

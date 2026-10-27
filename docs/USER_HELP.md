@@ -551,7 +551,7 @@ Review the application log in Lectern's LocalAppData folder and verify that the 
 
 ## Ashen Company canon and player export
 
-Launch **Start Ashen Company.cmd** from the Lectern source folder to use the isolated Ashen Company database. Its Story, Mission, NPC, Location, Faction, and Canon Review screens separate player descriptions from GM notes. Save drafts with approved sources, resolve conflicts in **Canon Review (GM)**, and approve public text only after review.
+In regular Lectern, open **Campaigns** and select **Open Ashen Company Workspace**. The installed Start menu also has an **Ashen Company** shortcut. Both open the isolated Ashen database in a separate Lectern window. In that window, choose **Ashen Company [Local]** in the Campaign Dashboard; it will not appear beside Fantasy Grounds campaigns in the regular workspace. Its Story, Mission, NPC, Location, Faction, and Canon Review screens separate player descriptions from GM notes. Save drafts with approved sources, resolve conflicts in **Canon Review (GM)**, and approve public text only after review.
 
 Open **Ashen Player Export** to change visibility, review the approved release, and export player JSON or a Fantasy Grounds Story module. In Fantasy Grounds, load the module and open **Story → Group → Ashen Company**. Full CSV exports contain GM data and should not be shared as player handouts. The live Fantasy Grounds Sync extension is a separate inbound flow for characters and combat; it does not publish Ashen lore.
 
