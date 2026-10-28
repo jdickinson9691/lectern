@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.0.5 — Fiction Agent
+
+- Added a GM Fiction Agent workspace for sourced canon and lore, NPC backgrounds,
+  mission backgrounds, and mission details.
+- Fiction proposals use approved campaign facts as continuity anchors and enter
+  the existing canon review queue. Player proposals cannot use GM-only source
+  facts; proposals never publish automatically.
+
 ## 3.0.4 — Campaign Workflow
 
 - Reordered campaign authoring as Campaign → Canon & Lore → Stories → Locations

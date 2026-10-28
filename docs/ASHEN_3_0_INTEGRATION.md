@@ -21,7 +21,7 @@ Fantasy Grounds stays authoritative for live combat. Lectern stays authoritative
 
 ## Source and publication
 
-The authoring navigation now follows Campaign Plan, Canon & Lore, Stories, Locations, Factions, NPCs, Missions, and Review & Publish. Story Drafts and Mission Drafts reuse the existing sourced drafting workflow. The latter previews approved content before JSON or `.mod` release. Full CSV exports still carry GM data.
+The authoring navigation now follows Campaign Plan, Canon & Lore, Stories, Locations, Factions, NPCs, Missions, and Review & Publish. The Fiction Agent coordinates sourced proposals for canon, lore, NPC backgrounds, and mission backgrounds/details across those records. It requires an approved continuity fact from the same campaign, checks target kind and audience, and submits to the existing GM canon review queue; it does not generate text through an external model or approve its own proposals. Story Drafts and Mission Drafts reuse the existing sourced drafting workflow. Review & Publish previews approved content before JSON or `.mod` release. Full CSV exports still carry GM data.
 
 The public repository includes the player guide, approved player Story module, and working class access list. The GM guide, live database, private map, and campaign-local Fantasy Grounds files remain outside this public repository to protect unrevealed campaign details. The installer offers the approved module as a selectable Fantasy Grounds task; later approvals require a fresh export from Lectern.
 

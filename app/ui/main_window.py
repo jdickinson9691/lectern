@@ -27,6 +27,7 @@ from .world_page import WorldPage
 from .canon_review_page import CanonReviewPage
 from .ashen_export_page import AshenPlayerExportPage
 from .campaign_workflow_page import CampaignWorkflowPage, CanonLorePage
+from .fiction_agent_page import FictionAgentPage
 from ..services.world_agents import NPCAgent, LocationAgent, FactionAgent
 from ..importers.spreadsheet_importer import SpreadsheetImporter
 from ..importers.csv_transfer import CsvTransferService, CSV_TABLES
@@ -2265,6 +2266,8 @@ class MainWindow(QMainWindow):
                 ("Campaign Plan", CampaignWorkflowPage(db_path, self.navigate_to)),
                 ("Canon & Lore", CanonLorePage(
                     db_path, lambda: self.navigate_to("Canon Review (GM)"))),
+                ("Fiction Agent", FictionAgentPage(
+                    db_path, lambda: self.navigate_to("Canon Review (GM)"))),
                 ("Canon Review (GM)", CanonReviewPage(db_path)),
                 ("Stories", StoryPage(db_path)),
                 ("Story Drafts", StoryMissionPage(db_path, draft_kind="Story")),
@@ -2307,7 +2310,7 @@ class MainWindow(QMainWindow):
         raise KeyError(name)
 
     def refresh_selected_campaign_page(self, index):
-        if 0 <= index < len(self.pages) and isinstance(self.pages[index], (CampaignWorkflowPage, CanonLorePage, CanonReviewPage, StoryPage, StoryMissionPage, MissionPage, WorldPage, AshenPlayerExportPage)):
+        if 0 <= index < len(self.pages) and isinstance(self.pages[index], (CampaignWorkflowPage, CanonLorePage, FictionAgentPage, CanonReviewPage, StoryPage, StoryMissionPage, MissionPage, WorldPage, AshenPlayerExportPage)):
             self.pages[index].refresh()
     def add_page(self, name, widget):
         self.nav.addItem(name)

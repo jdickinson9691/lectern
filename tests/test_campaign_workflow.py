@@ -101,7 +101,7 @@ def test_campaign_navigation_follows_authoring_order(tmp_path, monkeypatch):
     db = ashen_database(tmp_path, monkeypatch)
     window = MainWindow(db)
     names = [window.nav.item(index).text() for index in range(window.nav.count())]
-    expected = ['Campaigns', 'Campaign Plan', 'Canon & Lore', 'Canon Review (GM)',
+    expected = ['Campaigns', 'Campaign Plan', 'Canon & Lore', 'Fiction Agent', 'Canon Review (GM)',
                 'Stories', 'Story Drafts', 'Campaign Locations', 'Campaign Factions',
                 'Campaign NPCs', 'Mission Drafts', 'Missions', 'Review & Publish']
     assert names[:len(expected)] == expected

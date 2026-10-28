@@ -566,6 +566,15 @@ relationships, and audit history. Submit sourced changes in **Canon Review
 approve the reviewed fact. Only approved player-facing lore appears among the
 sources available to Story and world drafts. GM lore stays private.
 
+Use **Fiction Agent** to propose new canon and lore, NPC backgrounds, mission
+backgrounds, or mission details on existing campaign records. Pick the area,
+target record, audience, and an approved fact as a continuity anchor. Enter
+the proposed text and send it to **Canon Review (GM)**. The agent checks that
+the target belongs to the current campaign and that a player-facing proposal
+does not cite a private source. Accepting a proposal creates a draft fact;
+approve it separately in **Canon & Lore**. This screen coordinates fiction
+drafts and review; it does not call an external writing model or publish text.
+
 Use **Story Drafts** or **Mission Drafts** to create records from approved
 sources. Existing Story, Location, Faction, NPC, and Mission editors show their
 **Based on** links. A review warning appears if a source is no longer approved

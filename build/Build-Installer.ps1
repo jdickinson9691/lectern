@@ -18,4 +18,4 @@ if (-not $compiler) {
 if (-not $compiler) { throw 'Inno Setup 6 compiler (ISCC.exe) was not found.' }
 & $compiler .\installer\CampaignManager.iss
 if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
-Write-Host 'Installer ready: .\release\Lectern_v3_0_4_Ashen_Company_Setup.exe' -ForegroundColor Green
+Write-Host 'Installer ready: .\release\Lectern_v3_0_5_Ashen_Company_Setup.exe' -ForegroundColor Green
