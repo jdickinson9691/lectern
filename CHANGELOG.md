@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.0.8 — Ashen Class Access
+
+- Updated printable class guidance after the GM ruled that Cleric, Paladin,
+  Wizard, and Warlock are unavailable to new Ashen Company characters.
+- Added a review draft for the world's creation, elder makers, dragon war,
+  divine departure, and the loss of four class traditions. It is not canon
+  or included in player exports pending GM review.
+
 ## 3.0.7 — Printable Campaign Guides
 
 - Added a Documentation Agent and two column Word exports for GM and player

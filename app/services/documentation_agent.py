@@ -13,9 +13,10 @@ CLASS_ACCESS = (
     ('Rogue / Thief', 'Starting'),
     ('Bard / College of Lore', 'Starting'),
     ('Sorcerer / Draconic Sorcery', 'Starting'),
-    ('Wizard', 'Restricted'),
-    ('Warlock', 'Restricted'),
-    ('Paladin', 'Restricted'),
+    ('Cleric', 'Unavailable to new characters'),
+    ('Wizard', 'Unavailable to new characters'),
+    ('Warlock', 'Unavailable to new characters'),
+    ('Paladin', 'Unavailable to new characters'),
     ('Ranger', 'Locked'),
 )
 
@@ -110,9 +111,10 @@ class DocumentationAgent:
                           'records the selected characters in Lectern.')
         for option, access in CLASS_ACCESS:
             doc.add_paragraph(f'{option}: {access}')
-        doc.add_paragraph('These are working campaign access rules pending GM confirmation at '
-                          'session zero. Restricted options need story permission or a GM exception; '
-                          'locked options need an in-game unlock. Other options require GM review.')
+        doc.add_paragraph('The GM has closed Cleric, Paladin, Wizard, and Warlock to new '
+                          'characters following the Sundering. Locked options need an '
+                          'in-game unlock. Other options require GM review. Lectern does '
+                          'not yet enforce these choices during character entry or import.')
         heading('Skills and Field Roles')
         doc.add_paragraph('Build characters with the official fifth edition rules. The Company '
                           'values scouting, negotiation, investigation, medicine, survival, and '

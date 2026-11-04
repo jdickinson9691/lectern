@@ -46,6 +46,7 @@ def test_print_books_are_two_column_and_player_safe(tmp_path):
     assert 'PUBLIC BRIEFING' in player_xml and 'PRIVATE MISSION LORE' not in player_xml
     assert 'PRIVATE LOOT' not in player_xml and 'PRIVATE LOOT' in gm_xml
     assert 'Mission System' in player_xml and 'Running the Campaign' in gm_xml
+    assert 'Cleric: Unavailable to new characters' in player_xml
 
 
 def test_documentation_agent_rejects_unknown_audience(tmp_path):
