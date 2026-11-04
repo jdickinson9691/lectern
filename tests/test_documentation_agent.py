@@ -58,3 +58,29 @@ def test_documentation_agent_rejects_unknown_audience(tmp_path):
     else:
         assert False, 'Unknown audience must be rejected'
     assert not (tmp_path / 'unsafe.docx').exists()
+
+
+def test_world_lore_precedes_recent_company_story_in_both_books(tmp_path):
+    db = tmp_path / 'campaign.db'
+    initialize_database(db)
+    repo = CampaignRepository(db)
+    repo.create_entity('CAM-ASHEN-0001', 'CAM', 'Ashen Company')
+    repo.create_entity('DOC-COMP-0001', 'DOC', 'After Redwater', visibility='player')
+    repo.create_entity('DOC-COMP-0002', 'DOC', 'The Sundering: Public History', visibility='player')
+    repo.set_knowledge('DOC-COMP-0001', 'player', 'story', 'RECENT COMPANY STORY')
+    repo.approve_player_knowledge('DOC-COMP-0001', 'story')
+    repo.approve_entity('DOC-COMP-0001')
+    for key, content in [('sundering', 'WORLD CATASTROPHE'),
+                         ('first_making', 'WORLD CREATION'),
+                         ('family_empty_place', 'FAMILY MEMORY')]:
+        repo.set_knowledge('DOC-COMP-0002', 'player', key, content)
+        repo.approve_player_knowledge('DOC-COMP-0002', key)
+    repo.approve_entity('DOC-COMP-0002')
+    agent = DocumentationAgent(db)
+    for audience in ('player', 'gm'):
+        output = tmp_path / f'{audience}.docx'
+        agent.export(audience, output)
+        xml = _xml(output)
+        assert xml.index('WORLD CREATION') < xml.index('WORLD CATASTROPHE')
+        assert xml.index('WORLD CATASTROPHE') < xml.index('FAMILY MEMORY')
+        assert xml.index('FAMILY MEMORY') < xml.index('RECENT COMPANY STORY')

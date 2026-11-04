@@ -25,6 +25,21 @@ KIND_TITLES = {
     'FAC': 'Factions', 'NPC': 'Company NPCs', 'MIS': 'Missions',
 }
 
+WORLD_LORE_ORDER = (
+    'first_making', 'draconic_origins', 'elder_makers', 'story',
+    'sundering', 'departure_of_the_gods', 'lost_traditions',
+    'class_access', 'family_masons_mark', 'family_empty_place',
+    'family_divided_hymn', 'greyhaven_buried_steps',
+    'redwater_backward_river', 'ridge_cairns',
+)
+
+
+def _lore_key(key: str) -> tuple[int, str]:
+    try:
+        return WORLD_LORE_ORDER.index(key), key
+    except ValueError:
+        return len(WORLD_LORE_ORDER), key
+
 
 class DocumentationAgent:
     """Own the printable GM and player projections; never approve source facts."""
@@ -184,14 +199,30 @@ class DocumentationAgent:
             if not group:
                 continue
             heading(title)
+            if kind == 'DOC':
+                group.sort(key=lambda item: (0 if item['name'] == 'The Sundering: Public History' else 1,
+                                             item['name']))
             for item in group:
-                doc.add_paragraph(item['name'], style='Heading 2')
+                display_name = ('The History of the World'
+                                if kind == 'DOC' and item['name'] == 'The Sundering: Public History'
+                                else item['name'])
+                doc.add_paragraph(display_name, style='Heading 2')
                 if audience == 'player':
-                    for key, value in sorted(item['knowledge'].items()):
-                        doc.add_paragraph(f'{key.replace("_", " ").title()}: {value}')
+                    facts = item['knowledge'].items()
+                    if kind == 'DOC' and item['name'] == 'The Sundering: Public History':
+                        facts = sorted(facts, key=lambda fact: _lore_key(fact[0]))
+                    else:
+                        facts = sorted(facts)
+                    for key, value in facts:
+                        label = 'Age and Surviving Ruins' if key == 'story' and kind == 'DOC' and item['name'] == 'The Sundering: Public History' else key.replace('_', ' ').title()
+                        doc.add_paragraph(f'{label}: {value}')
                 else:
-                    for fact in item['facts']:
-                        doc.add_paragraph(f"{fact['field_key'].replace('_', ' ').title()} "
+                    facts = item['facts']
+                    if kind == 'DOC' and item['name'] == 'The Sundering: Public History':
+                        facts = sorted(facts, key=lambda fact: _lore_key(fact['field_key']))
+                    for fact in facts:
+                        label = 'Age and Surviving Ruins' if fact['field_key'] == 'story' and kind == 'DOC' and item['name'] == 'The Sundering: Public History' else fact['field_key'].replace('_', ' ').title()
+                        doc.add_paragraph(f"{label} "
                                           f"({fact['audience']}): {fact['content']}")
                     plan = item.get('plan')
                     if plan:
