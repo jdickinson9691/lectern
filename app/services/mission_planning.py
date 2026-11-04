@@ -49,6 +49,10 @@ class MissionPlanningService:
                 p.name,p.level FROM mission_participants mp
                 JOIN players p ON p.id=mp.player_id WHERE mp.mission_id=?
                 ORDER BY p.name,p.id""", (mission_id,))]
+            approved_fiction = [dict(row) for row in conn.execute("""SELECT audience,
+                field_key,content FROM entity_knowledge WHERE entity_id=?
+                AND field_key IN ('background','details') AND status='approved'
+                ORDER BY audience,field_key""", (mission_id,))]
             return {
                 'mission_id': mission_id,
                 'max_total_levels': plan['max_total_levels'] if plan else None,
@@ -58,6 +62,7 @@ class MissionPlanningService:
                 'monsters': monsters,
                 'hooks': hooks,
                 'participants': participants,
+                'approved_fiction': approved_fiction,
                 'selected_level_total': sum(max(0, row['level'] or 0)
                                             for row in participants),
                 'catalog_xp_total': sum(max(0, row['xp'] or 0) * row['quantity']

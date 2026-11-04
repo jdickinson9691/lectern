@@ -208,8 +208,14 @@ def test_v13_migration_failure_rolls_back_new_tables(tmp_path):
 def test_mission_screen_saves_roster_lore_loot_and_hook(tmp_path):
     app = QApplication.instance() or QApplication([])
     db, agent, first, second, monster_id = _mission_database(tmp_path)
+    with connect(db) as conn:
+        conn.execute("""INSERT INTO entity_knowledge
+            (entity_id,audience,field_key,content,status)
+            VALUES(?,'gm','background','Approved Redwater history','approved')""",
+            (first,))
     page = MissionPage(db)
     assert page.current_id == first
+    assert 'Approved Redwater history' in page.approved_fiction.toPlainText()
     page.level_budget.setValue(12)
     page.difficulty.setCurrentIndex(page.difficulty.findData('normal'))
     page.lore.setPlainText('Redwater retreat')
