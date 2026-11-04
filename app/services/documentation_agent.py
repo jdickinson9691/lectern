@@ -6,6 +6,7 @@ from pathlib import Path
 from ..database.campaign_identity import CAMPAIGN_ID
 from ..database.schema import connect
 from .player_export import PlayerExportService
+from .mission_experience import LEVEL_XP
 
 
 CLASS_ACCESS = (
@@ -21,7 +22,8 @@ CLASS_ACCESS = (
 )
 
 KIND_TITLES = {
-    'CAM': 'World and Company Lore', 'DOC': 'World Lore and Stories', 'LOC': 'Locations',
+    'CAM': 'World and Company Lore', 'DOC': 'World Lore and Stories',
+    'RULE': 'Campaign Rules', 'LOC': 'Locations',
     'FAC': 'Factions', 'NPC': 'Company NPCs', 'MIS': 'Missions',
 }
 
@@ -76,6 +78,10 @@ class DocumentationAgent:
                             e.name AS future_mission FROM mission_hooks h LEFT JOIN
                             campaign_entities e ON e.entity_id=h.future_mission_id
                             WHERE h.mission_id=? ORDER BY h.id""", (row['entity_id'],))]
+                    item['xp_awards'] = [dict(a) for a in conn.execute("""SELECT p.name,a.xp,
+                        a.total_award,a.reason FROM mission_xp_awards a
+                        JOIN players p ON p.id=a.player_id WHERE a.mission_id=?
+                        ORDER BY a.player_id""", (row['entity_id'],))]
                 result.append(item)
             return result
 
@@ -148,6 +154,25 @@ class DocumentationAgent:
                           'cap, choose equipment, and record supplies. Afterward, record what was '
                           'learned, spent, recovered, and changed in the world. Mission rewards '
                           'and consequences are confirmed by the GM.')
+        doc.add_paragraph('Ashen Company uses experience points, not milestone advancement. '
+                          'The GM awards XP for challenges overcome and objectives completed. '
+                          'The participating characters share each mission’s actual XP total '
+                          'as evenly as whole points allow. A mission does not grant a level '
+                          'simply because it was completed.')
+        doc.add_paragraph('When cumulative XP reaches a level threshold, update the character '
+                          'sheet with that level’s choices and hit points before the next mission. '
+                          'An imported higher-level character starts with the minimum XP for '
+                          'their recorded level unless the GM records a different history.')
+        doc.add_paragraph('2024 Character Advancement XP Thresholds', style='Heading 2')
+        threshold_table = doc.add_table(rows=1, cols=4)
+        threshold_table.style = 'Light Shading Accent 1'
+        for cell, label in zip(threshold_table.rows[0].cells, ('Level', 'Total XP', 'Level', 'Total XP')):
+            cell.text = label
+        for offset in range(10):
+            cells = threshold_table.add_row().cells
+            for cell, value in zip(cells, (str(offset + 1), f'{LEVEL_XP[offset]:,}',
+                                           str(offset + 11), f'{LEVEL_XP[offset + 10]:,}')):
+                cell.text = value
         if audience == 'gm':
             heading('Running the Campaign')
             doc.add_paragraph('In Lectern, select or create a campaign, then develop Canon and Lore, '
@@ -157,6 +182,12 @@ class DocumentationAgent:
             doc.add_paragraph('Mission Plan stores private lore, loot, monster quantities and CRs, '
                               'future lore hooks, and the chosen characters. Changing a public cap, '
                               'difficulty, or monster roster returns an approved mission to draft.')
+            doc.add_paragraph('After play, use Award Mission XP on the approved mission. Review '
+                              'the catalog monster XP against threats actually defeated or '
+                              'neutralized, add XP for completed objectives and other challenges, '
+                              'then enter the actual total and a reason. Lectern divides it among '
+                              'the selected characters and blocks a second award for the same '
+                              'mission. It does not award XP automatically from the planned roster.')
             doc.add_paragraph('For each operation, review the approved fiction background, set the '
                               'level cap and difficulty, list catalog monsters and quantities, '
                               'write private clues and loot, and link future hooks. Check the '
@@ -238,6 +269,9 @@ class DocumentationAgent:
                         for hook in item.get('hooks', []):
                             target = hook['future_mission'] or 'Unlinked future mission'
                             doc.add_paragraph(f"Future hook ({target}): {hook['lore_hook']}")
+                    for award in item.get('xp_awards', []):
+                        doc.add_paragraph(f"XP awarded: {award['name']} +{award['xp']} "
+                                          f"of {award['total_award']} total; {award['reason']}")
         footer = section.footer.paragraphs[0]
         footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
         footer.text = 'Ashen Company • ' + ('GM' if audience == 'gm' else 'Players')

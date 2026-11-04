@@ -2,9 +2,9 @@
 
 **Lüdinn Entertainment Campaign Tracker for Encounters, Rules & Navigation**
 
-**Version:** 3.0.8 — Ashen Class Access
-**Milestone:** 3.0.8
-**Database schema:** v13 (structured mission planning over the existing v12 campaign layer)
+**Version:** 3.0.9 — Ashen Mission Experience
+**Milestone:** 3.0.9
+**Database schema:** v14 (mission XP ledger over the existing v13 planning layer)
 
 Lectern is a single evolving Python/PySide6 Windows desktop codebase for D&D 5E campaign planning, combat tracking, and campaign analysis. This package is a clean, Git-ready source baseline.
 
@@ -62,7 +62,7 @@ This source is maintained at [jdickinson9691/lectern](https://github.com/jdickin
 
 Use **Start Ashen Company.cmd** for the isolated Ashen database. It enables the campaign canon, draft/review, player export, and Fantasy Grounds Story module workflow without changing ordinary Lectern campaign data. See [Ashen Company on Lectern 3.0](docs/ASHEN_3_0_INTEGRATION.md), the [player guide](docs/campaign/Ashen_Company_Player_Guide.docx), and [class access plan](docs/campaign/CLASS_ACCESS.md). Private GM materials and the live campaign database are kept outside this public repository.
 
-The 3.0.8 Windows installer adds an **Ashen Company** Start menu shortcut and an optional desktop shortcut. It can install the currently approved player Story module into the Fantasy Grounds `modules` folder alongside Lectern Sync in `extensions`. The bundled module is a release snapshot; use **Review & Publish** in Lectern to publish later approvals and generate fresh printable GM and player Word guides. The installer does not include the live campaign database. The current D: executable and installer are built with the project's Python 3.13 environment. The Campaign Dashboard opens the isolated Ashen workspace or a content window for the selected campaign. Campaign roots use permanent IDs; authoring, review, and player export stay scoped to that root.
+The 3.0.9 Windows installer adds an **Ashen Company** Start menu shortcut and an optional desktop shortcut. It can install the currently approved player Story module into the Fantasy Grounds `modules` folder alongside Lectern Sync in `extensions`. The bundled module is a release snapshot; use **Review & Publish** in Lectern to publish later approvals and generate fresh printable GM and player Word guides. The installer does not include the live campaign database. The current D: executable and installer are built with the project's Python 3.13 environment. The Campaign Dashboard opens the isolated Ashen workspace or a content window for the selected campaign. Campaign roots use permanent IDs; authoring, review, and player export stay scoped to that root.
 
 ## Product and Agent Documentation
 

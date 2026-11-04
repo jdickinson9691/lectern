@@ -116,6 +116,12 @@ class MissionPlanningService:
                                  f'mission cap is {max_total_levels}')
             old = conn.execute('SELECT max_total_levels,difficulty FROM mission_plans WHERE mission_id=?',
                                (mission_id,)).fetchone()
+            if conn.execute('SELECT 1 FROM mission_xp_awards WHERE mission_id=? LIMIT 1',
+                            (mission_id,)).fetchone():
+                awarded_roster = {row['player_id'] for row in conn.execute(
+                    'SELECT player_id FROM mission_xp_awards WHERE mission_id=?', (mission_id,))}
+                if set(selected) != awarded_roster or (old and old['max_total_levels'] != max_total_levels):
+                    raise ValueError('XP has been awarded; the mission roster and level cap are locked')
             old_roster = [(row['monster_id'], row['quantity']) for row in conn.execute(
                 'SELECT monster_id,quantity FROM mission_monsters WHERE mission_id=? ORDER BY monster_id',
                 (mission_id,))]

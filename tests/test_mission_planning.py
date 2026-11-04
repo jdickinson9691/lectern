@@ -178,7 +178,7 @@ def test_v13_upgrade_preserves_existing_mission_and_creates_empty_plan_schema(tm
             AND field_key='briefing'""", (first,)).fetchone()[0]
     initialize_database(db)
     with connect(db) as conn:
-        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == '13'
+        assert conn.execute("SELECT value FROM metadata WHERE key='schema_version'").fetchone()[0] == '14'
         assert conn.execute('SELECT COUNT(*) FROM mission_plans').fetchone()[0] == 0
         assert conn.execute("""SELECT content FROM entity_knowledge WHERE entity_id=?
             AND field_key='briefing'""", (first,)).fetchone()[0] == briefing

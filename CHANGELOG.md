@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.0.9 — Ashen Mission Experience
+
+- Added cumulative XP advancement for Ashen Company. Missions receive a
+  GM-entered XP award divided equally among participating characters.
+- Added an auditable mission XP ledger, 2024 level thresholds, and a character
+  editor status showing earned level without changing level-up choices.
+- Upgraded databases additively to schema v14. Existing players and missions
+  are preserved; planned monster XP remains a reference, not an automatic award.
+- Updated the printable GM and player guides with the XP procedure and level table.
+
 ## 3.0.8 — Ashen Class Access
 
 - Updated printable class guidance after the GM ruled that Cleric, Paladin,

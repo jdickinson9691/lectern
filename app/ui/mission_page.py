@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 
 from ..services.story_mission_agent import StoryMissionAgent
 from ..services.mission_planning import DIFFICULTIES
+from ..services.mission_experience import MissionExperienceService
 from ..services.player_export import PlayerExportService
 from ..services.fantasy_grounds_export import FantasyGroundsModuleExporter
 from .story_page import ExportPreviewDialog, export_fantasy_grounds_with_preview
@@ -21,6 +22,7 @@ class MissionPage(QWidget):
     def __init__(self, db_path: Path):
         super().__init__()
         self.missions = StoryMissionAgent(db_path)
+        self.experience = MissionExperienceService(db_path)
         self.player_export = PlayerExportService(db_path)
         self.fg_export = FantasyGroundsModuleExporter(db_path)
         self.current_id: str | None = None
@@ -119,6 +121,20 @@ class MissionPage(QWidget):
                                   'the level sum and monster CRs do not calculate 5E encounter balance.')
         self.plan_status.setWordWrap(True)
         plan_layout.addWidget(self.plan_status)
+        xp_form = QFormLayout()
+        self.xp_total = QSpinBox()
+        self.xp_total.setRange(1, 2000000)
+        self.xp_reason = QLineEdit()
+        self.xp_reason.setPlaceholderText('Challenges overcome and objectives completed')
+        xp_form.addRow('Mission XP to award', self.xp_total)
+        xp_form.addRow('Award reason', self.xp_reason)
+        plan_layout.addLayout(xp_form)
+        self.xp_status = QLabel('Award XP after play to the selected characters. Each mission can be awarded once.')
+        self.xp_status.setWordWrap(True)
+        plan_layout.addWidget(self.xp_status)
+        self.award_xp_button = QPushButton('Award Mission XP')
+        self.award_xp_button.clicked.connect(self.award_xp)
+        plan_layout.addWidget(self.award_xp_button)
         tabs.addTab(plan_tab, 'Mission Plan (GM)')
         layout.addWidget(tabs, 1)
         self.based_on = QLabel()
@@ -173,6 +189,8 @@ class MissionPage(QWidget):
             self.hooks.clear()
             self.participants.clear()
             self.selected_levels.clear()
+            self.xp_status.setText('Select a mission to award XP after play.')
+            self.award_xp_button.setEnabled(False)
             self.level_budget.setValue(0)
             self.difficulty.setCurrentIndex(0)
             self.status.setText('No Missions yet. Create one in Mission Drafts.')
@@ -220,6 +238,16 @@ class MissionPage(QWidget):
             + (' Selected characters now exceed the cap; revise the roster.'
                if plan['max_total_levels'] and
                plan['selected_level_total'] > plan['max_total_levels'] else ''))
+        awards = self.experience.mission_awards(self.current_id)
+        if awards:
+            self.xp_status.setText('XP awarded: ' + ', '.join(
+                f"{row['name']} +{row['xp']} XP (total {self.experience.character(row['player_id'])['total_xp']})"
+                for row in awards))
+        else:
+            self.xp_status.setText('Catalog monster XP is a planning reference. Enter the actual '
+                                   'XP earned after play, then award it equally to selected characters.')
+        self.award_xp_button.setEnabled(not awards and mission['status'] == 'approved'
+                                        and bool(plan['participants']))
         self.status.setText(f"{self.current_id}: {mission['status']}; "
                             f"player briefing: {mission['briefing_status'] or 'missing'}.")
         self.based_on.setText(format_dependencies(self.missions.db_path, self.current_id))
@@ -304,6 +332,16 @@ class MissionPage(QWidget):
             self.status.setText(f'Saved {self.current_id}. Review and approve before player export.')
         except Exception as exc:
             QMessageBox.critical(self, 'Mission Save Failed', str(exc))
+
+    def award_xp(self):
+        try:
+            awards = self.experience.award(self.current_id, self.xp_total.value(),
+                                           self.xp_reason.text())
+            self.refresh()
+            self.status.setText(f'Awarded {sum(row["xp"] for row in awards)} XP across '
+                                f'{len(awards)} characters. Update eligible levels in Players.')
+        except Exception as exc:
+            QMessageBox.critical(self, 'Mission XP Award Failed', str(exc))
 
     def approve(self):
         try:

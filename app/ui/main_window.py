@@ -34,6 +34,7 @@ from ..importers.csv_transfer import CsvTransferService, CSV_TABLES
 from ..importers.character_pdf import CharacterPdfImporter
 from ..services.data_workflow import DataWorkflowService
 from ..services.manual_campaign_setup import ManualCampaignSetupService
+from ..services.mission_experience import MissionExperienceService
 from ..services.portraits import is_managed_portrait, store_portrait
 from ..services.combat_narrative import CombatNarrativeBuilder, parse_combat_event
 from ..integrations.fantasy_grounds import FantasyGroundsSyncError, FantasyGroundsSyncService
@@ -248,6 +249,8 @@ class PlayerEditorWidget(QWidget):
         self.subclass = QComboBox(); self.subclass.setEditable(True)
         self.background = QComboBox(); self.background.setEditable(True)
         self.level = QSpinBox(); self.level.setRange(1, 20); self.level.setValue(1); self.level.valueChanged.connect(self.update_derived_stats)
+        self.xp_status = QLabel('XP: starting level baseline; no mission awards yet')
+        self.xp_status.setWordWrap(True)
         self.portrait_path = QLineEdit(); self.portrait_path.setPlaceholderText("Optional image path")
         browse = QPushButton("Browse..."); browse.clicked.connect(self.choose_portrait)
         portrait_row = QHBoxLayout(); portrait_row.addWidget(self.portrait_path); portrait_row.addWidget(browse)
@@ -255,7 +258,8 @@ class PlayerEditorWidget(QWidget):
         for w in [self.name, self.player_name, self.species, self.class_name, self.subclass, self.background, self.portrait_path]: clamp_editor_width(w, 520)
         form.addRow("Character Name *", self.name); form.addRow("Player Name", self.player_name); form.addRow("Species", self.species)
         form.addRow("Class", self.class_name); form.addRow("Subclass", self.subclass); form.addRow("Background", self.background)
-        form.addRow("Level", self.level); form.addRow("Portrait", portrait_widget)
+        form.addRow("Level", self.level); form.addRow("Experience", self.xp_status)
+        form.addRow("Portrait", portrait_widget)
         self.tabs.addTab(tab, "General")
 
     def _build_abilities_tab(self):
@@ -458,10 +462,17 @@ class PlayerEditorWidget(QWidget):
         for key,(prof,_) in self.save_boxes.items(): prof.setChecked(key in saves)
         self.update_ability_totals(); self.init_mod.setValue(row['initiative_mod'] if row['initiative_mod'] is not None else self._mod('dex'))
         self.notes.setPlainText(row['notes'] or ''); self._feat_bonus_choices=[{}, {}, {}]; self._loading_player=False
+        progress = MissionExperienceService(self.repo.db_path).character(row['id'])
+        next_xp = progress['next_level_xp']
+        self.xp_status.setText(
+            f"{progress['total_xp']} XP; earned level {progress['earned_level']}"
+            + (f"; next level at {next_xp} XP" if next_xp is not None else '')
+            + (' — update Level and choices before play' if progress['earned_level'] > self.level.value() else ''))
 
     def clear_form(self):
         self._loading_player=True
         self.current_player_id=None; self.name.clear(); self.player_name.clear(); self.portrait_path.clear()
+        self.xp_status.setText('XP: starting level baseline; no mission awards yet')
         for combo in [self.species,self.class_name,self.subclass,self.background,self.feat_1,self.feat_2,self.feat_3,self.weapon,self.armor,self.spellcasting_ability]: combo.setCurrentText('')
         self.level.setValue(1); self.equipment.clear(); self.inventory.clear(); self.notes.clear(); self.ac.setValue(10); self.max_hp.setValue(1); self.current_hp.setValue(1)
         for coin in self.currency.values(): coin.setValue(0)

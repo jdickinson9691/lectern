@@ -246,3 +246,5 @@ def initialize_database(db_path: Path) -> None:
         migrate_campaign_workspaces_v12(conn)
         from .mission_planning_migration import migrate_mission_planning_v13
         migrate_mission_planning_v13(conn)
+        from .mission_experience_migration import migrate_mission_experience_v14
+        migrate_mission_experience_v14(conn)
