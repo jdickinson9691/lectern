@@ -21,7 +21,7 @@ CLASS_ACCESS = (
 )
 
 KIND_TITLES = {
-    'CAM': 'World and Company Lore', 'DOC': 'Stories', 'LOC': 'Locations',
+    'CAM': 'World and Company Lore', 'DOC': 'World Lore and Stories', 'LOC': 'Locations',
     'FAC': 'Factions', 'NPC': 'Company NPCs', 'MIS': 'Missions',
 }
 
@@ -72,7 +72,7 @@ class DocumentationAgent:
         from docx.enum.text import WD_ALIGN_PARAGRAPH
         from docx.oxml import OxmlElement
         from docx.oxml.ns import qn
-        from docx.shared import Inches, Pt
+        from docx.shared import Inches, Pt, RGBColor
 
         destination = Path(destination)
         material = self.player_material() if audience == 'player' else self.gm_material()
@@ -89,6 +89,11 @@ class DocumentationAgent:
             styles[name].font.name = 'Cambria'
             styles[name].font.size = Pt(size)
             styles[name].font.bold = True
+        styles['Title'].font.color.rgb = RGBColor(0, 0, 0)
+        title_props = styles['Title']._element.pPr
+        if title_props is not None:
+            for border in title_props.xpath('./w:pBdr'):
+                title_props.remove(border)
         doc.add_paragraph('Ashen Company Game Master Guide' if audience == 'gm'
                           else 'Ashen Company Player Guide', style='Title')
         doc.add_paragraph('Printable campaign reference from reviewed Lectern content. '
@@ -177,10 +182,6 @@ class DocumentationAgent:
         for kind, title in KIND_TITLES.items():
             group = [item for item in material if item['kind'] == kind]
             if not group:
-                if audience == 'player' and kind == 'CAM':
-                    heading(title)
-                    doc.add_paragraph('No world or Company history has been approved for '
-                                      'player publication in Lectern yet.')
                 continue
             heading(title)
             for item in group:
