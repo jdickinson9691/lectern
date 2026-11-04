@@ -34,6 +34,13 @@ class PlayerExportService:
                 ORDER BY entity_id,field_key"""):
                 if row['entity_id'] in entities:
                     entities[row['entity_id']]['knowledge'][row['field_key']] = row['content']
+            for row in conn.execute("""SELECT mission_id,max_total_levels,difficulty
+                FROM mission_plans WHERE max_total_levels IS NOT NULL
+                AND difficulty IS NOT NULL ORDER BY mission_id"""):
+                mission = entities.get(row['mission_id'])
+                if mission and mission['kind'] == 'MIS':
+                    mission['knowledge']['max_total_levels'] = str(row['max_total_levels'])
+                    mission['knowledge']['difficulty'] = row['difficulty']
             relationships = [
                 {'source_id': row['source_id'], 'target_id': row['target_id'], 'relation': row['relation']}
                 for row in conn.execute("""SELECT source_id,target_id,relation FROM entity_relationships

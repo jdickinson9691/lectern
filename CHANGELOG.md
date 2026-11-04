@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.0.6 — Mission Planning
+
+- Added a combined character-level cap and optional mission roster. Lectern
+  rejects a selected roster whose levels exceed the cap; players choose which
+  characters take part.
+- Added GM-selected Easy, Normal, Difficult, Risky, and Deadly mission labels,
+  catalog-linked monster quantities and CRs, private lore and loot, and future
+  lore hooks that can link to another mission.
+- New mission approvals require the cap, difficulty, lore, and a loot entry.
+  Changes to the cap, difficulty, or monster roster return approved missions to
+  draft. Approved player exports include only the cap and difficulty; private
+  planning content remains in Lectern. Schema v13 preserves older missions.
+
 ## 3.0.5 — Fiction Agent
 
 - Added a GM Fiction Agent workspace for sourced canon and lore, NPC backgrounds,

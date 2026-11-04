@@ -582,6 +582,18 @@ or changed after the dependent record was drafted. Review and update that
 record yourself; Lectern does not silently rewrite approved text. Public
 changes return that record to draft while private GM notes stay private.
 
+In **Missions**, open **Mission Plan (GM)**. Set the maximum combined levels
+allowed for the mission; players may choose any character mix within that cap.
+Check the chosen characters to validate their level total. Select one of Easy,
+Normal, Difficult, Risky, or Deadly as the GM's overall mission assessment.
+Add each monster from the Lectern catalog with a quantity; its CR is displayed.
+Write the private mission lore and loot (enter "None" for no loot), and add
+future lore hooks with an optional link to a later mission. Save the plan, then
+approve the Mission from **Briefing & Approval**. The player export includes the
+briefing, level cap, and difficulty; monsters, lore, loot, and future hooks stay
+GM-only. Changing the cap, difficulty, or monster roster requires reapproval.
+Difficulty is an editorial rating, not an automated 5E encounter calculation.
+
 Use **Review & Publish** to check visibility, approve player text, preview the
 approved release, and export player JSON or a Fantasy Grounds Story module.
 Only the active campaign's approved player text is included. Full CSV exports

@@ -80,10 +80,16 @@ class StoryMissionAgentTests(unittest.TestCase):
     def test_mission_approval_edit_and_revocation_gate_player_export(self):
         mission = self.agent.draft_mission('Reach Greyhaven', 'Find the coastal refuge.',
             'GM ONLY: patrol', source_entity_ids=['LOC-COMP-0001'])
+        self.agent.planning.save(mission, max_total_levels=12, difficulty='normal',
+                                 lore='The road from Greyhaven matters.', loot='None',
+                                 monsters=[], hooks=[])
         self.agent.approve_mission(mission)
         exported = next(row for row in PlayerExportService(self.db).snapshot()['entities']
                         if row['id'] == mission)
-        self.assertEqual(exported['knowledge'], {'briefing': 'Find the coastal refuge.'})
+        self.assertEqual(exported['knowledge'], {
+            'briefing': 'Find the coastal refuge.',
+            'max_total_levels': '12', 'difficulty': 'normal',
+        })
         self.assertNotIn('GM ONLY', str(exported))
         module = Path(self.temp.name) / 'approved.mod'
         FantasyGroundsModuleExporter(self.db).export_mod(module)
@@ -106,6 +112,8 @@ class StoryMissionAgentTests(unittest.TestCase):
     def test_empty_briefing_cannot_be_approved_and_wrong_kind_rejected(self):
         mission = self.agent.draft_mission('Reach Greyhaven', 'Find the refuge.',
             source_entity_ids=['LOC-COMP-0001'])
+        self.agent.planning.save(mission, max_total_levels=12, difficulty='normal',
+                                 lore='The road matters.', loot='None', monsters=[], hooks=[])
         self.agent.save_mission(mission, 'Reach Greyhaven', '')
         with self.assertRaisesRegex(ValueError, 'briefing is required'):
             self.agent.approve_mission(mission)
@@ -162,6 +170,10 @@ class StoryMissionPageTests(unittest.TestCase):
         page = MissionPage(self.db)
         self.assertEqual(page.current_id, mission)
         self.assertEqual(page.player_briefing.toPlainText(), 'Find the refuge.')
+        page.level_budget.setValue(12)
+        page.difficulty.setCurrentIndex(page.difficulty.findData('normal'))
+        page.lore.setPlainText('The road matters.')
+        page.loot.setPlainText('None')
         with patch('app.ui.mission_page.QMessageBox.critical', side_effect=AssertionError):
             page.approve()
         self.assertIn('Approved', page.status.text())

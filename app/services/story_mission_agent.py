@@ -7,6 +7,7 @@ from ..database.campaign_identity import CAMPAIGN_ID
 from ..database.schema import connect
 from .campaign_canon import CampaignCanonAgent
 from .story_editor import StoryService
+from .mission_planning import MissionPlanningService
 
 
 class StoryMissionAgent:
@@ -16,6 +17,7 @@ class StoryMissionAgent:
         self.db_path = Path(db_path)
         self.stories = StoryService(db_path)
         self.canon = CampaignCanonAgent(db_path)
+        self.planning = MissionPlanningService(db_path)
 
     def approved_context(self, entity_ids: list[str]) -> list[dict]:
         """Return only approved player-facing facts suitable for a player draft."""
@@ -91,6 +93,7 @@ class StoryMissionAgent:
             conn.execute("""INSERT INTO campaign_entities
                 (entity_id,kind,name,campaign_id,visibility,status)
                 VALUES(?,'MIS',?,?,'player','draft')""", (entity_id, title, CAMPAIGN_ID))
+            conn.execute('INSERT INTO mission_plans(mission_id) VALUES(?)', (entity_id,))
             conn.execute("""INSERT INTO entity_knowledge(entity_id,audience,field_key,content)
                 VALUES(?,'player','briefing',?)""", (entity_id, player_briefing))
             if gm_notes:
@@ -184,6 +187,7 @@ class StoryMissionAgent:
                 self._audit(conn, entity_id, 'mission_gm_notes', actor, 'GM notes changed')
 
     def approve_mission(self, entity_id: str, *, actor: str = 'gm') -> None:
+        self.planning.validate_for_approval(entity_id)
         with connect(self.db_path) as conn:
             conn.execute('BEGIN IMMEDIATE')
             row = conn.execute("""SELECT e.status,e.visibility,b.content,b.status AS briefing_status
