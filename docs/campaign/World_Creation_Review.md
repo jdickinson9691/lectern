@@ -67,7 +67,7 @@ Bards still work magic through living performance and shared memory. Sorcerers d
 
 ## Canon and Rules Decisions Before Approval
 
-1. **Class access decided:** Cleric, Paladin, Wizard, and Warlock are unavailable to new player characters. The earlier restricted labels for three of them must be retired in campaign guidance. Lectern does not yet enforce class access during character entry or import.
+1. **Class access approved:** Cleric, Paladin, Wizard, and Warlock are unavailable to new player characters. The earlier restricted labels have been retired in campaign guidance, and this decision is an approved Lectern canon fact. Lectern does not yet enforce class access during character entry or import. The proposed myth explaining the loss of those traditions remains unapproved.
 2. **The dragon gods' fate:** Decide whether their absence remains a permanent mystery or has a private GM answer.
 3. **The Sundering's age:** Set a rough era only when it matters for surviving ruins, family histories, and The Lost Banner.
 4. **Publication:** Split approved player history from any GM-only truth before adding it to Lectern. The current campaign root is GM-visible, so a public lore record or a deliberate visibility change is needed before this material can appear in the printable player guide.
