@@ -22,6 +22,7 @@ Every agent must begin with:
 | Characters and Parties | [`characters-parties-agent.md`](characters-parties-agent.md) | Players, PDF import, portraits, party membership |
 | Game Content Libraries | [`content-libraries-agent.md`](content-libraries-agent.md) | Monsters, equipment, magic items, spells, CSV content transfer |
 | Data, Reliability, and Release | [`data-release-agent.md`](data-release-agent.md) | Schema, workflow safety, logs, Help, tests, installer |
+| Campaign Documentation | [`documentation-agent.md`](documentation-agent.md) | Printable GM and player books, approved content projection, two column layout |
 
 ## Operating model
 

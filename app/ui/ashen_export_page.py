@@ -12,6 +12,7 @@ from ..database.campaign_repository import CampaignRepository
 from ..database.campaign_identity import CAMPAIGN_ID
 from ..services.fantasy_grounds_export import FantasyGroundsModuleExporter
 from ..services.player_export import PlayerExportService
+from ..services.documentation_agent import DocumentationAgent
 from ..services.story_editor import StoryService
 from .story_page import export_fantasy_grounds_with_preview
 
@@ -23,6 +24,7 @@ class AshenPlayerExportPage(QWidget):
         self.story_service = StoryService(db_path)
         self.player_export = PlayerExportService(db_path)
         self.fg_export = FantasyGroundsModuleExporter(db_path)
+        self.documentation = DocumentationAgent(db_path)
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel('<h2>Ashen Company Player Export</h2>'))
         note = QLabel('Only approved, player-visible campaign records are published. Full CSV exports contain GM data.')
@@ -42,6 +44,13 @@ class AshenPlayerExportPage(QWidget):
         ]:
             button = QPushButton(caption)
             button.clicked.connect(action)
+            row.addWidget(button)
+        layout.addLayout(row)
+        row = QHBoxLayout()
+        for caption, audience in [('Export Player Guide...', 'player'),
+                                  ('Export GM Guide...', 'gm')]:
+            button = QPushButton(caption)
+            button.clicked.connect(lambda checked=False, a=audience: self.export_guide(a))
             row.addWidget(button)
         layout.addLayout(row)
         row = QHBoxLayout()
@@ -119,3 +128,15 @@ class AshenPlayerExportPage(QWidget):
                 self.status.setText(f"Exported {len(snapshot['entities'])} approved Story records.")
         except Exception as exc:
             QMessageBox.critical(self, 'Fantasy Grounds Export Failed', str(exc))
+
+    def export_guide(self, audience: str):
+        default = f'ashen_company_{audience}_guide.docx'
+        name, _ = QFileDialog.getSaveFileName(self, 'Export Printable Guide', default,
+                                              'Word Documents (*.docx)')
+        if not name:
+            return
+        try:
+            path = self.documentation.export(audience, Path(name))
+            self.status.setText(f'Exported {audience.upper()} guide to {path}.')
+        except Exception as exc:
+            QMessageBox.critical(self, 'Guide Export Failed', str(exc))

@@ -1,5 +1,5 @@
 #define MyAppName "Lectern - D&D Campaign Manager"
-#define MyAppVersion "3.0.6"
+#define MyAppVersion "3.0.7"
 #define MyAppExeName "Lectern.exe"
 #define MyAppPublisher "Lüdinn Entertainment"
 #define MyAppDescription "Lüdinn Entertainment Campaign Tracker for Encounters, Rules & Navigation"
@@ -14,7 +14,7 @@ VersionInfoProductName=Lectern
 DefaultDirName={autopf}\LecternDNDCampaignManager
 DefaultGroupName={#MyAppName}
 OutputDir=..\release
-OutputBaseFilename=Lectern_v3_0_6_Ashen_Company_Setup
+OutputBaseFilename=Lectern_v3_0_7_Ashen_Company_Setup
 Compression=lzma
 SolidCompression=yes
 [Files]

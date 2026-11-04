@@ -596,6 +596,10 @@ Difficulty is an editorial rating, not an automated 5E encounter calculation.
 
 Use **Review & Publish** to check visibility, approve player text, preview the
 approved release, and export player JSON or a Fantasy Grounds Story module.
+Use **Export Player Guide** and **Export GM Guide** there to create two column
+Word books for in-person play. The player book reads only the approved player
+release; the GM book includes approved private lore and mission plans. Reprint
+after canon or system guidance changes.
 Only the active campaign's approved player text is included. Full CSV exports
 contain GM data and should not be shared as player handouts. The live Fantasy
 Grounds Sync extension is a separate inbound flow for characters and combat.

@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.0.7 — Printable Campaign Guides
+
+- Added a Documentation Agent and two column Word exports for GM and player
+  in-person books from the Ashen Review and Publish screen.
+- Player campaign content comes only from the approved player projection;
+  tests cover private lore, mission loot, and hidden NPCs.
+- Added current character, class, skills, mission, resource, Lectern, and
+  Fantasy Grounds guidance to the generated books.
+
 ## 3.0.6 — Mission Planning
 
 - Added a combined character-level cap and optional mission roster. Lectern

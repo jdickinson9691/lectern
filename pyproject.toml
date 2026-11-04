@@ -1,6 +1,6 @@
 [project]
 name = "lectern-dnd-campaign-manager"
-version = "3.0.6"
+version = "3.0.7"
 description = "Lectern D&D Campaign Manager"
 requires-python = ">=3.13,<3.14"
 dependencies = [
@@ -9,4 +9,5 @@ dependencies = [
   "openpyxl>=3.1",
   "reportlab>=4.0",
   "pypdf>=5.0",
+  "python-docx>=1.2",
 ]
