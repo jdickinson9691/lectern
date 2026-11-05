@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.0.10 — Ashen NPC Cleanup
+
+- Removed the obsolete generic Ashen NPC from the live campaign and its
+  published Fantasy Grounds module and player guide.
+- Replaced the Lost Banner contact clue with a Greyhaven withdrawal report.
+- Updated the optional installer module and checked that the retired NPC is
+  absent from the player module.
+
 ## 3.0.9 — Ashen Mission Experience
 
 - Added cumulative XP advancement for Ashen Company. Missions receive a

@@ -17,6 +17,7 @@ assert 'Description: "Open Ashen Company"' in installer, "Installer must offer A
 assert 'Ashen_Company_Players.mod' in installer, "Approved Ashen player module is not installed"
 assert 'DestDir: "{code:GetFantasyGroundsModulesDir}"' in installer, "Player module does not target Fantasy Grounds modules"
 assert 'Tasks: ashenmodule' in installer, "Player module installation must be selectable"
+assert 'Ashen_Company_GM_Guide.docx' in installer and '[InstallDelete]' in installer, "Obsolete bundled GM guide must be removed on upgrade"
 assert "DirExists(SelectedFolder)" in installer, "Fantasy Grounds extension folder is not validated"
 assert "c:\\users\\" not in installer.casefold(), "Installer contains a user-specific Windows path"
 assert "'icuuc.dll', 'icudt78.dll'" in spec, "Incompatible third-party ICU binaries must be excluded"
@@ -26,8 +27,9 @@ assert 'LECTERN_DATA_DIR=%LOCALAPPDATA%\\DND5ECampaignManager-AshenCompany' in l
 with zipfile.ZipFile(module) as archive:
     assert set(archive.namelist()) == {"definition.xml", "client.xml"}
     player_xml = archive.read("client.xml")
-    assert player_xml.count(b"<id-") == 7
-    for private_marker in (b"GM ONLY", b"GM KNOWLEDGE SECRET", b"SOURCE SECRET"):
+    assert player_xml.count(b"<id-") == 8
+    for private_marker in (b"GM ONLY", b"GM KNOWLEDGE SECRET", b"SOURCE SECRET",
+                           b"Ashen Company Survivor", b"NPC-COMP-0001"):
         assert private_marker not in player_xml, f"Private content leaked: {private_marker!r}"
 
 print("Windows installer configuration test passed.")

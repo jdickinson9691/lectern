@@ -1,5 +1,5 @@
 #define MyAppName "Lectern - D&D Campaign Manager"
-#define MyAppVersion "3.0.9"
+#define MyAppVersion "3.0.10"
 #define MyAppExeName "Lectern.exe"
 #define MyAppPublisher "Lüdinn Entertainment"
 #define MyAppDescription "Lüdinn Entertainment Campaign Tracker for Encounters, Rules & Navigation"
@@ -14,7 +14,7 @@ VersionInfoProductName=Lectern
 DefaultDirName={autopf}\LecternDNDCampaignManager
 DefaultGroupName={#MyAppName}
 OutputDir=..\release
-OutputBaseFilename=Lectern_v3_0_9_Ashen_Company_Setup
+OutputBaseFilename=Lectern_v3_0_10_Ashen_Company_Setup
 Compression=lzma
 SolidCompression=yes
 [Files]
@@ -22,6 +22,8 @@ Source: "..\dist\Lectern\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdi
 Source: "..\dist\Lectern\FantasyGrounds\LecternSync.ext"; DestDir: "{code:GetFantasyGroundsExtensionsDir}"; Flags: ignoreversion
 Source: "..\Start Ashen Company.cmd"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\docs\campaign\Ashen_Company_Players.mod"; DestDir: "{code:GetFantasyGroundsModulesDir}"; Flags: ignoreversion; Tasks: ashenmodule
+[InstallDelete]
+Type: files; Name: "{app}\_internal\docs\campaign\Ashen_Company_GM_Guide.docx"
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
